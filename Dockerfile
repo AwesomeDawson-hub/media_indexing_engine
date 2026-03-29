@@ -14,6 +14,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install Python dependencies first (cached layer)
 COPY pyproject.toml ./
+
+# Install CPU-only PyTorch BEFORE the main install to prevent sentence-transformers
+# from pulling in the full CUDA stack (~2 GB). The embedding model runs fine on CPU.
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
 RUN pip install --no-cache-dir -e ".[prod]"
 
 # Copy application source

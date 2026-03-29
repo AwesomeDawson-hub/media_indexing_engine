@@ -12,7 +12,7 @@ from src.models import User
 from src.auth.tokens import decode_access_token, TokenError
 
 # Dev user ID — used as fallback in dev_mode
-DEV_USER_ID = "dev-user-00000000-0000-0000-0000-000000000001"
+DEV_USER_ID = "00000000-0000-0000-0000-000000000001"
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
