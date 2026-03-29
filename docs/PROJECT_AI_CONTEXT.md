@@ -92,6 +92,7 @@ When working on this project:
 3. Never send unvalidated files to the AI vision API — validate format and size first
 4. Never create project governance docs outside `docs/` — governance stays in the launcher
 5. Never modify the launcher's framework documents without explicit operator approval
+6. Never implement a list or search endpoint without scoping it to the authenticated user's `user_id` at the **database layer** — ChromaDB filters and application-layer checks are supplementary, not a substitute (see ADR-012)
 
 ## Document Ownership Note
 

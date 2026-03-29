@@ -10,7 +10,7 @@ _Update this document at the end of every session and at every workstream transi
 |---|---|
 | **Current Phase** | Phase 3 — Polish & Production Readiness (**complete** — all 4 workstreams done) |
 | **Current Workstream** | None — Phase 3 complete |
-| **Last Completed Work** | P3-004 — Production Deployment (`GET /api/v1/health`, `S3FileStore`, Docker + docker-compose, `.env.example`, README production guide, 82/82 tests pass) |
+| **Last Completed Work** | Post-Phase-3 bug fixes (2026-03-29, commit fd5013e): nginx upload limit 50M; search user_id DB security fix; search relevance sort fix after login |
 | **Next Task** | Operator defines Phase 4 scope with the Architect role (no Phase 4 plan exists yet) |
 | **Next Step Requested** | Architect creates Phase 4 plan, or operator declares project complete |
 
@@ -94,6 +94,12 @@ When suggesting code changes:
 
 ## Recent Session Activity
 
+- **Post-Phase-3 bug fixes (2026-03-29, commit fd5013e on master):**
+  - **nginx upload limit:** `client_max_body_size` raised to 50M in `frontend/nginx.conf` (files >1MB were returning HTTP 413)
+  - **Search security fix:** `src/search/search_service.py` — `MediaItem.user_id == user_id` added to DB WHERE clauses (defense-in-depth; ChromaDB already filtered by user_id)
+  - **Search sort fix:** `frontend/src/pages/GalleryPage.tsx` — `handleSubmit` now calls `doSearch()` directly, tracks `lastSubmittedQuery` ref, resets sort to relevance when switching browse→search. Confirmed: first search after login returns relevance-ranked results.
+  - 82/82 tests still pass. All changes deployed to Docker stack and verified live.
+
 - Project initialized at `Projects/media_indexing_engine/`
 - Directory scaffolded with src/, tests/, config/, docs/, scripts/, frontend/
 - Phase 1 plan created, revised (WS-000 added, WS-004 narrowed), and approved
@@ -164,7 +170,7 @@ When suggesting code changes:
 
 ## Open Questions / Blockers
 
-- None. **P3-001, P3-002, and P3-003 are complete.** Remaining Phase 3 workstream (P3-004) is planned and awaiting operator approval.
+- None. Phase 3 is complete (all 4 workstreams P3-001–P3-004 done) and post-Phase-3 bug fixes have been applied (commit fd5013e, 2026-03-29). System is production-ready.
 
 ## Document Ownership Note
 

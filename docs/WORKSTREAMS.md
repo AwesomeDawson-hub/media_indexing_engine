@@ -37,6 +37,15 @@ _No workstreams in progress — Phase 3 complete._
 
 ---
 
+## Post-Phase 3 Bug Fixes (Applied 2026-03-29, commit fd5013e)
+
+_These production bug fixes were applied directly without a formal workstream, after Phase 3 closeout:_
+- **nginx upload limit:** `frontend/nginx.conf` — `client_max_body_size` raised from 1M (default) to 50M. Files >1MB were returning HTTP 413.
+- **Search security fix (defense-in-depth):** `src/search/search_service.py` — `MediaItem.user_id == user_id` added to DB WHERE clauses in `search_media()`. ChromaDB already filtered by `user_id`; DB now enforces it independently at the read path.
+- **Search sort after login:** `frontend/src/pages/GalleryPage.tsx` — `handleSubmit` now calls `doSearch()` directly (not relying solely on URL `useEffect`), tracks `lastSubmittedQuery` ref to prevent double-fire, resets `sort_by` to relevance when switching browse→search. First search after login now correctly returns relevance-ranked results.
+
+---
+
 ## Post-Phase 1 Improvements (Applied 2026-03-28)
 
 _These changes were applied directly without a formal workstream, after Phase 1 closeout:_
