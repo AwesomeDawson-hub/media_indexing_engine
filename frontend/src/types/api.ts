@@ -53,6 +53,7 @@ export interface MediaItemResponse {
   id: string;
   content_hash: string;
   original_filename: string;
+  display_name?: string;
   file_size: number;
   mime_type: string;
   status: string;

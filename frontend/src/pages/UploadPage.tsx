@@ -78,7 +78,7 @@ export default function UploadPage() {
               onClick={handleUpload}
               disabled={uploading}
             >
-              {uploading ? 'Uploading...' : `Upload ${queuedCount} file${queuedCount > 1 ? 's' : ''}`}
+              {uploading ? 'Processing...' : `Process ${queuedCount} file${queuedCount > 1 ? 's' : ''}`}
             </button>
           )}
           {hasCompleted && (

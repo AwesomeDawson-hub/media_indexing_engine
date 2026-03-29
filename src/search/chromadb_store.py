@@ -71,5 +71,9 @@ class ChromaDBVectorStore:
     def delete(self, media_item_id: str) -> None:
         self._collection.delete(ids=[media_item_id])
 
+    def delete_items(self, media_ids: list[str]) -> None:
+        if media_ids:
+            self._collection.delete(ids=media_ids)
+
     def count(self) -> int:
         return self._collection.count()

@@ -4,13 +4,13 @@
 
 | Field | Value |
 |---|---|
-| **Workstream** | WS-006 |
-| **Phase** | Phase 2 — Enhancements |
+| **Workstream** | WS-006 (adopted as P3-001) |
+| **Phase** | Phase 3 — Polish & Production Readiness |
 | **Project** | Media Indexing Engine |
 | **Dependencies** | Phase 1 complete, P2-001/P2-002 complete (enrichment + download) |
 | **Estimated Size** | Medium |
 | **Created** | 2026-03-28 |
-| **Status** | Draft — awaiting operator review |
+| **Status** | Completed — adopted as P3-001 and delivered 2026-03-28 |
 
 ## Objective
 

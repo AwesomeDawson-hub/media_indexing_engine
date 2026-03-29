@@ -1,13 +1,14 @@
 """Pydantic response models for the API."""
 
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 
 class MediaItemResponse(BaseModel):
     id: str
     content_hash: str
     original_filename: str
+    display_name: str | None = None
     file_size: int
     mime_type: str
     status: str
@@ -162,4 +163,25 @@ class ConvertResponse(BaseModel):
     original_filename: str
     mime_type: str
     status: str
+    message: str
+
+
+class BatchOperationRequest(BaseModel):
+    media_ids: list[str] = Field(..., min_length=1, max_length=50)
+
+    @field_validator("media_ids")
+    @classmethod
+    def no_empty_ids(cls, v: list[str]) -> list[str]:
+        if any(not item.strip() for item in v):
+            raise ValueError("media_ids must not contain empty strings")
+        return v
+
+
+class BatchReanalyzeResponse(BaseModel):
+    queued: int
+    message: str
+
+
+class BatchDeleteResponse(BaseModel):
+    deleted: int
     message: str

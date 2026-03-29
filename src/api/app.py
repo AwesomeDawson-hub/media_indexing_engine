@@ -1,5 +1,6 @@
 """FastAPI application setup, lifespan, and router registration."""
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -7,11 +8,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import settings
-from src.database import create_tables, async_session
+from src.database import create_tables, run_migrations, async_session
 from src.models import User
 from src.api.dependencies import DEV_USER_ID
-from src.api.routes import upload, media, analysis, search, auth, download
+from src.api.routes import upload, media, analysis, search, auth, download, health
 from src.api.error_handlers import register_error_handlers
+from src.analysis.processor import analyze_media_item
+from src.ingestion.job_manager import get_pending_jobs
 
 from sqlalchemy import select
 
@@ -20,8 +23,11 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Create tables and seed dev user on startup."""
-    await create_tables()
+    """Create tables (dev) or run migrations (prod), then seed dev user."""
+    if settings.app.debug:
+        await create_tables()
+    else:
+        await run_migrations()
 
     if settings.auth.dev_mode:
         logger.warning("AUTH DEV MODE IS ACTIVE — all routes accept unauthenticated requests. Do NOT use in production.")
@@ -35,6 +41,23 @@ async def lifespan(app: FastAPI):
                     display_name="Dev User",
                 ))
                 await db.commit()
+
+    if upload._vision_provider is not None:
+        async with async_session() as db:
+            pending_jobs = await get_pending_jobs(db, limit=1000, statuses=("pending", "running"))
+
+        for job in pending_jobs:
+            asyncio.create_task(
+                analyze_media_item(
+                    job.id,
+                    upload._vision_provider,
+                    upload._file_store,
+                    upload._indexing_service,
+                )
+            )
+
+        if pending_jobs:
+            logger.info("Resumed %d pending analysis job(s) on startup", len(pending_jobs))
 
     yield
 
@@ -53,6 +76,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     register_error_handlers(app)
+    app.include_router(health.router)
     app.include_router(auth.router)
     app.include_router(upload.router)
     app.include_router(media.router)

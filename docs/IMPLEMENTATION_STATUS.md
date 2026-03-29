@@ -31,6 +31,64 @@ Each completed workstream gets one entry in the log below, following this struct
 
 ## Completed Workstream Log
 
+### P3-004: Production Deployment
+- **Phase:** Phase 3 — Polish & Production Readiness
+- **Completed:** 2026-03-28
+- **Objective:** Make the Media Indexing Engine deployable to a real server. Implement S3-compatible file storage, validate PostgreSQL end-to-end, add a Docker + docker-compose stack, and add a health check endpoint.
+- **Outcome:** All five deliverables shipped. `GET /api/v1/health` returns `{"status":"ok","version":"0.1.0"}` with no auth. `S3FileStore` implemented in `src/storage/file_store.py` using boto3 in a thread executor for async compatibility; `get_file_store()` factory selects backend by `storage.provider` config (or `STORAGE_PROVIDER` env var). `StorageConfig` extended with `s3_bucket`, `s3_region`, `s3_endpoint_url`. `config.py` env var override chain extended with `DATABASE_URL`, `STORAGE_PROVIDER`, `S3_BUCKET`, `S3_REGION`. `boto3` and `asyncpg` added to `project.optional-dependencies.prod` in `pyproject.toml`. `Dockerfile` (backend) and `frontend/Dockerfile` (multi-stage: Node.js build + nginx serve) created. `frontend/nginx.conf` proxies `/api/` to backend. `docker-compose.yml` defines all four services with healthchecks and persistent volumes. `.env.example` documents all required env vars. `README.md` updated with Production Deployment guide. 12 new unit tests for `S3FileStore` and `get_file_store()` factory. **82/82 tests pass** (70 existing + 12 new). Health endpoint confirmed via live smoke test. ADR-009 (Alembic), ADR-010 (S3FileStore), ADR-011 (Docker) recorded in DECISION_LOG.md.
+- **Key decisions:** boto3 in thread executor over aioboto3 (avoids extra dependency, runs sync SDK async safely). `LocalFileStore` remains the default — no forced migration. Docker frontend is multi-stage (static files only in production). All secrets via environment variables only; `.env` in `.gitignore`. `S3_ENDPOINT_URL` field supports MinIO and other S3-compatible stores.
+- **Artifacts produced:**
+  - New: `src/api/routes/health.py` (`GET /api/v1/health`)
+  - Modified: `src/storage/file_store.py` (added `S3FileStore`, `get_file_store()` factory)
+  - Modified: `src/config.py` (added `StorageConfig.s3_*` fields; `DATABASE_URL`, `STORAGE_PROVIDER`, `S3_BUCKET`, `S3_REGION` env overrides)
+  - Modified: `src/api/app.py` (registered `health.router`)
+  - Modified: `src/api/routes/upload.py` (uses `get_file_store()` factory instead of hardcoded `LocalFileStore`)
+  - Modified: `pyproject.toml` (`[project.optional-dependencies.prod]` with `asyncpg`, `boto3`)
+  - New: `Dockerfile` (backend)
+  - New: `frontend/Dockerfile` (multi-stage: Node.js + nginx)
+  - New: `frontend/nginx.conf` (SPA + `/api/` proxy)
+  - New: `docker-compose.yml` (backend, frontend, chromadb, postgres)
+  - New: `.env.example`
+  - Modified: `README.md` (Production Deployment section)
+  - New: `tests/test_storage.py` (12 unit tests for S3FileStore and factory)
+  - Modified: `docs/DECISION_LOG.md` (ADR-009, ADR-010, ADR-011)
+  - Modified: `docs/PROJECT_MAP.md`, `docs/WORKSTREAMS.md`, `docs/CURRENT_STATE.md`, `docs/PROJECT_HANDOFF.md`
+- **Validation performed:** 82/82 backend tests pass. `GET /api/v1/health` → `{"status":"ok","version":"0.1.0"}` confirmed via live uvicorn smoke test. `docker-compose.yml` validates as correct YAML. Dockerfile syntax reviewed manually. PostgreSQL end-to-end and full Docker stack smoke test require a live Docker environment — not run locally (Docker Desktop not available in current workspace).
+- **Unresolved risks:** Docker stack requires live Docker environment for full validation. S3 integration tests use mocked boto3 only — real S3 bucket connectivity not validated. PostgreSQL + Alembic migration path was validated against SQLite in P3-002; asyncpg driver requires explicit installation (`pip install -e ".[prod]"`) and a running PostgreSQL instance to fully test.
+
+### P3-003: Bulk Operations
+- **Phase:** Phase 3 — Polish & Production Readiness
+- **Completed:** 2026-03-28
+- **Objective:** Add bulk re-analysis and bulk delete API endpoints. Add `LocalFileStore.delete()` and `ChromaDBVectorStore.delete_items()`. Integrate Re-analyze and Delete actions into the Gallery SelectionBar UI.
+- **Outcome:** Two new endpoints added to `routes/analysis.py`. `LocalFileStore.delete()` already existed (abstract method declared, implementation was present). Added `delete_items()` to `VectorStore` protocol and `ChromaDBVectorStore` using `collection.delete(ids=[...])` for batch efficiency. Added `remove_items()` to `IndexingService` for bulk vector removal. `SelectionBar.tsx` updated with "Re-analyze" and "Delete" buttons (Delete uses `window.confirm()`); `GalleryPage.tsx` passes `onDeleteSuccess` callbacks to filter deleted items from local state. 8 integration tests added; 70/70 tests pass (62 existing + 8 new).
+- **Key decisions:** Placed both batch endpoints in `routes/analysis.py` (already imports BackgroundTasks, vision provider, file store, indexing service). FK cascade: SQLAlchemy ORM relationships lack cascade=delete-orphan, so `delete_batch` uses bulk `sql_delete()` in child-first order (MediaMetadata → ProcessingJob → MediaItem) to avoid NOT NULL FK constraint violations. `DELETE /media/batch` uses raw HTTP DELETE with JSON body (not query params) — `request()` call needed in tests since `httpx.AsyncClient.delete()` doesn't forward JSON body. Vector embedding removal is best-effort (wrapped in try/except). Batch cap of 50 items consistent with download-batch (P2-002).
+- **Artifacts produced:**
+  - Modified: `src/search/vector_store.py` (added `delete_items()` to protocol)
+  - Modified: `src/search/chromadb_store.py` (implemented `delete_items()` via `collection.delete(ids=[...])`)
+  - Modified: `src/search/indexing_service.py` (added `remove_items()` bulk removal)
+  - Modified: `src/api/schemas.py` (added `BatchOperationRequest`, `BatchReanalyzeResponse`, `BatchDeleteResponse`)
+  - Modified: `src/api/routes/analysis.py` (added `POST /media/reanalyze-batch`, `DELETE /media/batch`)
+  - Modified: `frontend/src/api/client.ts` (added `reanalyzeBatch()`, `deleteBatch()`, response interfaces)
+  - Modified: `frontend/src/components/SelectionBar.tsx` (Re-analyze + Delete buttons, `onDeleteSuccess` prop)
+  - Modified: `frontend/src/pages/GalleryPage.tsx` (pass `onDeleteSuccess` handlers to SelectionBar)
+  - New: `tests/test_bulk_operations.py` (8 integration tests)
+  - Modified: `docs/PROJECT_MAP.md`, `docs/WORKSTREAMS.md`, `docs/CURRENT_STATE.md`, `docs/PROJECT_HANDOFF.md`
+- **Lessons learned:** When using `from module import name` in Python, module-level patching in tests only affects the importing module if done before import. For file store and indexing service in analysis.py, patching `analysis_mod._file_store` directly in the specific test is the cleanest approach. Use `client.request("DELETE", ...)` (not `client.delete(...)`) when an HTTP DELETE needs a JSON body — httpx's `delete()` shortcut doesn't expose the `json=` parameter cleanly. Content-hash dedup means the same image bytes uploaded twice in one test creates only one DB record; use distinct file formats (JPEG + PNG) to upload two truly distinct items.
+
+### P3-002: Database Migrations
+- **Phase:** Phase 3 — Polish & Production Readiness
+- **Completed:** 2026-03-28
+- **Objective:** Replace the drop-and-recreate schema pattern with Alembic migrations, so the schema can evolve without losing data. Integrate migration execution into production startup.
+- **Outcome:** Alembic fully integrated. `alembic upgrade head` against a fresh SQLite DB produces the complete 4-table schema and exits cleanly. Production startup (`settings.app.debug: false`) now calls `run_migrations()` instead of `create_all()`. Dev/test startup is unchanged (`create_all()` on the real/in-memory DB). 62/62 existing tests pass — tests use in-memory SQLite via `Base.metadata.create_all` and are entirely unaffected by Alembic.
+- **Key decisions:** Used `create_async_engine` + `connection.run_sync()` pattern in `alembic/env.py` for async SQLAlchemy compatibility (no sync driver needed). `run_migrations()` in `database.py` uses `loop.run_in_executor()` to avoid nested event loop error (Alembic's env.py calls `asyncio.run()` internally). Database URL priority: `DATABASE_URL` env var > `config/settings.yaml`. Dev vs prod mode determined by `settings.app.debug`. Initial migration generated from ORM models against a fresh DB, then existing DB restored.
+- **Artifacts produced:**
+  - `alembic.ini` — Alembic configuration (URL set dynamically in env.py, not hardcoded)
+  - `alembic/env.py` — async-capable env with `get_db_url()`, `run_async_migrations()`, `do_run_migrations()`
+  - `alembic/script.py.mako` — migration file template (scaffolded)
+  - `alembic/versions/cce0c99946e6_initial_schema.py` — initial migration: CREATE TABLE for users, media_items, media_metadata, processing_jobs with all constraints and indexes
+  - Modified: `pyproject.toml` (added `alembic>=1.13.0`), `src/database.py` (added `run_migrations()`), `src/api/app.py` (lifespan switches on `settings.app.debug`), `README.md` (Getting Started + migration instructions), `.gitignore` (added clarifying comment)
+- **Lessons learned:** Autogenerate against an existing database produces an empty migration. Always generate against a fresh DB for the initial migration. For existing deployments that predate Alembic, `alembic stamp head` marks the current state without re-running DDL. `asyncio.run()` in Alembic env.py requires a thread executor when called from an already-running event loop.
+
 ### P3-001: UI Polish & API Cleanup
 - **Phase:** Phase 3 — Polish & Production Readiness
 - **Completed:** 2026-03-28

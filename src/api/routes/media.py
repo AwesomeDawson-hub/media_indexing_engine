@@ -25,6 +25,45 @@ _ASPECT_RATIOS: dict[str, float] = {
 _ASPECT_TOLERANCE = 0.10
 
 
+async def _get_display_names(
+    db: AsyncSession,
+    item_ids: list[str],
+) -> dict[str, str]:
+    if not item_ids:
+        return {}
+    result = await db.execute(
+        select(MediaMetadata.media_item_id, MediaMetadata.title)
+        .where(MediaMetadata.media_item_id.in_(item_ids))
+    )
+    return {
+        media_item_id: title
+        for media_item_id, title in result.all()
+        if title
+    }
+
+
+async def _build_media_item_responses(
+    db: AsyncSession,
+    items: list[MediaItem],
+) -> list[MediaItemResponse]:
+    display_names = await _get_display_names(db, [item.id for item in items])
+    return [
+        MediaItemResponse(
+            id=item.id,
+            content_hash=item.content_hash,
+            original_filename=item.original_filename,
+            display_name=display_names.get(item.id, item.original_filename),
+            file_size=item.file_size,
+            mime_type=item.mime_type,
+            status=item.status,
+            width=item.width,
+            height=item.height,
+            created_at=item.created_at,
+        )
+        for item in items
+    ]
+
+
 def _matches_aspect_ratio(item: MediaItem, ratio: str) -> bool:
     if not item.width or not item.height:
         return False
@@ -133,7 +172,7 @@ async def list_media(
         items = items_result.scalars().all()
 
     return PaginatedResponse(
-        items=[MediaItemResponse.model_validate(item) for item in items],
+        items=await _build_media_item_responses(db, list(items)),
         total=total,
         page=page,
         per_page=per_page,
@@ -157,7 +196,8 @@ async def get_media(
     if item is None:
         raise HTTPException(status_code=404, detail="Media item not found")
 
-    return MediaItemResponse.model_validate(item)
+    response = (await _build_media_item_responses(db, [item]))[0]
+    return response
 
 
 @router.get("/media/{media_id}/file")

@@ -31,6 +31,10 @@ class VectorStore(Protocol):
         """Remove a vector entry by media item ID."""
         ...
 
+    def delete_items(self, media_ids: list[str]) -> None:
+        """Remove multiple vector entries by media item IDs."""
+        ...
+
     def count(self) -> int:
         """Return the total number of entries in the store."""
         ...

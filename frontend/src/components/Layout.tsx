@@ -1,5 +1,4 @@
 import { Link, Outlet } from 'react-router-dom';
-import SearchBar from './SearchBar';
 import UserMenu from './UserMenu';
 
 export default function Layout() {
@@ -14,7 +13,6 @@ export default function Layout() {
             <Link to="/" className="nav-link">Gallery</Link>
             <Link to="/upload" className="nav-link">Source</Link>
           </nav>
-          <SearchBar />
           <UserMenu />
         </div>
       </header>

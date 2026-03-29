@@ -44,3 +44,8 @@ class IndexingService:
         """Remove a media item from the vector store."""
         self._vector_store.delete(media_item_id)
         logger.info("Removed media item %s from index", media_item_id)
+
+    def remove_items(self, media_item_ids: list[str]) -> None:
+        """Remove multiple media items from the vector store."""
+        self._vector_store.delete_items(media_item_ids)
+        logger.info("Removed %d media items from index", len(media_item_ids))

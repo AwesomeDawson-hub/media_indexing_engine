@@ -15,11 +15,15 @@ from src.models import ProcessingJob
 logger = logging.getLogger(__name__)
 
 
-async def get_pending_jobs(db: AsyncSession, limit: int = 10) -> list[ProcessingJob]:
-    """Fetch pending jobs ordered by creation time."""
+async def get_pending_jobs(
+    db: AsyncSession,
+    limit: int = 10,
+    statuses: tuple[str, ...] = ("pending",),
+) -> list[ProcessingJob]:
+    """Fetch resumable jobs ordered by creation time."""
     result = await db.execute(
         select(ProcessingJob)
-        .where(ProcessingJob.status == "pending")
+        .where(ProcessingJob.status.in_(statuses))
         .order_by(ProcessingJob.created_at)
         .limit(limit)
     )

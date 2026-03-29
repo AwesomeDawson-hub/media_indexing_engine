@@ -27,35 +27,13 @@ This document tracks all work items for the Media Indexing Engine through their 
 
 _Phase 3 — Polish & Production Readiness. Full phase plan at `docs/planning/PHASE_3_polish_production_plan.md`. Workstreams use `P3-XXX` prefix consistent with Phase 2 convention. P3-001 implementation spec is at `docs/planning/WS-006_PLAN.md` (drafted as WS-006 prior to phase boundary; plan adopted as-is)._
 
-### P3-002: Database Migrations
-- **Objective:** Install Alembic migration framework, generate the initial migration from the current schema (users, media_items, media_metadata, processing_jobs), and integrate migration execution into startup so the drop-and-recreate pattern is retired.
-- **Phase:** Phase 3 — Polish & Production Readiness
-- **Status:** Planned
-- **Dependencies:** Phase 2 complete (independent of P3-001)
-- **Size:** Small
-- **Plan:** `docs/planning/PHASE_3_polish_production_plan.md` — P3-002 section
-
-### P3-003: Bulk Operations
-- **Objective:** Add bulk re-analysis (`POST /media/reanalyze-batch`) and bulk delete (`DELETE /media/batch`) API endpoints. Implement `LocalFileStore.delete()` and `ChromaDBVectorStore.delete_items()`. Integrate both actions into the Gallery selection bar UI added by P3-001.
-- **Phase:** Phase 3 — Polish & Production Readiness
-- **Status:** Planned
-- **Dependencies:** P3-001 complete (Gallery page with multi-select)
-- **Size:** Small-Medium
-- **Plan:** `docs/planning/PHASE_3_polish_production_plan.md` — P3-003 section
-
-### P3-004: Production Deployment
-- **Objective:** Implement S3-compatible `S3FileStore`, add a health endpoint (`GET /api/v1/health`), validate PostgreSQL end-to-end, and produce a Docker + docker-compose stack for the full system (backend, frontend, ChromaDB, PostgreSQL).
-- **Phase:** Phase 3 — Polish & Production Readiness
-- **Status:** Planned
-- **Dependencies:** P3-002 complete (Alembic migrations required for prod)
-- **Size:** Medium-Large
-- **Plan:** `docs/planning/PHASE_3_polish_production_plan.md` — P3-004 section
+_No workstreams planned — all P3 workstreams are in progress or complete._
 
 ---
 
 ## In Progress
 
-_No workstreams in progress._
+_No workstreams in progress — Phase 3 complete._
 
 ---
 
@@ -72,6 +50,30 @@ _These changes were applied directly without a formal workstream, after Phase 1 
 ---
 
 ## Completed
+
+### P3-004: Production Deployment
+- **Objective:** Implement S3-compatible `S3FileStore`, add a health endpoint (`GET /api/v1/health`), validate PostgreSQL end-to-end, and produce a Docker + docker-compose stack for the full system (backend, frontend, ChromaDB, PostgreSQL).
+- **Phase:** Phase 3 — Polish & Production Readiness
+- **Started:** 2026-03-28
+- **Completed:** 2026-03-28
+- **Status:** Completed
+- **Outcome:** `GET /api/v1/health` returns `{"status":"ok","version":"0.1.0"}` with no auth. `S3FileStore` implemented via boto3 in thread executor; `get_file_store()` factory selects backend by `storage.provider` config/env. `StorageConfig` extended with S3 fields; env override chain extended with `DATABASE_URL`, `STORAGE_PROVIDER`, `S3_BUCKET`, `S3_REGION`. `Dockerfile` (backend) and `frontend/Dockerfile` (multi-stage nginx) created. `docker-compose.yml` defines all four services. `.env.example` documents all required env vars. README updated with production deployment guide. 12 unit tests for S3FileStore; **82/82 tests pass**. ADR-009, ADR-010, ADR-011 recorded.
+
+### P3-003: Bulk Operations
+- **Objective:** Add bulk re-analysis and bulk delete API endpoints. Implement `LocalFileStore.delete()` and `ChromaDBVectorStore.delete_items()`. Integrate Re-analyze and Delete actions into the Gallery SelectionBar UI.
+- **Phase:** Phase 3 — Polish & Production Readiness
+- **Started:** 2026-03-28
+- **Completed:** 2026-03-28
+- **Status:** Completed
+- **Outcome:** `POST /api/v1/media/reanalyze-batch` and `DELETE /api/v1/media/batch` added. `delete_items()` added to `VectorStore` protocol and `ChromaDBVectorStore`. `remove_items()` added to `IndexingService`. `BatchOperationRequest` (1–50 media_ids) and response schemas added. SelectionBar updated with Re-analyze + Delete buttons. GalleryPage passes `onDeleteSuccess` callbacks. 8 new integration tests; 70/70 tests pass.
+
+### P3-002: Database Migrations
+- **Objective:** Install Alembic migration framework, generate the initial migration from the current schema, and integrate migration execution into startup so the drop-and-recreate pattern is retired.
+- **Phase:** Phase 3 — Polish & Production Readiness
+- **Started:** 2026-03-28
+- **Completed:** 2026-03-28
+- **Status:** Completed
+- **Outcome:** Alembic installed and configured with async SQLAlchemy support. `alembic upgrade head` creates the full 4-table schema on a fresh database. Production startup calls `run_migrations()`; dev/test keeps `create_all()`. 62/62 tests pass unaffected. README updated with migration instructions.
 
 ### P3-001: UI Polish & API Cleanup
 - **Objective:** Five targeted improvements: fix metadata comment prefix; use AI title as download filename for all formats; expose image dimensions throughout stack; merge Library + Search into unified Gallery page; rename "Upload" → "Source" throughout UI.

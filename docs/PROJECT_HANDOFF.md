@@ -8,11 +8,11 @@ _Update this document at the end of every session and at every workstream transi
 
 | Field | Value |
 |---|---|
-| **Current Phase** | Phase 3 — Polish & Production Readiness (P3-001 complete) |
-| **Current Workstream** | None — P3-002 through P3-004 planned, awaiting operator go-ahead |
-| **Last Completed Work** | P3-001 — UI Polish & API Cleanup (Gallery page, dimensions, AI-title downloads, Source rename, metadata prefix fix) |
-| **Next Task** | Operator approves P3-002 start (Database Migrations — Alembic) |
-| **Next Step Requested** | Engineer implements P3-002: install Alembic, generate initial migration, integrate into startup |
+| **Current Phase** | Phase 3 — Polish & Production Readiness (**complete** — all 4 workstreams done) |
+| **Current Workstream** | None — Phase 3 complete |
+| **Last Completed Work** | P3-004 — Production Deployment (`GET /api/v1/health`, `S3FileStore`, Docker + docker-compose, `.env.example`, README production guide, 82/82 tests pass) |
+| **Next Task** | Operator defines Phase 4 scope with the Architect role (no Phase 4 plan exists yet) |
+| **Next Step Requested** | Architect creates Phase 4 plan, or operator declares project complete |
 
 ## Required Reading
 
@@ -142,10 +142,29 @@ When suggesting code changes:
   - Change 4: `media.py` completely rewritten with full filter+sort params (metadata JOIN, aspect ratio post-query); new `GalleryPage.tsx` (~320 lines) replaces `LibraryPage.tsx` + `SearchPage.tsx`; `client.ts` `listMediaFiltered()`; `/search` route removed; `App.tsx`, `Layout.tsx`, `SearchBar.tsx` updated
   - Change 5: `Layout.tsx` nav + `UploadPage.tsx` heading renamed from "Upload" to "Source"
   - 62/62 tests pass; 1 test assertion updated (`test_single_download_jpeg`)
+- **P3-002 (Database Migrations) completed:**
+  - `alembic` 1.14 added to `pyproject.toml` and installed
+  - `alembic init alembic` scaffolded at project root; `alembic.ini` URL placeholder removed (URL set dynamically in env.py)
+  - `alembic/env.py` rewritten: async engine (`create_async_engine` + `connection.run_sync()`), `get_db_url()` reads `DATABASE_URL` env var or `config/settings.yaml`, offline mode supported
+  - Initial migration `cce0c99946e6_initial_schema.py` generated from fresh-DB autogenerate — creates all 4 tables with FK constraints, unique constraints, and indexes
+  - `src/database.py`: added `run_migrations()` using thread executor to avoid nested asyncio event loop
+  - `src/api/app.py`: lifespan calls `run_migrations()` when `settings.app.debug: false`; `create_tables()` otherwise (dev + test path unchanged)
+  - `README.md`: full Getting Started section with fresh-install and existing-DB migration instructions
+  - `alembic upgrade head` validates clean on fresh SQLite; 62/62 tests pass
+- **P3-003 (Bulk Operations) completed:**
+  - `POST /api/v1/media/reanalyze-batch`: accepts `{media_ids: [...]}`, 1–50 cap, user-scoped, skips items with in-progress jobs, enqueues background analysis jobs, returns `{queued, message}`
+  - `DELETE /api/v1/media/batch`: accepts `{media_ids: [...]}`, 1–50 cap, user-scoped, deletes MediaMetadata + ProcessingJob + MediaItem in child-first order (FK constraint safe), physical file removal (best-effort), vector embedding removal (best-effort); returns `{deleted, message}`
+  - `delete_items(media_ids)` added to `VectorStore` protocol and `ChromaDBVectorStore` (uses `collection.delete(ids=[...])`)
+  - `remove_items(media_item_ids)` added to `IndexingService`
+  - `BatchOperationRequest` (validated 1–50 `media_ids`), `BatchReanalyzeResponse`, `BatchDeleteResponse` added to `schemas.py`
+  - `SelectionBar.tsx`: Re-analyze + Delete buttons (Delete uses `window.confirm()`); `onDeleteSuccess?: (ids: string[]) => void` prop added
+  - `GalleryPage.tsx`: passes `onDeleteSuccess` callbacks to both SelectionBar instances to remove deleted items from local browse/search state
+  - `client.ts`: `reanalyzeBatch()` and `deleteBatch()` added
+  - 8 new integration tests in `tests/test_bulk_operations.py`; 70/70 tests pass
 
 ## Open Questions / Blockers
 
-- None. **P3-001 is complete.** Remaining Phase 3 workstreams (P3-002 through P3-004) are planned and awaiting operator approval.
+- None. **P3-001, P3-002, and P3-003 are complete.** Remaining Phase 3 workstream (P3-004) is planned and awaiting operator approval.
 
 ## Document Ownership Note
 

@@ -6,11 +6,11 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 
 | Field | Value |
 |---|---|
-| **Current Phase** | Phase 3 — Polish & Production Readiness (planning) |
+| **Current Phase** | Phase 3 — Polish & Production Readiness (**complete**) |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | None — P3-001 complete, P3-002 through P3-004 planned |
+| **Active Workstream** | None — Phase 3 complete. All 4 workstreams (P3-001 through P3-004) finished. |
 | **Last Updated** | 2026-03-28 |
-| **Updated By** | AI — Engineer role (P3-001 closeout) |
+| **Updated By** | AI — Engineer (P3-004 closeout) |
 
 ## System Health
 
@@ -22,9 +22,9 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 | Registry complete | Yes |
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
-| Test status | 62/62 pass (backend integration tests) |
-| Active workstream | None — P3-001 complete, P3-002 through P3-004 planned |
-| Last governance audit | 2026-03-28 — P3-001 closeout |
+| Test status | 82/82 pass (70 backend integration + 12 S3FileStore unit tests) |
+| Active workstream | None — Phase 3 complete |
+| Last governance audit | 2026-03-28 — P3-004 closeout (Phase 3 complete) |
 
 ## Recent Activity
 
@@ -62,18 +62,21 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 - **2026-03-28:** Phase 3 plan produced by Architect. 4 workstreams defined: P3-001 (UI Polish & API Cleanup), P3-002 (Database Migrations), P3-003 (Bulk Operations), P3-004 (Production Deployment). Phase plan at `docs/planning/PHASE_3_polish_production_plan.md`. WORKSTREAMS.md Planned section populated. P3-001 implementation spec at `docs/planning/WS-006_PLAN.md`.
 - **2026-03-28:** P3-001 (UI Polish & API Cleanup) implemented and closed out. All 5 changes delivered: metadata comment prefix removed; AI title used as download filename for all formats (explicit `_MIME_TO_EXT` dict); `width`/`height` exposed in API schemas, search route, frontend types, and media detail page; Library + Search merged into unified Gallery page (`GalleryPage.tsx`; `LibraryPage.tsx` and `SearchPage.tsx` deleted; `/search` route removed); UI text "Upload" renamed to "Source" throughout. 62/62 tests pass.
 
+- **2026-03-28:** P3-002 (Database Migrations) implemented and closed out. Alembic 1.14 installed. `alembic/env.py` configured with async SQLAlchemy support (`create_async_engine` + `connection.run_sync()`). Initial migration `cce0c99946e6_initial_schema.py` generated against a fresh DB — creates all 4 tables (users, media_items, media_metadata, processing_jobs) with constraints and indexes. `src/database.py` extended with `run_migrations()` (thread executor to avoid nested event loop). `src/api/app.py` lifespan now calls `run_migrations()` when `settings.app.debug: false`, `create_tables()` otherwise. `alembic upgrade head` validates clean against fresh SQLite. 62/62 tests pass unchanged.
+- **2026-03-28:** P3-004 (Production Deployment) implemented and closed out. `GET /api/v1/health` returns `{"status":"ok","version":"0.1.0"}` with no auth. `S3FileStore` added to `src/storage/file_store.py` (boto3, thread executor, content-addressed keys). `get_file_store()` factory selects backend by `storage.provider` config or `STORAGE_PROVIDER` env var. `StorageConfig` extended with `s3_bucket`, `s3_region`, `s3_endpoint_url`. Config env override chain extended with `DATABASE_URL`, `STORAGE_PROVIDER`, `S3_BUCKET`, `S3_REGION`. `Dockerfile` (backend), `frontend/Dockerfile` (multi-stage nginx), `docker-compose.yml` (backend + frontend + chromadb + postgres), `.env.example`, and `frontend/nginx.conf` created. README updated with production deployment guide. 12 new S3FileStore unit tests; **82/82 tests pass (Phase 3 total)**. ADR-009, ADR-010, ADR-011 recorded in DECISION_LOG.md. **Phase 3 is complete.**
+
+- **2026-03-28:** P3-003 (Bulk Operations) implemented and closed out. `POST /api/v1/media/reanalyze-batch` and `DELETE /api/v1/media/batch` added to `routes/analysis.py` (user-scoped, 50-item cap). `delete_items()` added to `VectorStore` protocol and `ChromaDBVectorStore`; `remove_items()` added to `IndexingService`. `BatchOperationRequest` and response schemas added to `schemas.py`. `SelectionBar.tsx` updated with Re-analyze + Delete buttons (confirm dialog). `GalleryPage.tsx` passes `onDeleteSuccess` callbacks to filter deleted items from local state. `reanalyzeBatch()` and `deleteBatch()` added to `client.ts`. 8 new integration tests; 70/70 tests pass.
+
 ## Blockers
 
 _None._
 
 ## Notes for Next Session
 
-- **P3-001 complete.** All 5 UI/API polish changes delivered and documented. 62/62 tests pass.
-- **Next workstream:** P3-002 (Database Migrations — Alembic). Independent of P3-001. Awaiting operator approval.
-- **P3-003 requires P3-001 complete** — Gallery page multi-select is the integration point for bulk operations.
-- **P3-003 and P3-004 require P3-002 complete** — Alembic migrations required before bulk delete and production deployment.
-- Codebase: Python backend (FastAPI, 14 API endpoints, 62 tests) + React/TS frontend (25+ components, includes Gallery page with unified browse+search+filter).
-- **Phase 3 remaining:** P3-002 (Alembic migrations) → P3-003 (Bulk operations) → P3-004 (S3, Docker, production deployment).
-- `.env` file with `ANTHROPIC_API_KEY` required for AI analysis. `AUTH_SECRET_KEY` for production auth. Dev mode enabled by default.
-- `scripts/rebuild_vector_store.py` regenerates the search index from the database if ChromaDB data is lost.
-- DB must be deleted and recreated when schema changes until P3-002 (Alembic) is complete.
+- **Phase 3 is complete.** All 4 workstreams (P3-001 through P3-004) are finished.
+- **System is production-deployable:** `docker compose up -d` starts all four services. Copy `.env.example` → `.env`, fill secrets, then bring up the stack.
+- **Health endpoint:** `GET /api/v1/health` → `{"status":"ok","version":"0.1.0"}` — no auth required.
+- **File storage:** Local by default (`storage.provider: local`). Set `STORAGE_PROVIDER=s3` and S3 env vars to enable S3.
+- **Schema changes** require `alembic revision --autogenerate` + review + `alembic upgrade head`.
+- **Codebase:** Python backend (FastAPI, 21 API routes, 82 tests) + React/TS frontend (Gallery page) + Docker stack.
+- **Next phase** has not been planned. Operator should work with the Architect role to define Phase 4 scope if further development is desired.

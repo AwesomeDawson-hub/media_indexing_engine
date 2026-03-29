@@ -49,3 +49,6 @@ chromadb_data/
 
 # SQLite database
 *.db
+
+# Alembic: keep alembic.ini and alembic/versions/ tracked — do NOT add them here
+# The __pycache__ inside alembic/ is covered by the __pycache__/ rule above

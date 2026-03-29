@@ -161,6 +161,30 @@ export async function reanalyze(id: string): Promise<ReanalyzeResponse> {
   });
 }
 
+export interface BatchReanalyzeResponse {
+  queued: number;
+  message: string;
+}
+
+export interface BatchDeleteResponse {
+  deleted: number;
+  message: string;
+}
+
+export async function reanalyzeBatch(ids: string[]): Promise<BatchReanalyzeResponse> {
+  return request<BatchReanalyzeResponse>('/api/v1/media/reanalyze-batch', {
+    method: 'POST',
+    body: JSON.stringify({ media_ids: ids }),
+  });
+}
+
+export async function deleteBatch(ids: string[]): Promise<BatchDeleteResponse> {
+  return request<BatchDeleteResponse>('/api/v1/media/batch', {
+    method: 'DELETE',
+    body: JSON.stringify({ media_ids: ids }),
+  });
+}
+
 // Download functions
 
 export async function downloadFile(id: string): Promise<void> {

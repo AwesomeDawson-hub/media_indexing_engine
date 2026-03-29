@@ -427,6 +427,10 @@ export default function GalleryPage() {
                 count={selected.size}
                 selectedIds={Array.from(selected)}
                 onClear={() => setSelected(new Set())}
+                onDeleteSuccess={(ids) => {
+                  setBrowseItems((prev) => prev.filter((i) => !ids.includes(i.id)));
+                  setSelected(new Set());
+                }}
               />
 
               {view === 'grid' ? (
@@ -435,7 +439,7 @@ export default function GalleryPage() {
                     <MediaCard
                       key={item.id}
                       id={item.id}
-                      filename={item.original_filename}
+                      filename={item.display_name || item.original_filename}
                       status={item.status}
                       mimeType={item.mime_type}
                     />
@@ -457,7 +461,7 @@ export default function GalleryPage() {
                     <MediaListRow
                       key={item.id}
                       id={item.id}
-                      filename={item.original_filename}
+                      filename={item.display_name || item.original_filename}
                       status={item.status}
                       mimeType={item.mime_type}
                       fileSize={item.file_size}
@@ -496,6 +500,10 @@ export default function GalleryPage() {
                 count={selected.size}
                 selectedIds={Array.from(selected)}
                 onClear={() => setSelected(new Set())}
+                onDeleteSuccess={(ids) => {
+                  setSearchResults((prev) => prev.filter((r) => !ids.includes(r.media_item.id)));
+                  setSelected(new Set());
+                }}
               />
 
               {view === 'grid' ? (

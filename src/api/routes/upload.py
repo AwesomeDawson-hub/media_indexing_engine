@@ -8,7 +8,7 @@ from src.api.schemas import UploadResponse, BatchUploadResponse, BatchFileResult
 from src.ingestion.upload_service import UploadService
 from src.analysis.processor import analyze_media_item
 from src.analysis.anthropic_provider import AnthropicVisionProvider, AnalysisError
-from src.storage.file_store import LocalFileStore
+from src.storage.file_store import get_file_store
 from src.search.embedder import Embedder
 from src.search.chromadb_store import ChromaDBVectorStore
 from src.search.indexing_service import IndexingService
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["upload"])
 
-_file_store = LocalFileStore(settings.storage.local_path)
+_file_store = get_file_store(settings.storage)
 _upload_service = UploadService(_file_store)
 
 
@@ -119,7 +119,7 @@ async def upload_batch(
     # Enqueue background processing for new uploads
     for r in batch_result.results:
         if r.success and not r.is_duplicate and r.processing_job_id and _vision_provider:
-            background_tasks.add_task(analyze_media_item, r.processing_job_id, _vision_provider, _file_store)
+            background_tasks.add_task(analyze_media_item, r.processing_job_id, _vision_provider, _file_store, _indexing_service)
 
     results: list[BatchFileResult] = []
     for (filename, _), r in zip(file_data, batch_result.results):

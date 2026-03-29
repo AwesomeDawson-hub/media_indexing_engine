@@ -27,6 +27,10 @@ class AppConfig:
 class StorageConfig:
     provider: str = "local"
     local_path: str = "./uploads"
+    # S3 settings (used when provider == "s3")
+    s3_bucket: str = ""
+    s3_region: str = "us-east-1"
+    s3_endpoint_url: str = ""  # Optional: for S3-compatible stores (MinIO, etc.)
 
 
 @dataclass
@@ -127,6 +131,24 @@ def load_settings(path: Path = DEFAULT_SETTINGS_PATH) -> Settings:
     env_secret = os.environ.get("AUTH_SECRET_KEY")
     if env_secret:
         s.auth.secret_key = env_secret
+
+    # Override database URL from env var (production / Docker override)
+    env_db_url = os.environ.get("DATABASE_URL")
+    if env_db_url:
+        s.database.url = env_db_url
+
+    # Override storage provider from env var
+    env_storage_provider = os.environ.get("STORAGE_PROVIDER")
+    if env_storage_provider:
+        s.storage.provider = env_storage_provider
+
+    env_s3_bucket = os.environ.get("S3_BUCKET")
+    if env_s3_bucket:
+        s.storage.s3_bucket = env_s3_bucket
+
+    env_s3_region = os.environ.get("S3_REGION")
+    if env_s3_region:
+        s.storage.s3_region = env_s3_region
 
     return s
 

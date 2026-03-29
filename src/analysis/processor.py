@@ -5,6 +5,7 @@ Replaces WS-001's placeholder_processor with real AI analysis.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -25,6 +26,7 @@ if TYPE_CHECKING:
     from src.search.indexing_service import IndexingService
 
 logger = logging.getLogger(__name__)
+_analysis_semaphore = asyncio.Semaphore(max(1, settings.analysis.max_concurrent))
 
 
 def _serialize_metadata(result: MediaMetadataResult) -> dict:
@@ -93,96 +95,107 @@ async def analyze_media_item(
 
     Full flow: load job → read file → prepare image → call AI → persist metadata → update statuses.
     """
-    async with async_session() as db:
-        # 1. Load job + media item
-        result = await db.execute(
-            select(ProcessingJob).where(ProcessingJob.id == job_id)
-        )
-        job = result.scalar_one_or_none()
-        if job is None:
-            logger.error("Job %s not found", job_id)
-            return
+    max_attempts = settings.processing.max_attempts
 
-        result = await db.execute(
-            select(MediaItem).where(MediaItem.id == job.media_item_id)
-        )
-        media_item = result.scalar_one_or_none()
-        if media_item is None:
-            logger.error("MediaItem %s not found for job %s", job.media_item_id, job_id)
-            job.status = "failed"
-            job.error_message = f"MediaItem {job.media_item_id} not found"
-            await db.commit()
-            return
+    while True:
+        retry_delay = 0.0
 
-        # 2. Update job: running
-        now = datetime.now(timezone.utc)
-        job.status = "running"
-        job.started_at = now
-        job.attempts += 1
-        media_item.status = "processing"
-        await db.commit()
-        logger.info("Job %s started (attempt %d) for media %s", job_id, job.attempts, media_item.id)
-
-        try:
-            # 3. Read file from storage
-            file_bytes = await file_store.read(media_item.storage_path)
-
-            # 4. Prepare image
-            image_base64, media_type = prepare_image(file_bytes, media_item.mime_type)
-
-            # 5. Call vision provider
-            metadata_result = await vision_provider.analyze_image(image_base64, media_type)
-
-            # 6. Persist metadata (upsert)
-            await _upsert_metadata(
-                db, media_item.id, metadata_result,
-                provider=settings.analysis.provider,
-                model=settings.analysis.model,
+        async with async_session() as db:
+            result = await db.execute(
+                select(ProcessingJob).where(ProcessingJob.id == job_id)
             )
+            job = result.scalar_one_or_none()
+            if job is None:
+                logger.error("Job %s not found", job_id)
+                return
 
-            # 6b. Index for search (non-fatal if it fails)
-            if indexing_service is not None:
-                try:
-                    indexing_service.index_media_item(
-                        media_item_id=media_item.id,
-                        user_id=media_item.user_id,
-                        original_filename=media_item.original_filename,
-                        metadata_result=metadata_result,
-                    )
-                except Exception as idx_err:
-                    logger.warning("Indexing failed for %s (non-fatal): %s", media_item.id, idx_err)
-
-            # 7. Update statuses: success
-            media_item.status = "completed"
-            job.status = "completed"
-            job.completed_at = datetime.now(timezone.utc)
-            await db.commit()
-            logger.info("Job %s completed successfully", job_id)
-
-        except Exception as e:
-            await db.rollback()
-
-            # Re-fetch after rollback
-            result = await db.execute(select(ProcessingJob).where(ProcessingJob.id == job_id))
-            job = result.scalar_one()
-            result = await db.execute(select(MediaItem).where(MediaItem.id == job.media_item_id))
-            media_item = result.scalar_one()
-
-            error_msg = str(e)
-            logger.warning("Job %s failed (attempt %d): %s", job_id, job.attempts, error_msg)
-
-            if job.attempts < settings.processing.max_attempts:
-                # Retry: reset to pending
-                job.status = "pending"
-                job.error_message = error_msg
-                media_item.status = "uploaded"
-                await db.commit()
-                logger.info("Job %s will be retried (attempt %d/%d)", job_id, job.attempts, settings.processing.max_attempts)
-            else:
-                # Max attempts reached: fail permanently
+            result = await db.execute(
+                select(MediaItem).where(MediaItem.id == job.media_item_id)
+            )
+            media_item = result.scalar_one_or_none()
+            if media_item is None:
+                logger.error("MediaItem %s not found for job %s", job.media_item_id, job_id)
                 job.status = "failed"
-                job.error_message = error_msg
-                job.completed_at = datetime.now(timezone.utc)
-                media_item.status = "error"
+                job.error_message = f"MediaItem {job.media_item_id} not found"
                 await db.commit()
-                logger.error("Job %s failed permanently after %d attempts", job_id, job.attempts)
+                return
+
+            if job.status == "completed":
+                return
+
+            now = datetime.now(timezone.utc)
+            job.status = "running"
+            job.started_at = now
+            job.attempts += 1
+            media_item.status = "processing"
+            await db.commit()
+            logger.info("Job %s started (attempt %d) for media %s", job_id, job.attempts, media_item.id)
+
+            try:
+                file_bytes = await file_store.read(media_item.storage_path)
+                image_base64, media_type = prepare_image(file_bytes, media_item.mime_type)
+
+                async with _analysis_semaphore:
+                    metadata_result = await vision_provider.analyze_image(image_base64, media_type)
+
+                await _upsert_metadata(
+                    db, media_item.id, metadata_result,
+                    provider=settings.analysis.provider,
+                    model=settings.analysis.model,
+                )
+
+                if indexing_service is not None:
+                    try:
+                        indexing_service.index_media_item(
+                            media_item_id=media_item.id,
+                            user_id=media_item.user_id,
+                            original_filename=media_item.original_filename,
+                            metadata_result=metadata_result,
+                        )
+                    except Exception as idx_err:
+                        logger.warning("Indexing failed for %s (non-fatal): %s", media_item.id, idx_err)
+
+                media_item.status = "completed"
+                job.status = "completed"
+                job.completed_at = datetime.now(timezone.utc)
+                await db.commit()
+                logger.info("Job %s completed successfully", job_id)
+                return
+
+            except Exception as e:
+                await db.rollback()
+
+                result = await db.execute(select(ProcessingJob).where(ProcessingJob.id == job_id))
+                job = result.scalar_one()
+                result = await db.execute(select(MediaItem).where(MediaItem.id == job.media_item_id))
+                media_item = result.scalar_one()
+
+                error_msg = str(e)
+                logger.warning("Job %s failed (attempt %d): %s", job_id, job.attempts, error_msg)
+
+                if job.attempts < max_attempts:
+                    job.status = "pending"
+                    job.error_message = error_msg
+                    media_item.status = "uploaded"
+                    await db.commit()
+                    retry_delay = min(2 ** (job.attempts - 1), 30)
+                    logger.info(
+                        "Job %s will be retried in %.1fs (attempt %d/%d)",
+                        job_id,
+                        retry_delay,
+                        job.attempts,
+                        max_attempts,
+                    )
+                else:
+                    job.status = "failed"
+                    job.error_message = error_msg
+                    job.completed_at = datetime.now(timezone.utc)
+                    media_item.status = "error"
+                    await db.commit()
+                    logger.error("Job %s failed permanently after %d attempts", job_id, job.attempts)
+                    return
+
+        if retry_delay <= 0:
+            return
+
+        await asyncio.sleep(retry_delay)

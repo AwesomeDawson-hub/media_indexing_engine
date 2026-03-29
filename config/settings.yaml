@@ -32,7 +32,7 @@ analysis:
   provider: "anthropic"
   model: "claude-sonnet-4-20250514"
   max_image_dimension: 1568
-  max_concurrent: 5
+  max_concurrent: 1
   timeout_seconds: 60
 
 search:

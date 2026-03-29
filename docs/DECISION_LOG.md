@@ -120,3 +120,33 @@ Each decision follows this structure:
 - **Reasoning:** Prior project used Claude successfully. Team has existing API access and familiarity. SDK handles auth, retries, and model selection. Interface abstraction keeps the door open without building multi-provider support prematurely.
 - **Alternatives considered:** OpenAI GPT-4o (viable, no strong reason to prefer), Google Gemini (less proven for structured metadata extraction), multi-provider from day one (rejected: premature complexity).
 - **Consequences:** Locked to Anthropic pricing and availability for V1. Mitigated by the interface abstraction — switching providers is a single module change.
+
+### ADR-009: Alembic for Database Schema Migrations
+- **Date:** 2026-03-28
+- **Workstream:** P3-002
+- **Status:** Accepted
+- **Context:** The project used `metadata.create_all()` at startup, which recreates tables from scratch. Any schema change requires dropping the database manually. This is acceptable for development but cannot be used in production where data must be preserved.
+- **Decision:** Adopt Alembic as the migration framework. Generate an initial migration from the current schema and run `alembic upgrade head` at production startup. Development and test environments retain `create_all()` for speed.
+- **Reasoning:** Alembic is the standard migration tool for SQLAlchemy projects. It supports async engines (via `run_sync`), has first-class autogenerate, and integrates naturally with the existing stack. The split between prod (Alembic) and dev/test (`create_all()`) avoids test slowdowns while enabling production schema evolution.
+- **Alternatives considered:** Flyway, Liquibase (Java-centric tools, not idiomatic for Python). Manual SQL migration scripts (no tooling support, prone to drift). Rolling `create_all()` into prod (rejected: data loss risk).
+- **Consequences:** All future schema changes require `alembic revision --autogenerate` + review + `alembic upgrade head`. Tests remain independent of Alembic.
+
+### ADR-010: S3-Compatible Object Storage as Production File Storage Backend
+- **Date:** 2026-03-28
+- **Workstream:** P3-004
+- **Status:** Accepted
+- **Context:** ADR-006 (Three-Store Architecture) designated `FileStore` as an abstract interface precisely to allow swapping local disk for object storage in production. ADR-004 defined content-addressed paths (`{user_id}/{content_hash}/{filename}`) — this path scheme maps directly to an S3 key.
+- **Decision:** Implement `S3FileStore` using the `boto3` library. AWS credentials are sourced exclusively from environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`). The active backend is selected by `storage.provider` config field (overridable via `STORAGE_PROVIDER` env var). `LocalFileStore` remains the default for local development.
+- **Reasoning:** boto3 is the de facto AWS SDK for Python. Using `run_in_executor` wraps the synchronous boto3 calls for async compatibility without requiring aioboto3. The `S3_ENDPOINT_URL` field allows targeting S3-compatible stores (MinIO, Backblaze B2, etc.) for cost flexibility.
+- **Alternatives considered:** aioboto3 (async wrapper; adds dependency and complexity beyond what's needed), direct HTTP to S3 (requires signing implementation), hard-coding S3 (removes local dev path).
+- **Consequences:** Requires `boto3` installed in production (optional dependency in `pyproject.toml`). Local file storage is unchanged and tested. S3 operations are covered by unit tests with a mocked client; real S3 validation requires a live bucket.
+
+### ADR-011: Docker + docker-compose as Deployment Mechanism
+- **Date:** 2026-03-28
+- **Workstream:** P3-004
+- **Status:** Accepted
+- **Context:** The system has four components — FastAPI backend, React frontend, ChromaDB vector store, and PostgreSQL — that must be started, networked, and configured together for production deployment. Without a container orchestration approach, deployment requires manual setup of each service.
+- **Decision:** Use Docker containers for each service and docker-compose for orchestration. Backend: Python 3.11-slim image, runs `alembic upgrade head && uvicorn`. Frontend: multi-stage build (Node.js compile, nginx serve). ChromaDB and PostgreSQL: official images.
+- **Reasoning:** docker-compose is the minimal viable orchestration tool for a four-service deployment. It provides service dependency ordering, volume management, and environment variable injection without the operational complexity of Kubernetes. The frontend's multi-stage build keeps the production image small (only nginx + static files). All secrets are injected via environment variables; no credentials are baked into images.
+- **Alternatives considered:** Kubernetes (overengineered for V1 scale requirements), bare-metal manual setup (error-prone, not reproducible), single Docker image with all services (violates separation of concerns, makes updates difficult).
+- **Consequences:** Requires Docker 24+ and Docker Compose v2 on the deployment host. Manual end-to-end smoke test against the Docker stack is required to fully validate PostgreSQL + S3 integration (not automated in CI). Kubernetes migration is possible later without architectural changes.
