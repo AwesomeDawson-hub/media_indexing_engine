@@ -204,6 +204,10 @@ export default function GalleryPage() {
 
   const isSearchMode = Boolean(queryParam);
 
+  // Track the last query submitted via the form so the URL-change effect
+  // doesn't double-fire when handleSubmit already kicked off the search.
+  const lastSubmittedQuery = useRef('');
+
   function buildFilters(): SearchFilters {
     return {
       has_people: hasPeople,
@@ -230,11 +234,12 @@ export default function GalleryPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasPeople, orientation, mood, mimeType, aspectRatio, sortBy]);
 
-  async function doSearch(q: string, p: number) {
+  async function doSearch(q: string, p: number, sortOverride?: string) {
     setSearchLoading(true);
     setError('');
     try {
-      const res = await api.search(q, p, PER_PAGE, buildFilters());
+      const filters = sortOverride ? { ...buildFilters(), sort_by: sortOverride } : buildFilters();
+      const res = await api.search(q, p, PER_PAGE, filters);
       setSearchResults(res.results);
       setSearchTotal(res.total);
       setPage(res.page);
@@ -254,9 +259,9 @@ export default function GalleryPage() {
     }
   }, [page, isSearchMode, fetchBrowse]);
 
-  // Search mode — trigger search when URL query changes
+  // Search mode — trigger search when URL query changes (back/fwd nav, direct URL, refresh)
   useEffect(() => {
-    if (isSearchMode) {
+    if (isSearchMode && queryParam !== lastSubmittedQuery.current) {
       setQuery(queryParam);
       doSearch(queryParam, 1);
       setPage(1);
@@ -301,8 +306,17 @@ export default function GalleryPage() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!query.trim()) return;
-    setSearchParams({ q: query.trim() });
+    const q = query.trim();
+    if (!q) return;
+    // When switching from browse to search mode, reset sort to relevance.
+    // Can't rely on setSortBy here (async), so pass it as an override directly.
+    const effectiveSort = isSearchMode ? sortBy : 'relevance';
+    if (!isSearchMode) setSortBy('relevance');
+    lastSubmittedQuery.current = q;
+    setSearchParams({ q });
+    doSearch(q, 1, effectiveSort);
+    setPage(1);
+    setSelected(new Set());
   }
 
   function handleApplyFilters() {

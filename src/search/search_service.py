@@ -87,9 +87,11 @@ class SearchService:
             return SearchResult(query=query, total=0, page=page, per_page=per_page, results=[])
 
         # 2. Load media items + metadata from DB for ALL candidates
+        # Filter by user_id as a defense-in-depth measure (ChromaDB already scopes by user,
+        # but DB-level enforcement ensures no cross-user data leaks if the vector store misbehaves)
         hit_ids = [h.media_item_id for h in hits]
         items_result = await db.execute(
-            select(MediaItem).where(MediaItem.id.in_(hit_ids))
+            select(MediaItem).where(MediaItem.id.in_(hit_ids), MediaItem.user_id == user_id)
         )
         items_by_id = {item.id: item for item in items_result.scalars().all()}
 
