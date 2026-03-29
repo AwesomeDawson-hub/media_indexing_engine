@@ -197,3 +197,38 @@ docker compose up -d
 
 ---
 
+## Known Configuration Notes
+
+- **Upload size limit:** The nginx frontend is configured to accept files up to **50 MB** (`client_max_body_size 50M`). Adjust `frontend/nginx.conf` if you need a different limit.
+- **File storage:** Local disk by default (`storage.provider: local`). Set `STORAGE_PROVIDER=s3` and the S3 env vars to enable S3-backed storage.
+- **AI analysis:** Requires a valid `ANTHROPIC_API_KEY`. Without it, uploads will succeed but AI analysis jobs will fail silently in the background.
+
+---
+
+## Changelog
+
+### 2026-03-29 — Post-Phase-3 Bug Fixes (commit `fd5013e`)
+- **Upload limit raised to 50 MB** — nginx default of 1 MB was causing HTTP 413 errors for typical photo files. `frontend/nginx.conf` now sets `client_max_body_size 50M`.
+- **Search user isolation hardened** — `src/search/search_service.py` now enforces `user_id` scoping at the database layer (defense-in-depth; ChromaDB already filtered by user, DB now independently enforces it).
+- **Search relevance sort fixed** — First search after login now correctly returns results sorted by semantic relevance. Previously, the browse mode `sort_by=newest` state leaked into the first search query.
+
+### 2026-03-28 — Phase 3: Polish & Production Readiness (complete)
+- Production Docker stack (`docker-compose.yml`) with backend, frontend (nginx), ChromaDB, and PostgreSQL
+- S3-compatible file storage backend (`S3FileStore`)
+- Health endpoint (`GET /api/v1/health`) — no auth required
+- Alembic database migrations
+- Bulk re-analyze and delete operations (up to 50 items per request)
+- UI polish: metadata prefix cleanup, dimensions displayed, unified Gallery page, "Source" rename
+
+### 2026-03-28 — Phase 2: Download & Enrichment
+- Metadata embedding into downloaded files (EXIF/IPTC/XMP for JPEG, WebP, AVIF, PNG, TIFF)
+- Download endpoints: single file, batch ZIP, convert-to-PNG
+- Grid/list view toggle with multi-select and batch download
+
+### 2026-03-27–28 — Phase 1: MVP
+- Full upload → AI analysis → semantic search pipeline
+- React + TypeScript frontend with dark mode
+- JWT authentication, rate limiting, standardized error responses
+- Hash-based deduplication, content-addressed storage
+- ChromaDB vector search with sentence-transformers (`all-MiniLM-L6-v2`)
+
