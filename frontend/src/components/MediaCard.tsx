@@ -1,0 +1,38 @@
+import { Link } from 'react-router-dom';
+import { getMediaFileUrl } from '../api/client';
+import { useAuthImage } from '../api/useAuthImage';
+import StatusBadge from './StatusBadge';
+
+interface MediaCardProps {
+  id: string;
+  filename: string;
+  status: string;
+  mimeType: string;
+}
+
+function truncate(str: string, max: number): string {
+  return str.length > max ? str.slice(0, max - 3) + '...' : str;
+}
+
+export default function MediaCard({ id, filename, status, mimeType }: MediaCardProps) {
+  const isImage = mimeType.startsWith('image/');
+  const imgSrc = useAuthImage(getMediaFileUrl(id));
+
+  return (
+    <Link to={`/media/${id}`} className="media-card">
+      <div className="media-card-thumb">
+        {isImage && imgSrc ? (
+          <img src={imgSrc} alt={filename} loading="lazy" />
+        ) : (
+          <div className="media-card-placeholder">{isImage ? '...' : (mimeType.split('/')[1] || 'file')}</div>
+        )}
+      </div>
+      <div className="media-card-info">
+        <span className="media-card-name" title={filename}>
+          {truncate(filename, 30)}
+        </span>
+        <StatusBadge status={status} />
+      </div>
+    </Link>
+  );
+}

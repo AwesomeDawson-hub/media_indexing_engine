@@ -1,0 +1,49 @@
+app:
+  name: "Media Indexing Engine"
+  debug: true
+  host: "127.0.0.1"
+  port: 8000
+  cors_origins:
+    - "http://localhost:5173"
+
+storage:
+  provider: "local"
+  local_path: "./uploads"
+
+database:
+  url: "sqlite+aiosqlite:///./media_index.db"
+
+upload:
+  max_file_size_mb: 50
+  max_batch_size: 20
+  allowed_mime_types:
+    - "image/jpeg"
+    - "image/png"
+    - "image/webp"
+    - "image/tiff"
+    - "image/bmp"
+    - "image/gif"
+    - "image/avif"
+
+processing:
+  max_attempts: 3
+
+analysis:
+  provider: "anthropic"
+  model: "claude-sonnet-4-20250514"
+  max_image_dimension: 1568
+  max_concurrent: 5
+  timeout_seconds: 60
+
+search:
+  provider: "chromadb"
+  collection_name: "media_embeddings"
+  embedding_model: "all-MiniLM-L6-v2"
+  top_k: 20
+  persist_directory: "./chromadb_data"
+
+auth:
+  secret_key: "dev-secret-change-in-production"
+  algorithm: "HS256"
+  access_token_expire_minutes: 60
+  dev_mode: true

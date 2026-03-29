@@ -1,0 +1,233 @@
+# Implementation Status
+
+This is a **historical record** for the Media Indexing Engine project, not a live status document. For current state, see `CURRENT_STATE.md`. For active work, see `WORKSTREAMS.md`.
+
+## Purpose
+
+This document captures **snapshot summaries** of completed workstreams. Each entry records what was done, what was produced, and any lessons learned. It provides a permanent audit trail of the project's evolution.
+
+## How This Document Is Updated
+
+- A new entry is added **only** at workstream closeout
+- Entries are **never modified** after creation — they are historical snapshots
+- Each entry is written at the time of completion and reflects the state at that moment
+
+## Format
+
+Each completed workstream gets one entry in the log below, following this structure:
+
+```
+### WS-XXX: [Workstream Name]
+- **Phase:** [Roadmap phase]
+- **Completed:** [Date]
+- **Objective:** [What the workstream set out to do]
+- **Outcome:** [What was actually delivered]
+- **Key decisions:** [Important choices made during implementation]
+- **Artifacts produced:** [Files, configs, features created or modified]
+- **Lessons learned:** [What went well, what didn't, what to do differently]
+```
+
+---
+
+## Completed Workstream Log
+
+### P3-001: UI Polish & API Cleanup
+- **Phase:** Phase 3 — Polish & Production Readiness
+- **Completed:** 2026-03-28
+- **Objective:** Five targeted improvements: (1) remove the "AI-generated description:" prefix from embedded metadata comments; (2) use the AI-extracted title as the download filename for all supported formats (not just BMP/GIF); (3) expose image dimensions (`width × height`) in all API schemas, frontend types, and the media detail page; (4) merge the Library and Search pages into a unified Gallery page with inline filter+sort controls; (5) rename "Upload" → "Source" throughout the UI.
+- **Outcome:** All 5 changes delivered. 62/62 backend integration tests pass (1 test assertion updated to match new AI-title download behaviour). `field_mapping.py` updated (Change 1). `download.py` extended with `_MIME_TO_EXT` dict and `_ext_for_mime()` helper; applied to both `download_file()` and `download_batch()` (Change 2). `schemas.py`, `search.py`, `types/api.ts`, `MediaDetailPage.tsx` updated with `width`/`height` (Change 3). `media.py` completely rewritten with full filter+sort params and aspect-ratio post-query filtering; new `GalleryPage.tsx` created; `App.tsx`, `Layout.tsx`, `SearchBar.tsx`, `client.ts` updated; `LibraryPage.tsx` and `SearchPage.tsx` deleted (Change 4). `Layout.tsx` nav and `UploadPage.tsx` heading renamed (Change 5).
+- **Key decisions:** Used an explicit `_MIME_TO_EXT` dict rather than `mimetypes.guess_extension()` — stdlib MIME-to-extension mapping is platform-dependent on Windows and returns `.jpe`/`.jfif` instead of `.jpg`. Aspect ratio filtering implemented as a post-query Python pass (no stored column) consistent with the pattern already used in `search_service.py`. `GalleryPage` disambiguates browse vs. search via the presence of the `?q=` URL param — no separate route needed. `/search` route removed entirely.
+- **Artifacts produced:**
+  - Modified: `src/enrichment/field_mapping.py` — removed prefix from `build_user_comment()`
+  - Modified: `src/api/routes/download.py` — `_MIME_TO_EXT`, `_ext_for_mime()`, AI-title download for all formats
+  - Modified: `src/api/routes/media.py` — full filter+sort params, `MediaMetadata` JOIN, `_matches_aspect_ratio()` post-query helper
+  - Modified: `src/api/routes/search.py` — pass `width`/`height` into `SearchMediaItem`
+  - Modified: `src/api/schemas.py` — `width`/`height` fields on `MediaItemResponse` and `SearchMediaItem`
+  - Created: `frontend/src/pages/GalleryPage.tsx` — unified browse+search page (~320 lines)
+  - Deleted: `frontend/src/pages/LibraryPage.tsx`, `frontend/src/pages/SearchPage.tsx`
+  - Modified: `frontend/src/api/client.ts` — `listMediaFiltered()` with full filter+sort params
+  - Modified: `frontend/src/types/api.ts` — `width?`/`height?` on `MediaItemResponse` and `SearchResultItem.media_item`
+  - Modified: `frontend/src/pages/MediaDetailPage.tsx` — dimensions display, "Back to Gallery"
+  - Modified: `frontend/src/pages/UploadPage.tsx` — heading renamed to "Source"
+  - Modified: `frontend/src/components/Layout.tsx` — nav: "Gallery" + "Source" (removed Search tab)
+  - Modified: `frontend/src/components/SearchBar.tsx` — navigates to `/?q=` instead of `/search?q=`
+  - Modified: `frontend/src/App.tsx` — `GalleryPage` replaces `LibraryPage`/`SearchPage`, `/search` route removed
+  - Modified: `tests/test_download.py` — updated JPEG download assertion to match AI-title output
+- **Lessons learned:** `_MIME_TO_EXT` dict is more reliable than `mimetypes` for extension mapping on Windows. When merging two pages into one unified route, the `?q=` URL param is a natural branch point that preserves deep-linking for both browse and search.
+
+### P2-004: List View + Multi-Select + Batch Download
+- **Phase:** Phase 2 — Enhancements
+- **Completed:** 2026-03-28
+- **Objective:** Add a grid/list view toggle to the Library and Search pages, with checkbox multi-select in list view and a batch ZIP download action.
+- **Outcome:** Grid/list view toggle added to Library and Search pages. List view renders a compact `MediaListRow` with a checkbox per item. "Select all" checkbox in the header, floating `SelectionBar` with count and "Download Selected" button (triggers batch ZIP via `POST /media/download-batch`). View mode persisted in `localStorage` per page. 3 new frontend components: `ViewToggle`, `MediaListRow`, `SelectionBar`.
+- **Key decisions:** No new ADRs. Per-page localStorage key for view preference (library vs. search are independent). SelectionBar floats above the footer so it doesn't collapse the grid. Batch download reuses the P2-002 zip endpoint.
+- **Artifacts produced:**
+  - `frontend/src/components/ViewToggle.tsx` — grid/list toggle button pair
+  - `frontend/src/components/MediaListRow.tsx` — compact list row with checkbox, thumbnail, title, status, date
+  - `frontend/src/components/SelectionBar.tsx` — floating selection action bar
+  - Modified: `frontend/src/pages/LibraryPage.tsx` (view toggle, checkbox state, SelectionBar), `frontend/src/pages/SearchPage.tsx` (same), `frontend/src/api/client.ts` (`downloadBatch()`)
+- **Lessons learned:** localStorage view preference prevents jarring mode resets on navigation. Floating selection bars must be above any bottom chrome (footer, scroll bars) — use `position: fixed` with a bottom offset.
+
+### P2-003: Frontend Download Button
+- **Phase:** Phase 2 — Enhancements
+- **Completed:** 2026-03-28
+- **Objective:** Add a "Download (with metadata)" button to the Media Detail page for embeddable formats; a convert-to-PNG option for BMP/GIF.
+- **Outcome:** MediaDetailPage shows "Download (with metadata)" for JPEG, WebP, PNG, and TIFF items (calls `GET /media/{id}/download`). BMP and GIF items show two buttons: "Download" (raw file) and "Convert to PNG with metadata" (calls `POST /media/{id}/convert-png`). Download is triggered using a temporary blob URL + anchor click, preserving the enriched filename from the response `Content-Disposition` header. No new backend tests — covered by P2-002 tests.
+- **Key decisions:** No new ADRs. Blob URL approach reused from authenticated image loading (`useAuthImage`). Format detection uses the `media_item.format` field from the API response.
+- **Artifacts produced:**
+  - Modified: `frontend/src/pages/MediaDetailPage.tsx` (download/convert buttons, blob download helper)
+  - Modified: `frontend/src/api/client.ts` (`downloadFile()`, `convertToPng()`)
+- **Lessons learned:** `Content-Disposition: attachment; filename="..."` from the server must be read via `response.headers.get('content-disposition')` before the blob is consumed. Blob URLs must be revoked after the anchor click to prevent memory leaks.
+
+### P2-002: Download Endpoints
+- **Phase:** Phase 2 — Enhancements
+- **Completed:** 2026-03-28
+- **Objective:** Expose backend endpoints for single file download (with metadata embedded), batch ZIP download, and BMP/GIF convert-to-PNG.
+- **Outcome:** 3 new API endpoints in `src/api/routes/download.py`: `GET /api/v1/media/{id}/download` returns the enriched file (metadata embedded at request time) with `Content-Disposition: attachment`. `POST /api/v1/media/download-batch` accepts a list of media IDs and returns a ZIP archive of enriched files. `POST /api/v1/media/{id}/convert-png` converts BMP/GIF to PNG, embeds metadata, and streams the result. BMP/GIF single downloads use the AI title as the filename (sanitized). 8 new integration tests, 62 total pass.
+- **Key decisions:** No new ADRs. Enrichment is performed at download time (not stored) — keeps the stored file as the original, produces enriched copies on demand. ZIP is assembled in memory (`io.BytesIO`) then streamed — acceptable for MVP batch sizes. Batch endpoint enforces a 50-item cap per request.
+- **Artifacts produced:**
+  - `src/api/routes/download.py` — all 3 download/convert endpoints
+  - `tests/test_download.py` — 8 integration tests
+  - Modified: `src/api/app.py` (download router registration), `src/api/schemas.py` (`BatchDownloadRequest`)
+- **Lessons learned:** FastAPI `Response` with pre-built bytes is simpler than `StreamingResponse` for in-memory ZIP archives. Sanitizing AI-generated titles for filesystem use (strip punctuation, collapse spaces) is necessary before using them as filenames.
+
+### P2-001: Metadata Embedder Module
+- **Phase:** Phase 2 — Enhancements
+- **Completed:** 2026-03-28
+- **Objective:** Build a module that embeds AI-extracted metadata (title, description, tags, objects, scenes, etc.) into image file binary headers at download time, so metadata travels with the file.
+- **Outcome:** 8-file `src/enrichment/` package. `MetadataEmbedder` dispatches to format-specific writers based on magic-byte MIME type. JPEG and TIFF: EXIF (via `piexif`) + IPTC keyword fields. WebP and AVIF: EXIF embedding. PNG: XMP metadata block via `iTXt` chunk. BMP and GIF: pass-through (no embedding) with a convert-to-PNG fallback path. `field_mapping.py` maps `MediaMetadataResult` fields to EXIF/IPTC/XMP tags. `xmp_builder.py` builds standards-compliant XMP XML. 16 new integration tests, 54 total pass.
+- **Key decisions:** No new ADRs. Embedding is non-destructive (operates on a copy of the file bytes). `piexif` used for EXIF/IPTC (mature library, all target formats supported). PNG XMP preferred over EXIF for richness of tag support. AVIF EXIF support via `piexif` with raw box injection.
+- **Artifacts produced:**
+  - `src/enrichment/__init__.py`
+  - `src/enrichment/embedder.py` — `MetadataEmbedder` dispatcher
+  - `src/enrichment/exif_writer.py` — JPEG/WebP/AVIF/TIFF EXIF+IPTC writer
+  - `src/enrichment/png_writer.py` — PNG XMP iTXt writer
+  - `src/enrichment/avif_writer.py` — AVIF-specific EXIF writer
+  - `src/enrichment/webp_writer.py` — WebP EXIF writer
+  - `src/enrichment/field_mapping.py` — metadata field → EXIF/IPTC/XMP tag mapping
+  - `src/enrichment/xmp_builder.py` — XMP XML builder
+  - `tests/test_enrichment.py` — 16 integration tests
+- **Lessons learned:** `piexif` requires bytes objects (not strings) for all tag values. PNG iTXt chunks must use UTF-8 and follow the keyword/text/compression flag structure exactly. AVIF EXIF injection requires wrapping the EXIF payload in an `Exif\x00\x00` box header. Testing with minimal valid image bytes (not real photos) is sufficient for format dispatch and field-mapping tests.
+
+### P2-005: Search as Nav Tab
+- **Phase:** Phase 2 — Enhancements
+- **Completed:** 2026-03-28
+- **Objective:** Add Search as a first-class navigation tab in the app header so users can reach the Search page directly.
+- **Outcome:** Search added as the third link in the `Layout` component header navigation. No backend changes. No new tests — change is a single-line frontend addition.
+- **Key decisions:** No new ADRs. Nav order: Library → Upload → Search (matches typical user journey).
+- **Artifacts produced:**
+  - Modified: `frontend/src/components/Layout.tsx` (added Search nav link)
+- **Lessons learned:** Simple UI improvements are sometimes the highest-leverage items — zero risk, immediate discoverability gain.
+
+### WS-000: Core Foundations
+- **Phase:** Phase 1 — MVP
+- **Completed:** 2026-03-27
+- **Objective:** Extract reusable patterns from prior project (`marketing_asset_pipeline`), define media identity model, metadata schema, storage model, database entities, and API scaffold for Media Indexing Engine.
+- **Outcome:** All deliverables produced and approved. Prior Art Summary completed with 8 reused decisions, 6 modified decisions, and 6 rejected decisions. Identity model (SHA256 + user scope), metadata schema (13 fields), storage model (3-store architecture), 4 database entities, and API scaffold (4 routers, 10 endpoints) defined. 8 architectural decisions recorded in DECISION_LOG.md (ADR-001 through ADR-008).
+- **Key decisions:** ADR-001 (SHA256 identity), ADR-002 (DB as sole system of record), ADR-003 (normalized entities), ADR-004 (content-addressed storage), ADR-005 (metadata schema), ADR-006 (3-store architecture), ADR-007 (defer review workflow), ADR-008 (Anthropic Claude as initial provider).
+- **Artifacts produced:** Prior Art Summary, Media Identity Model, Metadata Schema definition, Storage Model definition, Entity design (users, media_items, media_metadata, processing_jobs), API Scaffold Recommendation, 8 ADR entries in DECISION_LOG.md.
+- **Lessons learned:** Prior art extraction before design prevented reinventing solved problems (especially hash-based identity, AI output parsing chain, image preparation). The marketing pipeline's 3-layer storage and flat table were its biggest pain points — normalizing early avoids the same trap.
+
+### WS-001: Ingestion Pipeline
+- **Phase:** Phase 1 — MVP
+- **Completed:** 2026-03-27
+- **Objective:** Build the complete file ingestion pipeline: file upload, validation, SHA256 hashing, per-user deduplication, content-addressed file storage, database persistence, background task pattern, and upload/media API endpoints.
+- **Outcome:** Full ingestion pipeline operational. Single and batch file upload via REST API. Magic-byte MIME detection validates 6 image formats (JPEG, PNG, WebP, TIFF, BMP, GIF). SHA256 hashing with per-user `(user_id, content_hash)` deduplication. Content-addressed local file storage. Background task pattern with placeholder processor (ready for WS-002 AI analysis). 4 API endpoints: `POST /upload`, `POST /upload/batch`, `GET /media`, `GET /media/{id}`. 13 integration tests pass. Dev user auto-seeded on startup.
+- **Key decisions:** No new ADRs — WS-001 implemented the designs from WS-000 (ADR-001 through ADR-008) without deviation. Key implementation choices: Python dataclasses for config (over Pydantic Settings), magic-byte detection for MIME type (over trusting file extensions), sequential processing within batch requests (over parallel, to bound memory), FastAPI BackgroundTasks for job dispatch (over external broker per plan).
+- **Artifacts produced:**
+  - `pyproject.toml` — project dependencies and build config
+  - `config/settings.yaml` — dev configuration
+  - `src/config.py` — typed settings loader
+  - `src/database.py` — async SQLAlchemy engine, session factory, table management
+  - `src/models.py` — User, MediaItem, ProcessingJob ORM models
+  - `src/ingestion/validation.py` — format and size validation with magic-byte MIME detection
+  - `src/ingestion/hashing.py` — SHA256 content hashing
+  - `src/ingestion/dedup.py` — per-user duplicate check
+  - `src/ingestion/upload_service.py` — upload orchestrator (validate → hash → dedup → store → DB → job)
+  - `src/ingestion/job_manager.py` — processing job management and placeholder processor
+  - `src/storage/file_store.py` — FileStore interface + LocalFileStore (content-addressed paths)
+  - `src/api/app.py` — FastAPI app with lifespan (DB init, dev user seed)
+  - `src/api/schemas.py` — Pydantic response models
+  - `src/api/dependencies.py` — DB session and dev-user dependency injection
+  - `src/api/routes/upload.py` — single and batch upload endpoints
+  - `src/api/routes/media.py` — media list and detail endpoints
+  - `tests/conftest.py` — test fixtures (in-memory DB, test clients, user isolation)
+  - `tests/test_upload.py` — 7 upload integration tests
+  - `tests/test_media.py` — 6 media endpoint integration tests
+  - `__init__.py` files for all packages
+- **Lessons learned:** httpx ASGITransport does not trigger FastAPI lifespan events — tests must manually init the DB. Background tasks using module-level session factories need explicit patching in tests to use the test DB. Returning the processing_job_id from the upload service (rather than relying on lazy-loaded ORM relationships) simplifies background task dispatch. The 10-step plan with per-step validation checkpoints worked well — each step built cleanly on the last with no rework needed.
+
+### WS-002: AI Analysis Pipeline
+- **Phase:** Phase 1 — MVP
+- **Completed:** 2026-03-27
+- **Objective:** Build the AI analysis pipeline: pick up pending processing jobs, send images to Anthropic Claude's vision API, extract structured metadata conforming to the 13-field ADR-005 schema, persist results in the `media_metadata` table, and expose analysis status and re-analysis API endpoints. Abstract the AI provider behind an interface for future swaps.
+- **Outcome:** Full AI analysis pipeline operational. Uploads are automatically analyzed via Anthropic Claude vision API. `media_metadata` table stores all 13 ADR-005 fields plus AI provider provenance. `VisionProvider` protocol abstracts the AI layer — `AnthropicVisionProvider` is the live implementation, `MockVisionProvider` for testing. Image preparation resizes to 1568px max and converts to JPEG/base64. Three-stage output parsing (extract JSON → parse → validate). Job retry logic (up to 3 attempts). Two new API endpoints: `GET /media/{id}/analysis`, `POST /media/{id}/reanalyze`. Re-analysis updates metadata in-place (upsert, no duplicates). 21 total integration tests pass (8 new analysis + 13 existing). Manual smoke test verified with real Anthropic API — metadata quality excellent on real photos.
+- **Key decisions:** No new ADRs. Key implementation choices: SQLAlchemy relationship named `analysis_metadata` (not `metadata`, which is reserved by SQLAlchemy's DeclarativeBase). JSON arrays stored as TEXT columns (works across SQLite and PostgreSQL). `python-dotenv` added for `.env` file loading. Vision provider instantiated at module level in upload routes with graceful fallback if API key missing (uploads still work, analysis skipped). Image resize uses Pillow LANCZOS filter at quality 85 for JPEG output.
+- **Artifacts produced:**
+  - `src/analysis/provider.py` — `VisionProvider` protocol (abstract interface)
+  - `src/analysis/anthropic_provider.py` — Anthropic SDK implementation with error handling
+  - `src/analysis/mock_provider.py` — Deterministic mock for testing (canned metadata)
+  - `src/analysis/image_prep.py` — Pillow resize + JPEG conversion + base64 encoding
+  - `src/analysis/schemas.py` — `MediaMetadataResult` Pydantic model + `parse_ai_response()` JSON parser
+  - `src/analysis/processor.py` — `analyze_media_item()` background task (full pipeline)
+  - `src/api/routes/analysis.py` — GET analysis status, POST re-analyze endpoints
+  - `tests/test_analysis.py` — 8 integration tests (mock provider)
+  - Modified: `src/models.py` (added `MediaMetadata` ORM model), `src/config.py` (added `AnalysisConfig` + dotenv), `src/api/schemas.py` (added analysis response models), `src/api/app.py` (registered analysis router), `src/api/routes/upload.py` (replaced placeholder with real processor), `src/storage/file_store.py` (added `read()` method), `src/ingestion/job_manager.py` (removed placeholder processor), `pyproject.toml` (added anthropic, Pillow, python-dotenv), `config/settings.yaml` (added analysis section), `tests/conftest.py` (mock provider injection, real test images)
+- **Lessons learned:** SQLAlchemy's `DeclarativeBase` reserves the attribute name `metadata` — use `analysis_metadata` for the relationship. Providing a mock vision provider at the test fixture level (injected into the upload route module) is cleaner than mocking at the HTTP level — it tests the real processor code path. The `.env` file approach for API keys is simple and works well for dev; `python-dotenv` loaded early in `config.py` ensures all modules see the env vars. The three-stage JSON parsing pipeline (strip fences → find braces → parse → validate) handles Claude's occasional response formatting variations reliably.
+
+### WS-003: Search & Retrieval
+- **Phase:** Phase 1 — MVP
+- **Completed:** 2026-03-28
+- **Objective:** Build the search and retrieval pipeline: generate text embeddings from AI-extracted metadata, index them in ChromaDB, expose a natural language search endpoint with ranked results and relevance scores. Auto-index on analysis completion, re-index on re-analysis.
+- **Outcome:** Full semantic search pipeline operational. Metadata text is constructed from 13 ADR-005 fields (excluding `quality_notes`), embedded via `all-MiniLM-L6-v2` (384-dim, local — no API), and indexed in ChromaDB with user_id filtering. `GET /api/v1/search?q=...` returns ranked results with relevance scores (0–1), paginated, user-scoped. Auto-indexing hooks into the analysis processor — uploads are automatically searchable after analysis. Re-analysis updates embeddings in place (upsert). Rebuild script proves ADR-006 "derived store" principle — full vector store can be regenerated from the database. 28 total integration tests pass (7 new search + 21 existing).
+- **Key decisions:** No new ADRs. Key implementation choices: `all-MiniLM-L6-v2` runs locally via sentence-transformers (no external API, no cost). ChromaDB cosine similarity with distance-to-score conversion `1 - (distance / 2)`. Indexing is non-fatal — if ChromaDB fails, analysis still succeeds (warning logged). `VectorStore` protocol abstracts the vector DB for future swaps. `IndexingService` and `SearchService` share the same `Embedder` and `VectorStore` instances. Search route accesses shared instances from the upload module (single point of initialization). Test fixtures inject temp ChromaDB directories per test to avoid cross-test contamination.
+- **Artifacts produced:**
+  - `src/search/embedding_text.py` — Build embedding text from metadata (Pydantic or ORM)
+  - `src/search/embedder.py` — `Embedder` wrapping SentenceTransformer (384-dim)
+  - `src/search/models.py` — `SearchHit` dataclass
+  - `src/search/vector_store.py` — `VectorStore` protocol (abstract interface)
+  - `src/search/chromadb_store.py` — `ChromaDBVectorStore` with cosine similarity + user filtering
+  - `src/search/indexing_service.py` — `IndexingService`: text → embed → upsert
+  - `src/search/search_service.py` — `SearchService`: query → embed → search → DB join → ranked results
+  - `src/api/routes/search.py` — `GET /api/v1/search?q=...` endpoint
+  - `scripts/rebuild_vector_store.py` — Full vector store rebuild from DB
+  - `tests/test_search.py` — 7 search integration tests
+  - Modified: `src/config.py` (added `SearchConfig`), `src/analysis/processor.py` (auto-indexing hook), `src/api/routes/upload.py` (indexing service init), `src/api/routes/analysis.py` (pass indexing to re-analyze), `src/api/app.py` (search router), `src/api/schemas.py` (search response models), `pyproject.toml` (chromadb, sentence-transformers), `config/settings.yaml` (search section), `.gitignore` (chromadb_data/), `tests/conftest.py` (search fixtures)
+- **Lessons learned:** `from __future__ import annotations` must be the very first import after the docstring — even before stdlib imports. Test fixtures need per-test temp ChromaDB directories (not shared) to avoid state leakage. Module-level service initialization with graceful fallback (try/except returning None) works well for optional services. ChromaDB's `upsert` is idempotent by ID — simplifies re-indexing. The sentence-transformers model download (~80MB) happens once and is cached.
+
+### WS-004: Auth & API Hardening
+- **Phase:** Phase 1 — MVP
+- **Completed:** 2026-03-28
+- **Objective:** Replace the hardcoded dev user with real JWT-based authentication (email/password signup and login, bcrypt password hashing, token-protected routes), add dev/demo mode bypass for local testing, standardize API error responses, and add basic rate limiting on auth endpoints.
+- **Outcome:** Full JWT auth system operational. Users register with email/password (bcrypt-hashed) and receive a JWT token. All routes accept `Authorization: Bearer <token>` header. Dev mode (`auth.dev_mode: true`) preserves the existing no-auth behavior with auto-seeded dev user. Standardized error responses (`detail` + `error_code`) across all endpoints. In-memory rate limiting on login (5/min) and register (3/min). 3 new auth API endpoints: `POST /auth/register`, `POST /auth/login`, `GET /auth/me`. `AUTH_SECRET_KEY` env var overrides config for production. 38 total integration tests pass (10 new auth + 28 existing).
+- **Key decisions:** No new ADRs. Key implementation choices: Used `bcrypt` directly instead of `passlib[bcrypt]` (passlib has compatibility issues with bcrypt>=4.2). `password_hash` column is nullable (preserves dev user and existing DB state). Auth dependency uses `Header(None)` for optional Authorization, with dev mode fallback. Rate limiter state is in-memory (resets on restart — acceptable for MVP). Error handlers registered as FastAPI exception handlers (global, automatic for all HTTPException raises). Dev user only seeded when `dev_mode: true`. Startup logs a WARNING when dev mode is active.
+- **Artifacts produced:**
+  - `src/auth/__init__.py` — auth package
+  - `src/auth/passwords.py` — bcrypt hash/verify
+  - `src/auth/tokens.py` — JWT create (`create_access_token`) and decode (`decode_access_token`)
+  - `src/api/routes/auth.py` — register, login, me endpoints
+  - `src/api/error_handlers.py` — standardized error response handler + validation error handler
+  - `src/api/rate_limit.py` — `RateLimiter` sliding window counter + pre-configured login/register limiters
+  - `tests/test_auth.py` — 10 auth integration tests
+  - Modified: `src/models.py` (added `password_hash`), `src/config.py` (added `AuthConfig` + env var override), `src/api/dependencies.py` (JWT auth + dev mode fallback), `src/api/app.py` (auth router, error handlers, conditional dev seed, startup warning), `src/api/schemas.py` (auth request/response models), `pyproject.toml` (python-jose, bcrypt), `config/settings.yaml` (auth section), `config/settings.example.yaml` (auth section with dev_mode)
+- **Lessons learned:** `passlib` has compatibility issues with `bcrypt>=4.2` — use bcrypt directly for modern Python. Rate limiter state must be reset between tests (or tests hit the limit from prior tests). The FastAPI dependency override pattern (`app.dependency_overrides[deps.get_current_user_id]`) works regardless of the real dependency's signature — tests that override it are completely isolated from auth changes. Conditional dev user seeding (only when `dev_mode: true`) prevents confusion in production environments.
+
+### WS-005: Frontend MVP
+- **Phase:** Phase 1 — MVP
+- **Completed:** 2026-03-28
+- **Objective:** Build the frontend MVP: a React + TypeScript SPA that consumes all backend API endpoints. Users can register/login, upload images (drag-and-drop + file picker), browse their library in a paginated grid, view image details with AI-extracted metadata, search using natural language, and trigger re-analysis.
+- **Outcome:** Full frontend operational. React 18 + TypeScript + Vite SPA with 6 pages (Login, Register, Library, Upload, Media Detail, Search), 11 reusable components, typed API client for all 11 endpoints. Dark mode UI. Library auto-polls for status updates. Upload handles single and batch files sequentially with per-file status feedback. Media detail shows all 13 AI metadata fields with analysis polling. Search shows ranked results with relevance percentages. JWT auth integrated with localStorage persistence and auto-logout on 401. Backend additions: `GET /media/{id}/file` endpoint for image serving, CORS middleware, `cors_origins` config. File storage truncates long filenames to avoid Windows MAX_PATH limit. 38 backend tests still pass.
+- **Key decisions:** No new ADRs. Key implementation choices: CSS-only dark mode (no CSS framework or Tailwind — all styles in single `index.css`). Vite dev proxy eliminates CORS issues during development. Images served via authenticated blob URLs (`useAuthImage` hook) since `<img src>` can't send JWT headers. Upload uses sequential single-file requests instead of batch endpoint for better per-file error handling. Library auto-polls every 5s when items are processing, stops when all complete. Long filenames truncated on disk to 70 chars (preserving extension) to avoid Windows 260-char path limit; original filename preserved in DB for display. No frontend unit tests in MVP — manual integration testing against running backend.
+- **Artifacts produced:**
+  - Backend: `GET /api/v1/media/{id}/file` endpoint, CORS middleware, `cors_origins` config, filename truncation in `FileStore`
+  - `frontend/` — complete React+TS+Vite SPA (22+ source files):
+    - `src/api/client.ts` — typed API client for all 11 endpoints
+    - `src/api/useAuthImage.ts` — hook for authenticated image loading
+    - `src/context/AuthContext.tsx` — JWT auth state management
+    - `src/types/api.ts` — TypeScript interfaces matching all backend schemas
+    - `src/pages/` — LoginPage, RegisterPage, LibraryPage, UploadPage, MediaDetailPage, SearchPage
+    - `src/components/` — Layout, SearchBar, UserMenu, MediaCard, AuthImage, StatusBadge, Pagination, DropZone, FileQueue, MetadataDisplay, ProtectedRoute, PublicRoute
+    - `src/index.css` — dark mode styles
+    - `vite.config.ts` — dev proxy to backend
+  - Modified: `src/api/routes/media.py` (file serving), `src/api/app.py` (CORS), `src/config.py` (cors_origins), `src/storage/file_store.py` (filename truncation), config files
+- **Lessons learned:** `<img src>` cannot send Authorization headers — use fetch + blob URLs for authenticated image loading. Windows MAX_PATH (260 chars) is a real constraint with content-addressed paths + long filenames — truncate on disk, keep original in DB. Sequential single-file uploads provide better UX than batch when some files may fail. Auto-polling the library page when items are "uploaded" or "processing" gives real-time feel without WebSockets. Dark mode should be the default for developer-facing tools. Vite's dev proxy is the simplest way to avoid CORS during development.

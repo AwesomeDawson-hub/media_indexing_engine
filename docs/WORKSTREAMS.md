@@ -1,0 +1,180 @@
+# Workstreams
+
+This document tracks all work items for the Media Indexing Engine through their lifecycle. It is the **single source of truth** for what work is planned, in progress, and completed.
+
+## How Workstreams Move Between Sections
+
+### Planned → In Progress
+- Operator approves the workstream to start
+- A plan exists (created from phase plan or equivalent)
+- `CURRENT_STATE.md` is updated to reflect the active workstream
+
+### In Progress → Completed
+- All implementation work is done
+- Validation confirms the work meets its objectives
+- Closeout checklist has been followed
+- A summary is written to `IMPLEMENTATION_STATUS.md`
+- `CURRENT_STATE.md` is updated to clear the active workstream
+
+### Cancellation
+- Operator may cancel a workstream at any stage
+- Cancelled workstreams move to Completed with status "Cancelled" and a reason
+- All document updates still apply (state must remain consistent)
+
+---
+
+## Planned
+
+_Phase 3 — Polish & Production Readiness. Full phase plan at `docs/planning/PHASE_3_polish_production_plan.md`. Workstreams use `P3-XXX` prefix consistent with Phase 2 convention. P3-001 implementation spec is at `docs/planning/WS-006_PLAN.md` (drafted as WS-006 prior to phase boundary; plan adopted as-is)._
+
+### P3-002: Database Migrations
+- **Objective:** Install Alembic migration framework, generate the initial migration from the current schema (users, media_items, media_metadata, processing_jobs), and integrate migration execution into startup so the drop-and-recreate pattern is retired.
+- **Phase:** Phase 3 — Polish & Production Readiness
+- **Status:** Planned
+- **Dependencies:** Phase 2 complete (independent of P3-001)
+- **Size:** Small
+- **Plan:** `docs/planning/PHASE_3_polish_production_plan.md` — P3-002 section
+
+### P3-003: Bulk Operations
+- **Objective:** Add bulk re-analysis (`POST /media/reanalyze-batch`) and bulk delete (`DELETE /media/batch`) API endpoints. Implement `LocalFileStore.delete()` and `ChromaDBVectorStore.delete_items()`. Integrate both actions into the Gallery selection bar UI added by P3-001.
+- **Phase:** Phase 3 — Polish & Production Readiness
+- **Status:** Planned
+- **Dependencies:** P3-001 complete (Gallery page with multi-select)
+- **Size:** Small-Medium
+- **Plan:** `docs/planning/PHASE_3_polish_production_plan.md` — P3-003 section
+
+### P3-004: Production Deployment
+- **Objective:** Implement S3-compatible `S3FileStore`, add a health endpoint (`GET /api/v1/health`), validate PostgreSQL end-to-end, and produce a Docker + docker-compose stack for the full system (backend, frontend, ChromaDB, PostgreSQL).
+- **Phase:** Phase 3 — Polish & Production Readiness
+- **Status:** Planned
+- **Dependencies:** P3-002 complete (Alembic migrations required for prod)
+- **Size:** Medium-Large
+- **Plan:** `docs/planning/PHASE_3_polish_production_plan.md` — P3-004 section
+
+---
+
+## In Progress
+
+_No workstreams in progress._
+
+---
+
+## Post-Phase 1 Improvements (Applied 2026-03-28)
+
+_These changes were applied directly without a formal workstream, after Phase 1 closeout:_
+- Search filters: people, orientation, aspect ratio (7 standard + Other), file type, mood, sort order
+- AVIF file support (backend + frontend)
+- Image dimensions stored on upload (`width`, `height` columns)
+- Upload UX improvements (header buttons, scrollable queue)
+- Dark mode UI
+- Long filename truncation, authenticated image loading
+
+---
+
+## Completed
+
+### P3-001: UI Polish & API Cleanup
+- **Objective:** Five targeted improvements: fix metadata comment prefix; use AI title as download filename for all formats; expose image dimensions throughout stack; merge Library + Search into unified Gallery page; rename "Upload" → "Source" throughout UI.
+- **Phase:** Phase 3 — Polish & Production Readiness
+- **Started:** 2026-03-28
+- **Completed:** 2026-03-28
+- **Status:** Completed
+- **Outcome:** All 5 changes delivered. `field_mapping.py` prefix removed. `download.py` extended with `_MIME_TO_EXT` dict — AI title used as filename for all formats. `schemas.py`, `types/api.ts`, and `MediaDetailPage.tsx` updated with `width`/`height`. `media.py` rewritten with full filter+sort params and aspect-ratio post-query filtering. New `GalleryPage.tsx` replaces `LibraryPage.tsx` and `SearchPage.tsx`. Nav updated to "Gallery / Source". 62/62 tests pass.
+
+### P2-004: List View + Multi-Select + Batch Download
+- **Objective:** Grid/list view toggle on Library and Search pages, checkbox multi-select, batch ZIP download
+- **Phase:** Phase 2
+- **Started:** 2026-03-28
+- **Completed:** 2026-03-28
+- **Status:** Completed
+- **Outcome:** Grid/list view toggle on Library and Search pages. List view with per-row checkboxes, "Select all", floating selection bar with "Download Selected" (batch ZIP). View preference persisted in localStorage. 3 new components: ViewToggle, MediaListRow, SelectionBar. API client: `downloadBatch()`.
+
+### P2-003: Frontend Download Button
+- **Objective:** Download with metadata button on media detail page; BMP/GIF convert-to-PNG option
+- **Phase:** Phase 2
+- **Started:** 2026-03-28
+- **Completed:** 2026-03-28
+- **Status:** Completed
+- **Outcome:** "Download (with metadata)" button on MediaDetailPage for embeddable formats (JPEG, WebP, PNG, TIFF). BMP/GIF: "Download" button + "Convert to PNG with metadata" button. API client additions: `downloadFile()`, `downloadBatch()`, `convertToPng()`.
+
+### P2-002: Download Endpoints
+- **Objective:** Backend download endpoints: single file with metadata embedded, batch ZIP, convert-to-PNG
+- **Phase:** Phase 2
+- **Started:** 2026-03-28
+- **Completed:** 2026-03-28
+- **Status:** Completed
+- **Outcome:** 3 new API endpoints in `src/api/routes/download.py`: `GET /media/{id}/download` (single enriched file), `POST /media/download-batch` (ZIP archive), `POST /media/{id}/convert-png` (BMP/GIF to PNG with metadata). BMP/GIF downloads use AI title as filename. 8 new tests, 62 total pass.
+
+### P2-001: Metadata Embedder Module
+- **Objective:** Embed AI-extracted metadata (title, description, tags, etc.) into image file headers at download time
+- **Phase:** Phase 2
+- **Started:** 2026-03-28
+- **Completed:** 2026-03-28
+- **Status:** Completed
+- **Outcome:** 8 new files in `src/enrichment/`: `MetadataEmbedder` dispatcher, EXIF writer (JPEG/WebP/AVIF/TIFF), IPTC writer, PNG XMP writer, AVIF writer, WebP writer, field mapping, XMP builder. Supports JPEG (EXIF+IPTC), WebP (EXIF), AVIF (EXIF), PNG (XMP via iTXt), TIFF (EXIF+IPTC). BMP/GIF pass-through with convert-to-PNG fallback. 16 new tests, 54 total pass.
+
+### P2-005: Search as Nav Tab
+- **Objective:** Make Search accessible as a primary nav link rather than only via the search bar
+- **Phase:** Phase 2
+- **Started:** 2026-03-28
+- **Completed:** 2026-03-28
+- **Status:** Completed
+- **Outcome:** Search added as third nav link in the header Layout component. Users can navigate directly to the Search page without a pre-existing query.
+
+### WS-005: Frontend MVP
+- **Objective:** Upload UI, library browser, search interface
+- **Phase:** Phase 1
+- **Started:** 2026-03-28
+- **Completed:** 2026-03-28
+- **Status:** Completed
+- **Outcome:** React+TS+Vite SPA with dark mode. Auth pages, drag-drop upload, paginated library with auto-polling, media detail with 13 metadata fields, natural language search with scores. 22+ frontend files, file serving endpoint, CORS. 38 backend tests pass. Manual integration test verified.
+
+### WS-004: Auth & API Hardening
+- **Objective:** Authentication middleware, API security, error handling, rate limiting, dev/demo mode
+- **Phase:** Phase 1
+- **Started:** 2026-03-28
+- **Completed:** 2026-03-28
+- **Status:** Completed
+- **Outcome:** JWT auth (register/login/me), bcrypt passwords, dev mode fallback, standardized error responses, rate limiting. 3 new auth endpoints. 38 total tests pass (10 new).
+
+### WS-003: Search & Retrieval
+- **Objective:** Embedding generation, vector indexing, natural language query, search API endpoint
+- **Phase:** Phase 1
+- **Started:** 2026-03-28
+- **Completed:** 2026-03-28
+- **Status:** Completed
+- **Outcome:** Full semantic search pipeline operational. Local sentence-transformer embeddings, ChromaDB vector store, auto-indexing on analysis, user-scoped search with relevance scores. 1 new API endpoint, rebuild script. 28 total tests pass (7 new).
+
+### WS-002: AI Analysis Pipeline
+- **Objective:** Vision model integration, metadata extraction, structured output to DB, analysis API endpoints
+- **Phase:** Phase 1
+- **Started:** 2026-03-27
+- **Completed:** 2026-03-27
+- **Status:** Completed
+- **Outcome:** Full AI analysis pipeline operational. Anthropic Claude vision integration with VisionProvider abstraction. MediaMetadata table with 13 ADR-005 fields. Image resize/prep, 3-stage JSON parsing, retry logic. 2 new API endpoints. 21 total tests pass (8 new). Smoke test verified with real API.
+
+### WS-001: Ingestion Pipeline
+- **Objective:** File upload, validation, hashing, deduplication, file storage, background task pattern, upload API endpoints
+- **Phase:** Phase 1
+- **Started:** 2026-03-27
+- **Completed:** 2026-03-27
+- **Status:** Completed
+- **Outcome:** Full ingestion pipeline operational. 15 source files, 4 API endpoints, 13 passing integration tests. Implements ADR-001 (SHA256 identity), ADR-003 (normalized entities), ADR-004 (content-addressed storage). Background task pattern ready for WS-002.
+
+### WS-000: Core Foundations
+- **Objective:** Prior art extraction from marketing_asset_pipeline, media identity model, metadata schema, storage model, DB schema, project setup, API scaffold
+- **Phase:** Phase 1
+- **Started:** 2026-03-27
+- **Completed:** 2026-03-27
+- **Status:** Completed
+- **Outcome:** All design deliverables produced and approved. 8 ADRs recorded. Ready for WS-001.
+
+<!-- Entry format:
+### WS-XXX: [Workstream Name]
+- **Objective:** [What this workstream accomplished]
+- **Phase:** [Which roadmap phase this belonged to]
+- **Started:** [Date]
+- **Completed:** [Date]
+- **Status:** Completed | Cancelled
+- **Outcome:** [Brief summary — detail lives in IMPLEMENTATION_STATUS.md]
+-->
