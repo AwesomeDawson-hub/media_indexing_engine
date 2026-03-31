@@ -31,6 +31,24 @@ Each completed workstream gets one entry in the log below, following this struct
 
 ## Completed Workstream Log
 
+### P4-001: Gallery & Detail UX Continuity
+- **Phase:** Phase 4 — Beta Operations & Commercial Foundations
+- **Completed:** 2026-03-31
+- **Objective:** Keep filters always visible; add dimensions-based filtering; simplify status badge display; reorganize Media Detail metadata into sections; preserve Gallery URL state when navigating back from details.
+- **Outcome:** All 6 changes delivered and validated. (1) Filter panel toggle button removed — filters always visible below the search bar. (2) Source button removed from Gallery page header (empty-state CTA preserved). (3) Size bucket select (Small <1000px / Medium 1000–2499px / Large 2500px+) added to FilterPanel; `sizeBucketToWidthParams()` helper maps to `min_width`/`max_width`; `client.ts` `listMediaFiltered` now passes those params; both `/api/v1/media` and `/api/v1/search` already supported them. (4) `StatusBadge` returns `null` for `completed` and any unknown status — only `uploaded`/`processing`/`error` show badges. (5) `MetadataDisplay` restructured into two sections: **Metadata** (Title, Description, Tags, Mood, People, People Count, Orientation) and **Additional Search Data** (Objects, Scenes, Context, Colors, Location Hint, Quality Notes). (6) `GalleryPage` imports `useLocation` and passes `state={{ from: location.pathname + location.search }}` to all detail links (MediaCard, MediaListRow, SearchListRow, search-grid Link); `MediaDetailPage` reads `location.state?.from` and falls back to `/` for the "← Back to Gallery" link. 82/82 backend tests pass. TypeScript build clean. Frontend deployed to Docker.
+- **Key decisions:** Size bucket approach chosen over free-form pixel input for UX simplicity (bucket boundaries align with Small/HD/4K breakpoints). `navigate(-1)` approach rejected in favor of explicit location state to handle direct-URL navigation. `useLocation` imported at GalleryPage level — not in sub-components — to avoid prop-drilling the full location object.
+- **Artifacts produced:**
+  - Modified: `frontend/src/pages/GalleryPage.tsx` (filters always visible, Source btn removed, Size bucket filter, useLocation + fromPath passing)
+  - Modified: `frontend/src/api/client.ts` (listMediaFiltered passes min_width/max_width)
+  - Modified: `frontend/src/components/StatusBadge.tsx` (completed returns null)
+  - Modified: `frontend/src/components/MetadataDisplay.tsx` (two-section layout)
+  - Modified: `frontend/src/pages/MediaDetailPage.tsx` (useLocation, backHref from state)
+  - Modified: `frontend/src/components/MediaCard.tsx` (fromPath prop + state on Link)
+  - Modified: `frontend/src/components/MediaListRow.tsx` (fromPath prop + state on Link)
+  - Modified: `docs/CURRENT_STATE.md`, `docs/WORKSTREAMS.md`, `docs/PROJECT_HANDOFF.md`, `docs/planning/PHASE_4_beta_operations_plan.md`, `docs/planning/P4-001_plan.md`
+- **Validation performed:** 82/82 backend tests pass (`python -m pytest tests/ -q`). `npm run build` (tsc + vite) clean. Frontend Docker container rebuilt and running. Manual smoke checklist to be completed by operator against live stack.
+- **Lessons learned:** Backend dimension params were already wired — backend-first planning pays off. `location.state` pattern is clean for gallery-state preservation without URL pollution.
+
 ### P3-004: Production Deployment
 - **Phase:** Phase 3 — Polish & Production Readiness
 - **Completed:** 2026-03-28

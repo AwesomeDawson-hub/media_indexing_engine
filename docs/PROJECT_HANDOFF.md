@@ -8,11 +8,11 @@ _Update this document at the end of every session and at every workstream transi
 
 | Field | Value |
 |---|---|
-| **Current Phase** | Phase 3 — Polish & Production Readiness (**complete** — all 4 workstreams done) |
-| **Current Workstream** | None — Phase 3 complete |
-| **Last Completed Work** | Post-Phase-3 bug fixes (2026-03-29, commit fd5013e): nginx upload limit 50M; search user_id DB security fix; search relevance sort fix after login |
-| **Next Task** | Operator defines Phase 4 scope with the Architect role (no Phase 4 plan exists yet) |
-| **Next Step Requested** | Architect creates Phase 4 plan, or operator declares project complete |
+| **Current Phase** | Phase 4 — Beta Operations & Commercial Foundations (**in progress**) |
+| **Current Workstream** | None — P4-001 complete; P4-002 not yet started |
+| **Last Completed Work** | P4-001 — Gallery & Detail UX Continuity (2026-03-31): all 6 UX changes delivered |
+| **Next Task** | Activate P4-002 — Plans, Quotas & Analysis Confirmation |
+| **Next Step Requested** | Operator reviews P4-001 changes on the live stack, then activates P4-002 |
 
 ## Required Reading
 
@@ -94,6 +94,25 @@ When suggesting code changes:
 
 ## Recent Session Activity
 
+- **AWS public beta deployment session (2026-03-29):**
+  - Operator chose AWS instead of a generic VPS recommendation.
+  - Single-instance EC2 deployment path used successfully: Ubuntu 24.04, Docker Engine, Docker Compose, Elastic IP.
+  - Project copied to EC2, `.env` created, and full stack started with `docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build`.
+  - Backend, frontend, PostgreSQL, ChromaDB, and Caddy all started successfully; backend health check passed.
+  - Temporary blocker discovered: automatic HTTPS cannot be issued for the AWS-provided hostname `ec2-13-216-223-46.compute-1.amazonaws.com` because ACME rejects that identifier.
+  - Temporary workaround applied: `deploy/Caddyfile` changed to HTTP-only for the EC2 hostname so the beta can be accessed without a custom domain.
+  - Public health endpoint verified over HTTP: `curl -i --max-time 10 http://ec2-13-216-223-46.compute-1.amazonaws.com/api/v1/health` returned `200 OK` with `{"status":"ok","version":"0.1.0"}`.
+  - AWS security group and Ubuntu firewall both verified to allow ports 22, 80, and 443.
+  - Browser behavior note: site initially failed in the normal browser due to cached HTTPS/HSTS state; confirmed working in Incognito mode using the full `http://` URL.
+  - Follow-up required: rotate exposed `ANTHROPIC_API_KEY`, `POSTGRES_PASSWORD`, and `AUTH_SECRET_KEY`, then attach a real domain and switch Caddy back to automatic HTTPS.
+- **Phase 4 planning session (2026-03-31):**
+  - Operator provided pre-beta feature and control feedback covering Gallery UX, Sources flow, monthly quotas, source tracking, admin controls, billing, OCR, profile management, and future expansion ideas.
+  - New phase plan created at `docs/planning/PHASE_4_beta_operations_plan.md`.
+  - Six planned workstreams defined: `P4-001` Gallery & Detail UX Continuity, `P4-002` Plans/Quotas & Analysis Confirmation, `P4-003` Source Registry & Source-Aware Media, `P4-004` Admin Console & User Profile Management, `P4-005` Billing Groundwork & Commercial Modeling, `P4-006` OCR Search Enrichment.
+  - Naming/domain selection explicitly kept out of Phase 4 planning per operator instruction.
+  - High-risk items deferred from Phase 4 exit criteria: full video analysis, facial recognition, and broad connector rollout across every cloud source.
+  - Phase rule established: each workstream must be validated locally first, then smoke-tested in the AWS beta environment before closeout.
+
 - **Post-Phase-3 bug fixes (2026-03-29, commit fd5013e on master):**
   - **nginx upload limit:** `client_max_body_size` raised to 50M in `frontend/nginx.conf` (files >1MB were returning HTTP 413)
   - **Search security fix:** `src/search/search_service.py` — `MediaItem.user_id == user_id` added to DB WHERE clauses (defense-in-depth; ChromaDB already filtered by user_id)
@@ -170,7 +189,9 @@ When suggesting code changes:
 
 ## Open Questions / Blockers
 
-- None. Phase 3 is complete (all 4 workstreams P3-001–P3-004 done) and post-Phase-3 bug fixes have been applied (commit fd5013e, 2026-03-29). System is production-ready.
+- No application blockers.
+- Operational limitation remains: public beta is live over temporary HTTP on the EC2 hostname, but full HTTPS beta access is blocked until a real domain is attached.
+- Phase 4 implementation has not started yet; operator approval of workstream order is still required.
 
 ## Document Ownership Note
 

@@ -25,15 +25,40 @@ This document tracks all work items for the Media Indexing Engine through their 
 
 ## Planned
 
-_Phase 3 — Polish & Production Readiness. Full phase plan at `docs/planning/PHASE_3_polish_production_plan.md`. Workstreams use `P3-XXX` prefix consistent with Phase 2 convention. P3-001 implementation spec is at `docs/planning/WS-006_PLAN.md` (drafted as WS-006 prior to phase boundary; plan adopted as-is)._
+_Phase 4 — Beta Operations & Commercial Foundations. Full phase plan at `docs/planning/PHASE_4_beta_operations_plan.md`. Workstreams use `P4-XXX` prefix._
 
-_No workstreams planned — all P3 workstreams are in progress or complete._
+
+
+### P4-002: Plans, Quotas & Analysis Confirmation
+- **Objective:** Enforce monthly image-processing limits, add quota-aware confirmation on the Sources page, and protect capture date/geo-location from overwrite.
+- **Phase:** Phase 4 — Beta Operations & Commercial Foundations
+- **Status:** Planned
+
+### P4-003: Source Registry & Source-Aware Media
+- **Objective:** Persist named sources, associate media with sources, add archive/restore behavior for deleted sources, and establish the connector abstraction for future online sources.
+- **Phase:** Phase 4 — Beta Operations & Commercial Foundations
+- **Status:** Planned
+
+### P4-004: Admin Console & User Profile Management
+- **Objective:** Add admin-only user management, backend RBAC, audited admin actions, self-service profile updates, verified email change, and account recovery.
+- **Phase:** Phase 4 — Beta Operations & Commercial Foundations
+- **Status:** Planned
+
+### P4-005: Billing Groundwork & Commercial Modeling
+- **Objective:** Measure image-processing cost, codify plan tiers, and implement Stripe test-mode billing groundwork without enabling live paid launch.
+- **Phase:** Phase 4 — Beta Operations & Commercial Foundations
+- **Status:** Planned
+
+### P4-006: OCR Search Enrichment
+- **Objective:** Extract text from images, store it as additional search data, and make it searchable.
+- **Phase:** Phase 4 — Beta Operations & Commercial Foundations
+- **Status:** Planned
 
 ---
 
 ## In Progress
 
-_No workstreams in progress — Phase 3 complete._
+_No workstreams currently in progress._
 
 ---
 
@@ -59,6 +84,15 @@ _These changes were applied directly without a formal workstream, after Phase 1 
 ---
 
 ## Completed
+
+### P4-001: Gallery & Detail UX Continuity
+- **Objective:** Keep filters visible, add dimensions filtering, simplify status display, reorganize Media Detail, and preserve Gallery state when returning from details. Source-backed filtering is explicitly deferred to P4-003.
+- **Phase:** Phase 4 — Beta Operations & Commercial Foundations
+- **Status:** Completed
+- **Started:** 2026-03-31
+- **Completed:** 2026-03-31
+- **Plan:** `docs/planning/P4-001_plan.md`
+- **Outcome:** All 6 changes delivered. Filters always visible (toggle removed). Source button removed from Gallery header. Size bucket filter (Small/Medium/Large) wired to backend `min_width`/`max_width`. StatusBadge hides `completed` status. MetadataDisplay split into Metadata + Additional Search Data sections. Back-to-Gallery Link restores full gallery URL state via React Router location state.
 
 ### P3-004: Production Deployment
 - **Objective:** Implement S3-compatible `S3FileStore`, add a health endpoint (`GET /api/v1/health`), validate PostgreSQL end-to-end, and produce a Docker + docker-compose stack for the full system (backend, frontend, ChromaDB, PostgreSQL).
