@@ -196,7 +196,7 @@ export default function GalleryPage() {
   const pageParam = parseInt(searchParams.get('page') || '1', 10);
 
   const [query, setQuery] = useState(queryParam);
-  const [page, setPage] = useState(pageParam);
+  // page is derived directly from URL — no separate state to avoid divergence on back-navigation
 
   // Browse mode state
   const [browseItems, setBrowseItems] = useState<MediaItemResponse[]>([]);
@@ -273,7 +273,6 @@ export default function GalleryPage() {
       const res = await api.search(q, p, PER_PAGE, filters);
       setSearchResults(res.results);
       setSearchTotal(res.total);
-      setPage(res.page);
       setSearched(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Search failed');
@@ -285,17 +284,16 @@ export default function GalleryPage() {
   // Browse mode — load on mount and page/filter changes
   useEffect(() => {
     if (!isSearchMode) {
-      fetchBrowse(page, true);
+      fetchBrowse(pageParam, true);
       setSelected(new Set());
     }
-  }, [page, isSearchMode, fetchBrowse]);
+  }, [pageParam, isSearchMode, fetchBrowse]);
 
   // Search mode — trigger search when URL query changes (back/fwd nav, direct URL, refresh)
   useEffect(() => {
     if (isSearchMode && queryParam !== lastSubmittedQuery.current) {
       setQuery(queryParam);
       doSearch(queryParam, pageParam);
-      setPage(pageParam);
       setSelected(new Set());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -308,10 +306,10 @@ export default function GalleryPage() {
       (i) => i.status === 'uploaded' || i.status === 'processing'
     );
     if (hasProcessing) {
-      pollRef.current = setInterval(() => fetchBrowse(page), POLL_INTERVAL);
+      pollRef.current = setInterval(() => fetchBrowse(pageParam), POLL_INTERVAL);
     }
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [browseItems, page, isSearchMode, fetchBrowse]);
+  }, [browseItems, pageParam, isSearchMode, fetchBrowse]);
 
   function handleViewChange(v: 'grid' | 'list') {
     setView(v);
@@ -354,7 +352,6 @@ export default function GalleryPage() {
     if (effectiveSort !== 'relevance') submitParams.sort = effectiveSort;
     setSearchParams(submitParams);
     doSearch(q, 1, effectiveSort);
-    setPage(1);
     setSelected(new Set());
   }
 
@@ -376,14 +373,12 @@ export default function GalleryPage() {
     if (isSearchMode) {
       doSearch(queryParam, 1);
     } else {
-      setPage(1);
       fetchBrowse(1, true);
     }
   }
 
   function handlePageChange(newPage: number) {
-    setPage(newPage);
-    // Write page to URL so back-navigation restores the correct page
+    // Update URL — pageParam re-derives on next render, browse useEffect handles refetch
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       if (newPage > 1) {
@@ -396,7 +391,6 @@ export default function GalleryPage() {
     if (isSearchMode) {
       doSearch(queryParam, newPage);
     }
-    // browse: useEffect handles it via page dependency
   }
 
   function resetFilters() {
@@ -549,7 +543,7 @@ export default function GalleryPage() {
                 </div>
               )}
 
-              <Pagination page={page} totalPages={totalPages} onPageChange={handlePageChange} />
+              <Pagination page={pageParam} totalPages={totalPages} onPageChange={handlePageChange} />
             </>
           )}
         </>
@@ -647,7 +641,7 @@ export default function GalleryPage() {
                 </div>
               )}
 
-              <Pagination page={page} totalPages={totalPages} onPageChange={handlePageChange} />
+              <Pagination page={pageParam} totalPages={totalPages} onPageChange={handlePageChange} />
             </>
           )}
         </>
