@@ -370,6 +370,7 @@ export default function GalleryPage() {
     if (sizeBucket) params.size = sizeBucket;
     const defaultSort = isSearchMode ? 'relevance' : 'newest';
     if (sortBy !== defaultSort) params.sort = sortBy;
+    // page intentionally omitted — Apply always resets to page 1
     setSearchParams(params, { replace: true });
 
     if (isSearchMode) {
@@ -382,6 +383,16 @@ export default function GalleryPage() {
 
   function handlePageChange(newPage: number) {
     setPage(newPage);
+    // Write page to URL so back-navigation restores the correct page
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (newPage > 1) {
+        next.set('page', String(newPage));
+      } else {
+        next.delete('page');
+      }
+      return next;
+    }, { replace: true });
     if (isSearchMode) {
       doSearch(queryParam, newPage);
     }
@@ -399,6 +410,7 @@ export default function GalleryPage() {
     // Strip filter params from URL, keeping only q
     const params: Record<string, string> = {};
     if (queryParam) params.q = queryParam;
+    // page intentionally omitted — reset returns to page 1
     setSearchParams(params, { replace: true });
     setTimeout(() => {
       if (isSearchMode) doSearch(queryParam, 1);
