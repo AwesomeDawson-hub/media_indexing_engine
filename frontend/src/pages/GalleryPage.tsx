@@ -294,8 +294,8 @@ export default function GalleryPage() {
   useEffect(() => {
     if (isSearchMode && queryParam !== lastSubmittedQuery.current) {
       setQuery(queryParam);
-      doSearch(queryParam, 1);
-      setPage(1);
+      doSearch(queryParam, pageParam);
+      setPage(pageParam);
       setSelected(new Set());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
