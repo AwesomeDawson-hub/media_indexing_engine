@@ -234,6 +234,11 @@ export default function GalleryPage() {
 
   const isSearchMode = Boolean(queryParam);
 
+  // Persist current gallery URL so the nav link can restore it when returning from other pages
+  useEffect(() => {
+    sessionStorage.setItem('gallery_last_url', location.pathname + location.search);
+  });
+
   // Track the last query submitted via the form so the URL-change effect
   // doesn't double-fire when handleSubmit already kicked off the search.
   const lastSubmittedQuery = useRef('');

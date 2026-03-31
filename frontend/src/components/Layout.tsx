@@ -1,5 +1,15 @@
-import { Link, Outlet } from 'react-router-dom';
+import { Link, Outlet, useLocation } from 'react-router-dom';
 import UserMenu from './UserMenu';
+
+function GalleryNavLink() {
+  const location = useLocation();
+  const isOnGallery = location.pathname === '/';
+  // When already on the gallery, stay on current URL; otherwise restore last gallery URL
+  const href = isOnGallery
+    ? location.pathname + location.search
+    : (sessionStorage.getItem('gallery_last_url') || '/');
+  return <Link to={href} className="nav-link">Gallery</Link>;
+}
 
 export default function Layout() {
   return (
@@ -10,7 +20,7 @@ export default function Layout() {
             Media Indexer
           </Link>
           <nav className="app-nav">
-            <Link to="/" className="nav-link">Gallery</Link>
+            <GalleryNavLink />
             <Link to="/upload" className="nav-link">Source</Link>
           </nav>
           <UserMenu />
