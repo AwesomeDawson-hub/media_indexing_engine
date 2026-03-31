@@ -216,14 +216,21 @@ export default function GalleryPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const pollRef = useRef<ReturnType<typeof setInterval>>();
 
-  // Filter state
-  const [hasPeople, setHasPeople] = useState<boolean | null>(null);
-  const [orientation, setOrientation] = useState('');
-  const [mood, setMood] = useState('');
-  const [mimeType, setMimeType] = useState('');
-  const [aspectRatio, setAspectRatio] = useState('');
-  const [sizeBucket, setSizeBucket] = useState('');
-  const [sortBy, setSortBy] = useState(() => queryParam ? 'relevance' : 'newest');
+  // Filter state — initialized from URL so back-navigation restores filters
+  const hasPeopleParam = searchParams.get('has_people');
+  const [hasPeople, setHasPeople] = useState<boolean | null>(
+    hasPeopleParam === 'true' ? true : hasPeopleParam === 'false' ? false : null
+  );
+  const [orientation, setOrientation] = useState(searchParams.get('orientation') || '');
+  const [mood, setMood] = useState(searchParams.get('mood') || '');
+  const [mimeType, setMimeType] = useState(searchParams.get('mime_type') || '');
+  const [aspectRatio, setAspectRatio] = useState(searchParams.get('aspect_ratio') || '');
+  const [sizeBucket, setSizeBucket] = useState(searchParams.get('size') || '');
+  const [sortBy, setSortBy] = useState(() => {
+    const s = searchParams.get('sort');
+    if (s) return s;
+    return queryParam ? 'relevance' : 'newest';
+  });
 
   const isSearchMode = Boolean(queryParam);
 
@@ -337,13 +344,34 @@ export default function GalleryPage() {
     const effectiveSort = isSearchMode ? sortBy : 'relevance';
     if (!isSearchMode) setSortBy('relevance');
     lastSubmittedQuery.current = q;
-    setSearchParams({ q });
+    const submitParams: Record<string, string> = { q };
+    if (hasPeople !== null) submitParams.has_people = String(hasPeople);
+    if (orientation) submitParams.orientation = orientation;
+    if (mood) submitParams.mood = mood;
+    if (mimeType) submitParams.mime_type = mimeType;
+    if (aspectRatio) submitParams.aspect_ratio = aspectRatio;
+    if (sizeBucket) submitParams.size = sizeBucket;
+    if (effectiveSort !== 'relevance') submitParams.sort = effectiveSort;
+    setSearchParams(submitParams);
     doSearch(q, 1, effectiveSort);
     setPage(1);
     setSelected(new Set());
   }
 
   function handleApplyFilters() {
+    // Write active filters to URL so back-navigation can restore them
+    const params: Record<string, string> = {};
+    if (queryParam) params.q = queryParam;
+    if (hasPeople !== null) params.has_people = String(hasPeople);
+    if (orientation) params.orientation = orientation;
+    if (mood) params.mood = mood;
+    if (mimeType) params.mime_type = mimeType;
+    if (aspectRatio) params.aspect_ratio = aspectRatio;
+    if (sizeBucket) params.size = sizeBucket;
+    const defaultSort = isSearchMode ? 'relevance' : 'newest';
+    if (sortBy !== defaultSort) params.sort = sortBy;
+    setSearchParams(params, { replace: true });
+
     if (isSearchMode) {
       doSearch(queryParam, 1);
     } else {
@@ -368,6 +396,10 @@ export default function GalleryPage() {
     setAspectRatio('');
     setSizeBucket('');
     setSortBy(isSearchMode ? 'relevance' : 'newest');
+    // Strip filter params from URL, keeping only q
+    const params: Record<string, string> = {};
+    if (queryParam) params.q = queryParam;
+    setSearchParams(params, { replace: true });
     setTimeout(() => {
       if (isSearchMode) doSearch(queryParam, 1);
       else fetchBrowse(1, true);
