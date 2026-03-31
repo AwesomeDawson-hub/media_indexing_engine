@@ -51,6 +51,9 @@ export default function MediaDetailPage() {
         setAnalysis(a);
         if (a.status !== 'pending' && a.status !== 'processing') {
           clearInterval(pollRef.current);
+          // Re-fetch media so status badge reflects the completed state
+          const m = await api.getMedia(id);
+          setMedia(m);
         }
       } catch {
         // ignore polling errors
