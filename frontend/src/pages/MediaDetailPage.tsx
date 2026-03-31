@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import * as api from '../api/client';
 import { getMediaFileUrl } from '../api/client';
 import { useAuthImage } from '../api/useAuthImage';
@@ -12,6 +12,8 @@ const NO_EMBED_TYPES = ['image/bmp', 'image/gif'];
 export default function MediaDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const backHref = (location.state as { from?: string } | null)?.from || '/';
   const [media, setMedia] = useState<MediaItemResponse | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -113,7 +115,7 @@ export default function MediaDetailPage() {
 
   return (
     <div>
-      <Link to="/" className="back-link">&larr; Back to Gallery</Link>
+      <Link to={backHref} className="back-link">&larr; Back to Gallery</Link>
 
       <div className="media-detail">
         <div className="media-detail-preview">

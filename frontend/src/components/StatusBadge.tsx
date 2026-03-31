@@ -5,11 +5,11 @@ interface StatusBadgeProps {
 const statusClasses: Record<string, string> = {
   uploaded: 'badge-warning',
   processing: 'badge-info',
-  completed: 'badge-success',
   error: 'badge-danger',
 };
 
 export default function StatusBadge({ status }: StatusBadgeProps) {
-  const cls = statusClasses[status] || 'badge-info';
+  const cls = statusClasses[status];
+  if (!cls) return null; // don't show badge for 'completed' or unknown states
   return <span className={`badge ${cls}`}>{status}</span>;
 }

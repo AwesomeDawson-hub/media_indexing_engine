@@ -20,74 +20,82 @@ function PillList({ items, className }: { items: string[]; className?: string })
 export default function MetadataDisplay({ metadata }: MetadataDisplayProps) {
   return (
     <div className="metadata-display">
-      <div className="metadata-field">
-        <label>Title</label>
-        <p>{metadata.title || 'Untitled'}</p>
-      </div>
+      <div className="metadata-section">
+        <h3>Metadata</h3>
 
-      <div className="metadata-field">
-        <label>Description</label>
-        <p>{metadata.description || 'No description'}</p>
-      </div>
-
-      <div className="metadata-field">
-        <label>Tags</label>
-        <PillList items={metadata.tags} />
-      </div>
-
-      <div className="metadata-field">
-        <label>Objects</label>
-        <PillList items={metadata.objects} className="pill-blue" />
-      </div>
-
-      <div className="metadata-field">
-        <label>Scenes</label>
-        <PillList items={metadata.scenes} className="pill-purple" />
-      </div>
-
-      <div className="metadata-field">
-        <label>Context</label>
-        <p>{metadata.context || 'N/A'}</p>
-      </div>
-
-      <div className="metadata-field">
-        <label>Mood</label>
-        <p>{metadata.mood || 'N/A'}</p>
-      </div>
-
-      <div className="metadata-field">
-        <label>People</label>
-        <PillList items={metadata.people} className="pill-green" />
-      </div>
-
-      <div className="metadata-field">
-        <label>People Count</label>
-        <p>{metadata.people_count}</p>
-      </div>
-
-      <div className="metadata-field">
-        <label>Orientation</label>
-        <p>{metadata.orientation || 'N/A'}</p>
-      </div>
-
-      <div className="metadata-field">
-        <label>Colors</label>
-        <PillList items={metadata.colors} className="pill-color" />
-      </div>
-
-      {metadata.location_hint && (
         <div className="metadata-field">
-          <label>Location Hint</label>
-          <p>{metadata.location_hint}</p>
+          <label>Title</label>
+          <p>{metadata.title || 'Untitled'}</p>
         </div>
-      )}
 
-      {metadata.quality_notes && (
         <div className="metadata-field">
-          <label>Quality Notes</label>
-          <p>{metadata.quality_notes}</p>
+          <label>Description</label>
+          <p>{metadata.description || 'No description'}</p>
         </div>
-      )}
+
+        <div className="metadata-field">
+          <label>Tags</label>
+          <PillList items={metadata.tags} />
+        </div>
+
+        <div className="metadata-field">
+          <label>Mood</label>
+          <p>{metadata.mood || 'N/A'}</p>
+        </div>
+
+        <div className="metadata-field">
+          <label>People</label>
+          <PillList items={metadata.people} className="pill-green" />
+        </div>
+
+        <div className="metadata-field">
+          <label>People Count</label>
+          <p>{metadata.people_count}</p>
+        </div>
+
+        <div className="metadata-field">
+          <label>Orientation</label>
+          <p>{metadata.orientation || 'N/A'}</p>
+        </div>
+      </div>
+
+      <div className="metadata-section">
+        <h3>Additional Search Data</h3>
+
+        <div className="metadata-field">
+          <label>Objects</label>
+          <PillList items={metadata.objects} className="pill-blue" />
+        </div>
+
+        <div className="metadata-field">
+          <label>Scenes</label>
+          <PillList items={metadata.scenes} className="pill-purple" />
+        </div>
+
+        <div className="metadata-field">
+          <label>Context</label>
+          <p>{metadata.context || 'N/A'}</p>
+        </div>
+
+        <div className="metadata-field">
+          <label>Colors</label>
+          <PillList items={metadata.colors} className="pill-color" />
+        </div>
+
+        {metadata.location_hint && (
+          <div className="metadata-field">
+            <label>Location Hint</label>
+            <p>{metadata.location_hint}</p>
+          </div>
+        )}
+
+        {metadata.quality_notes && (
+          <div className="metadata-field">
+            <label>Quality Notes</label>
+            <p>{metadata.quality_notes}</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams, Link, useLocation } from 'react-router-dom';
 import * as api from '../api/client';
 import { getMediaFileUrl } from '../api/client';
 import type { SearchFilters } from '../api/client';
@@ -18,10 +18,11 @@ const POLL_INTERVAL = 5000;
 const VIEW_KEY = 'gallery_view';
 
 // Search result row in list view
-function SearchListRow({ item, selected, onSelect }: {
+function SearchListRow({ item, selected, onSelect, fromPath }: {
   item: SearchResultItem;
   selected: boolean;
   onSelect: (id: string, checked: boolean) => void;
+  fromPath: string;
 }) {
   const imgSrc = useAuthImage(getMediaFileUrl(item.media_item.id));
   return (
@@ -33,7 +34,7 @@ function SearchListRow({ item, selected, onSelect }: {
           onChange={(e) => onSelect(item.media_item.id, e.target.checked)}
         />
       </label>
-      <Link to={`/media/${item.media_item.id}`} className="media-list-link">
+      <Link to={`/media/${item.media_item.id}`} state={{ from: fromPath }} className="media-list-link">
         <div className="media-list-thumb">
           {imgSrc
             ? <img src={imgSrc} alt={item.metadata.title} />
@@ -54,6 +55,7 @@ function FilterPanel({
   mood, setMood,
   mimeType, setMimeType,
   aspectRatio, setAspectRatio,
+  sizeBucket, setSizeBucket,
   sortBy, setSortBy,
   isSearchMode,
   hasActiveFilters,
@@ -70,6 +72,8 @@ function FilterPanel({
   setMimeType: (v: string) => void;
   aspectRatio: string;
   setAspectRatio: (v: string) => void;
+  sizeBucket: string;
+  setSizeBucket: (v: string) => void;
   sortBy: string;
   setSortBy: (v: string) => void;
   isSearchMode: boolean;
@@ -96,6 +100,16 @@ function FilterPanel({
             <option value="landscape">Landscape</option>
             <option value="portrait">Portrait</option>
             <option value="square">Square</option>
+          </select>
+        </div>
+
+        <div className="filter-group">
+          <label>Size</label>
+          <select value={sizeBucket} onChange={(e) => setSizeBucket(e.target.value)}>
+            <option value="">Any size</option>
+            <option value="small">Small (&lt; 1000px wide)</option>
+            <option value="medium">Medium (1000–2499px wide)</option>
+            <option value="large">Large (2500px+ wide)</option>
           </select>
         </div>
 
@@ -167,8 +181,17 @@ function FilterPanel({
   );
 }
 
+// Map size bucket label to min/max width params
+function sizeBucketToWidthParams(bucket: string): { min_width?: number; max_width?: number } {
+  if (bucket === 'small') return { max_width: 999 };
+  if (bucket === 'medium') return { min_width: 1000, max_width: 2499 };
+  if (bucket === 'large') return { min_width: 2500 };
+  return {};
+}
+
 export default function GalleryPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
   const queryParam = searchParams.get('q') || '';
   const pageParam = parseInt(searchParams.get('page') || '1', 10);
 
@@ -192,7 +215,6 @@ export default function GalleryPage() {
   );
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const pollRef = useRef<ReturnType<typeof setInterval>>();
-  const [showFilters, setShowFilters] = useState(false);
 
   // Filter state
   const [hasPeople, setHasPeople] = useState<boolean | null>(null);
@@ -200,6 +222,7 @@ export default function GalleryPage() {
   const [mood, setMood] = useState('');
   const [mimeType, setMimeType] = useState('');
   const [aspectRatio, setAspectRatio] = useState('');
+  const [sizeBucket, setSizeBucket] = useState('');
   const [sortBy, setSortBy] = useState(() => queryParam ? 'relevance' : 'newest');
 
   const isSearchMode = Boolean(queryParam);
@@ -216,6 +239,7 @@ export default function GalleryPage() {
       mime_type: mimeType || null,
       aspect_ratio: aspectRatio || null,
       sort_by: sortBy,
+      ...sizeBucketToWidthParams(sizeBucket),
     };
   }
 
@@ -232,7 +256,7 @@ export default function GalleryPage() {
       if (showLoading) setBrowseLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasPeople, orientation, mood, mimeType, aspectRatio, sortBy]);
+  }, [hasPeople, orientation, mood, mimeType, aspectRatio, sizeBucket, sortBy]);
 
   async function doSearch(q: string, p: number, sortOverride?: string) {
     setSearchLoading(true);
@@ -342,6 +366,7 @@ export default function GalleryPage() {
     setMood('');
     setMimeType('');
     setAspectRatio('');
+    setSizeBucket('');
     setSortBy(isSearchMode ? 'relevance' : 'newest');
     setTimeout(() => {
       if (isSearchMode) doSearch(queryParam, 1);
@@ -356,7 +381,7 @@ export default function GalleryPage() {
   }
 
   const hasActiveFilters =
-    hasPeople !== null || orientation || mood || mimeType || aspectRatio ||
+    hasPeople !== null || orientation || mood || mimeType || aspectRatio || sizeBucket ||
     (isSearchMode ? sortBy !== 'relevance' : sortBy !== 'newest');
 
   const totalPages = isSearchMode
@@ -373,7 +398,7 @@ export default function GalleryPage() {
 
   return (
     <div>
-      {/* Search bar + filter toggle */}
+      {/* Search bar */}
       <form className="search-form" onSubmit={handleSubmit}>
         <input
           type="search"
@@ -390,29 +415,21 @@ export default function GalleryPage() {
             Browse All
           </button>
         )}
-        <button
-          type="button"
-          className={`btn ${showFilters ? 'btn-primary' : 'btn-outline'}`}
-          onClick={() => setShowFilters(!showFilters)}
-        >
-          Filters {hasActiveFilters ? '●' : ''}
-        </button>
       </form>
 
-      {showFilters && (
-        <FilterPanel
-          hasPeople={hasPeople} setHasPeople={setHasPeople}
-          orientation={orientation} setOrientation={setOrientation}
-          mood={mood} setMood={setMood}
-          mimeType={mimeType} setMimeType={setMimeType}
-          aspectRatio={aspectRatio} setAspectRatio={setAspectRatio}
-          sortBy={sortBy} setSortBy={setSortBy}
-          isSearchMode={isSearchMode}
-          hasActiveFilters={Boolean(hasActiveFilters)}
-          onApply={handleApplyFilters}
-          onReset={resetFilters}
-        />
-      )}
+      <FilterPanel
+        hasPeople={hasPeople} setHasPeople={setHasPeople}
+        orientation={orientation} setOrientation={setOrientation}
+        mood={mood} setMood={setMood}
+        mimeType={mimeType} setMimeType={setMimeType}
+        aspectRatio={aspectRatio} setAspectRatio={setAspectRatio}
+        sizeBucket={sizeBucket} setSizeBucket={setSizeBucket}
+        sortBy={sortBy} setSortBy={setSortBy}
+        isSearchMode={isSearchMode}
+        hasActiveFilters={Boolean(hasActiveFilters)}
+        onApply={handleApplyFilters}
+        onReset={resetFilters}
+      />
 
       {error && <div className="alert alert-danger">{error}</div>}
 
@@ -433,7 +450,6 @@ export default function GalleryPage() {
                 <p className="search-count">{browseTotal} item{browseTotal !== 1 ? 's' : ''}</p>
                 <div className="page-header-actions">
                   <ViewToggle view={view} onChange={handleViewChange} />
-                  <Link to="/upload" className="btn btn-primary">Source</Link>
                 </div>
               </div>
 
@@ -456,6 +472,7 @@ export default function GalleryPage() {
                       filename={item.display_name || item.original_filename}
                       status={item.status}
                       mimeType={item.mime_type}
+                      fromPath={location.pathname + location.search}
                     />
                   ))}
                 </div>
@@ -482,6 +499,7 @@ export default function GalleryPage() {
                       createdAt={item.created_at}
                       selected={selected.has(item.id)}
                       onSelect={handleSelect}
+                      fromPath={location.pathname + location.search}
                     />
                   ))}
                 </div>
@@ -526,6 +544,7 @@ export default function GalleryPage() {
                     <Link
                       key={r.media_item.id}
                       to={`/media/${r.media_item.id}`}
+                      state={{ from: location.pathname + location.search }}
                       className="search-result-card card"
                     >
                       <div className="search-result-thumb">
@@ -578,6 +597,7 @@ export default function GalleryPage() {
                       item={r}
                       selected={selected.has(r.media_item.id)}
                       onSelect={handleSelect}
+                      fromPath={location.pathname + location.search}
                     />
                   ))}
                 </div>

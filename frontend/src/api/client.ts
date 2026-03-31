@@ -137,6 +137,8 @@ export async function listMediaFiltered(
   if (filters.orientation) params.set('orientation', filters.orientation);
   if (filters.mood) params.set('mood', filters.mood);
   if (filters.mime_type) params.set('mime_type', filters.mime_type);
+  if (filters.min_width) params.set('min_width', String(filters.min_width));
+  if (filters.max_width) params.set('max_width', String(filters.max_width));
   if (filters.aspect_ratio) params.set('aspect_ratio', filters.aspect_ratio);
   if (filters.tags) params.set('tags', filters.tags);
   if (filters.sort_by && filters.sort_by !== 'newest') params.set('sort_by', filters.sort_by);
