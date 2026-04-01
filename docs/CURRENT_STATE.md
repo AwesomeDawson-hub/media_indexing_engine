@@ -8,9 +8,9 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | **Current Phase** | Phase 4 — Beta Operations & Commercial Foundations |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | None — P4-001 complete; P4-002 not yet started |
+| **Active Workstream** | None — P4-001 closed; P4-002 ready to activate |
 | **Last Updated** | 2026-03-31 |
-| **Updated By** | AI — Engineer (P4-001 closeout) |
+| **Updated By** | AI — Engineer (P4-001 AWS smoke closeout) |
 
 ## System Health
 
@@ -23,7 +23,7 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
 | Test status | 82/82 pass (70 backend integration + 12 S3FileStore unit tests) |
-| Active workstream | None — P4-001 complete; awaiting P4-002 activation |
+| Active workstream | None — P4-001 fully closed (local + AWS smoke pass); awaiting P4-002 activation |
 | Last governance audit | 2026-03-31 — Pre-Phase-4 Auditor review (0 blocking findings) |
 
 ## Recent Activity
@@ -76,6 +76,7 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 - **2026-03-31:** Phase 4 planning completed from operator beta-readiness feedback. New phase plan created at `docs/planning/PHASE_4_beta_operations_plan.md` with 6 planned workstreams: Gallery UX continuity, plans/quotas, source registry, admin/profile management, billing/commercialization, and OCR search enrichment. Naming/domain selection intentionally excluded from this phase plan per operator direction.
 - **2026-03-31:** P4-001 (Gallery & Detail UX Continuity) moved to In Progress. Plan approved. Pre-Phase-4 Auditor review passed with 0 blocking findings.
 - **2026-03-31:** P4-001 (Gallery & Detail UX Continuity) completed. All 6 changes delivered: filters always visible; Source button removed from Gallery header; size bucket dimension filter (Small/Medium/Large) wired to backend `min_width`/`max_width`; StatusBadge hides `completed` status; MetadataDisplay split into Metadata + Additional Search Data sections; Back-to-Gallery restores full gallery URL state via React Router location state. 82/82 tests pass. Commit: `e8dedcf`.
+- **2026-03-31:** P4-001 post-implementation fixes applied during local + AWS smoke: poll terminal-status allowlist fix (`35ad90d`); Delete button on Media Detail (`90624a5`); Clear Search button in filter panel (`90624a5`); `btn-danger` red CSS (`c113393`); sort order written to URL immediately on change (`311617a`); filter state written to URL immediately on change (`d91975c`). All local and AWS smoke flows pass: filter+page back-nav, search back-nav, sort persistence, delete, Gallery nav link, processing badge auto-clear, Clear Search. P4-001 fully closed.
 
 ## Blockers
 
@@ -84,16 +85,13 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 
 ## Notes for Next Session
 
-- **Active workstream: P4-001** — implement per `docs/planning/P4-001_plan.md`. Six changes: filters always visible, remove Source button, dimensions filtering, status badge simplification, Media Detail grouping, return-to-gallery state preservation.
-- **Phase 3 is complete.** All 4 workstreams (P3-001 through P3-004) are finished.
-- **Phase 4 is now defined and P4-001 is approved and In Progress.**
-- **Post-Phase-3 bug fixes applied 2026-03-29 (commit fd5013e):** nginx upload limit raised to 50M; `search_service.py` now enforces `user_id` DB filter on all search queries (security fix); search relevance sort corrected for first post-login search. These are all resolved — do not re-investigate.
-- **System is production-deployable:** `docker compose up -d` starts all four services. Copy `.env.example` → `.env`, fill secrets, then bring up the stack.
-- **AWS beta is live:** current public URL is `http://ec2-13-216-223-46.compute-1.amazonaws.com` (HTTP only, temporary). HTTPS is intentionally disabled for now because ACME refuses the AWS hostname.
+- **P4-001 is fully closed.** All 6 original changes plus all smoke-discovered fixes are committed and validated on both local and AWS beta.
+- **Next workstream: P4-002** — Plans, Quotas & Analysis Confirmation. See `docs/planning/PHASE_4_beta_operations_plan.md` for full spec. Key deliverables: per-user monthly processing limits data model, usage ledger/reservation semantics, Sources-page confirmation modal (count + remaining quota + metadata overwrite warning + date/geo preservation note), server-side quota enforcement, plan-limit fields.
+- **P4-002 key constraints:** quota enforcement must be server-side AND transactional (atomic reservation); prefer ledger/reservation model over mutable counter; metadata overwrite must preserve original date and geo-location in downloaded files; frontend quota display is advisory only.
+- **Most recent commits (newest first):** `d91975c` filter state to URL on change; `311617a` sort to URL on change; `c113393` btn-danger CSS; `90624a5` Delete button + Clear Search; `35ad90d` poll terminal-status fix; `e8dedcf` P4-001 original 6 changes.
+- **AWS beta is live:** `http://ec2-13-216-223-46.compute-1.amazonaws.com` (HTTP only, temporary — ACME refuses AWS hostname). Stack: `docker-compose.yml` + `docker-compose.beta.yml`. SSH key: `C:\Code\AWS\media-indexing-key.pem`, user `ubuntu`.
 - **Before inviting broader beta users:** rotate the exposed `ANTHROPIC_API_KEY`, `POSTGRES_PASSWORD`, and `AUTH_SECRET_KEY`.
-- **Next infrastructure step:** attach a real domain/subdomain, update `DOMAIN` in `.env`, restore `deploy/Caddyfile` to hostname-with-auto-HTTPS mode, and re-test public access in a normal browser (non-Incognito).
+- **System is production-deployable:** `docker compose up -d` starts all services. Copy `.env.example` → `.env`, fill secrets.
 - **Health endpoint:** `GET /api/v1/health` → `{"status":"ok","version":"0.1.0"}` — no auth required.
-- **File storage:** Local by default (`storage.provider: local`). Set `STORAGE_PROVIDER=s3` and S3 env vars to enable S3.
-- **Schema changes** require `alembic revision --autogenerate` + review + `alembic upgrade head`.
-- **Codebase:** Python backend (FastAPI, 21 API routes, 82 tests) + React/TS frontend (Gallery page) + Docker stack.
-- **Next step:** operator approves `P4-001` or reprioritizes the Phase 4 workstream order before implementation starts.
+- **Schema changes** require `alembic revision --autogenerate` + review + `alembic upgrade head`. Back up the AWS DB before any migration deploy.
+- **Codebase:** Python backend (FastAPI, 82 tests) + React/TS frontend (Vite + nginx) + Docker stack (postgres, chromadb, backend, frontend, caddy).
