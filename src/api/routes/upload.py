@@ -1,7 +1,7 @@
 """Upload API endpoints: single and batch file upload."""
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
-from sqlalchemy import delete as sql_delete
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
+from sqlalchemy import delete as sql_delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_db, get_current_user_id
@@ -15,7 +15,7 @@ from src.search.embedder import Embedder
 from src.search.chromadb_store import ChromaDBVectorStore
 from src.search.indexing_service import IndexingService
 from src.config import settings
-from src.models import MediaItem, ProcessingJob
+from src.models import MediaItem, ProcessingJob, Source
 
 import logging
 
@@ -64,18 +64,39 @@ async def _cleanup_unqueued_upload(db: AsyncSession, media_item_id: str, storage
         logger.warning("Failed to delete quota-rejected upload file %s", storage_path, exc_info=True)
 
 
+async def _resolve_source_id(
+    db: AsyncSession,
+    user_id: str,
+    source_id: str | None,
+) -> str | None:
+    """Validate source ownership. Returns source_id if valid, None if not provided.
+    Raises 404 if the source does not exist, 403 if it belongs to another user.
+    """
+    if source_id is None:
+        return None
+    result = await db.execute(select(Source).where(Source.id == source_id))
+    source = result.scalar_one_or_none()
+    if source is None:
+        raise HTTPException(status_code=404, detail="Source not found")
+    if source.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Source does not belong to you")
+    return source_id
+
+
 @router.post("/upload", status_code=201)
 async def upload_file(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    source_id: str | None = Form(None),
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
 ) -> UploadResponse:
     """Upload a single image file."""
+    resolved_source_id = await _resolve_source_id(db, user_id, source_id)
     file_bytes = await file.read()
     filename = file.filename or "unnamed"
 
-    result = await _upload_service.process_upload(db, user_id, filename, file_bytes)
+    result = await _upload_service.process_upload(db, user_id, filename, file_bytes, source_id=resolved_source_id)
 
     if not result.success:
         raise HTTPException(status_code=400, detail=result.error)
@@ -129,10 +150,12 @@ async def upload_file(
 async def upload_batch(
     background_tasks: BackgroundTasks,
     files: list[UploadFile] = File(...),
+    source_id: str | None = Form(None),
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
 ) -> BatchUploadResponse:
     """Upload multiple image files in one request."""
+    resolved_source_id = await _resolve_source_id(db, user_id, source_id)
     max_batch = settings.upload.max_batch_size
     if len(files) > max_batch:
         raise HTTPException(
@@ -145,7 +168,7 @@ async def upload_batch(
         file_bytes = await f.read()
         file_data.append((f.filename or "unnamed", file_bytes))
 
-    batch_result = await _upload_service.process_batch(db, user_id, file_data)
+    batch_result = await _upload_service.process_batch(db, user_id, file_data, source_id=resolved_source_id)
 
     results: list[BatchFileResult] = []
     successful = 0

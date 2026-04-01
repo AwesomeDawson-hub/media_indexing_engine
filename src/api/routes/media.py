@@ -58,6 +58,7 @@ async def _build_media_item_responses(
             status=item.status,
             width=item.width,
             height=item.height,
+            source_id=item.source_id,
             created_at=item.created_at,
         )
         for item in items
@@ -87,6 +88,7 @@ async def list_media(
     has_people: bool | None = Query(None),
     orientation: str | None = Query(None),
     mood: str | None = Query(None),
+    source_id: str | None = Query(None),
     mime_type: str | None = Query(None),
     min_width: int | None = Query(None, ge=1),
     max_width: int | None = Query(None, ge=1),
@@ -103,6 +105,8 @@ async def list_media(
 
     if status:
         base_query = base_query.where(MediaItem.status == status)
+    if source_id is not None:
+        base_query = base_query.where(MediaItem.source_id == source_id)
 
     # MediaItem-level filters (no join needed)
     if mime_type:

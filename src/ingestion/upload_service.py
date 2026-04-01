@@ -41,6 +41,7 @@ class UploadService:
         user_id: str,
         filename: str,
         file_bytes: bytes,
+        source_id: str | None = None,
     ) -> UploadResult:
         """Process a single file upload through the full pipeline."""
         # 1. Validate
@@ -82,6 +83,7 @@ class UploadService:
                 status="uploaded",
                 width=width,
                 height=height,
+                source_id=source_id,
             )
             db.add(media_item)
             await db.flush()  # Get the generated ID
@@ -108,6 +110,7 @@ class UploadService:
         db: AsyncSession,
         user_id: str,
         files: list[tuple[str, bytes]],
+        source_id: str | None = None,
     ) -> BatchUploadResult:
         """Process multiple files sequentially. Each file is independent.
 
@@ -120,7 +123,7 @@ class UploadService:
         failed = 0
 
         for filename, file_bytes in files:
-            result = await self.process_upload(db, user_id, filename, file_bytes)
+            result = await self.process_upload(db, user_id, filename, file_bytes, source_id=source_id)
             results.append(result)
 
             if not result.success:
