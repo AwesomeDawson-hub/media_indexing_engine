@@ -175,6 +175,16 @@ img {
   background: var(--primary-hover);
 }
 
+.btn-danger {
+  background: #dc2626;
+  color: #fff;
+  border-color: #dc2626;
+}
+
+.btn-danger:hover {
+  background: #b91c1c;
+}
+
 .btn-outline {
   background: transparent;
   border-color: var(--border);
