@@ -55,7 +55,7 @@ Each completed workstream gets one entry in the log below, following this struct
   - Modified: `frontend/src/index.css` (modal overlay + utility text classes)
   - Modified: `docs/DECISION_LOG.md` (ADR-013)
 - **Validation performed:** 91/91 backend tests pass. TypeScript build clean (`npx tsc --noEmit`). Full local smoke: upload → consumed; re-analysis → decremented; over-limit modal disabled; forced 429 returns structured payload; duplicate upload does not create additional quota event. Commit: `c147790`.
-- **AWS deploy status:** Pending — local smoke complete; EC2 deploy (pg_dump backup → `alembic upgrade head` → smoke) required before full closeout.
+- **AWS deploy status:** Complete — migration `7a8b9c0d1e2f` ran on AWS postgres; quota endpoint live; upload→analysis→consumed and delete (with quota_events FK fix) validated on AWS beta 2026-04-01.
 
 ### P4-001: Gallery & Detail UX Continuity
 - **Phase:** Phase 4 — Beta Operations & Commercial Foundations
