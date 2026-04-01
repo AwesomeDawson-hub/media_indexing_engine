@@ -1,8 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import DropZone from '../components/DropZone';
 import FileQueue, { type QueuedFile } from '../components/FileQueue';
 import * as api from '../api/client';
-import type { QuotaStatus } from '../types/api';
+import type { QuotaStatus, SourceResponse } from '../types/api';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/tiff', 'image/bmp', 'image/avif'];
 const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.tiff', '.tif', '.bmp', '.avif'];
@@ -22,10 +22,36 @@ export default function UploadPage() {
   const [quotaStatus, setQuotaStatus] = useState<QuotaStatus | null>(null);
   const [showQuotaModal, setShowQuotaModal] = useState(false);
   const [quotaLoading, setQuotaLoading] = useState(false);
+  const [sources, setSources] = useState<SourceResponse[]>([]);
+  const [selectedSourceId, setSelectedSourceId] = useState('');
+  const [showNewSourceForm, setShowNewSourceForm] = useState(false);
+  const [newSourceName, setNewSourceName] = useState('');
+  const [creatingSource, setCreatingSource] = useState(false);
   const queuedCount = queue.filter((q) => q.status === 'queued').length;
   const hasCompleted = queue.some((q) => q.status !== 'queued' && q.status !== 'uploading');
   const exceedsQuota = quotaStatus !== null && queuedCount > quotaStatus.remaining;
   const quotaDepleted = quotaStatus !== null && quotaStatus.remaining === 0;
+
+  useEffect(() => {
+    api.listSources().then(setSources).catch(() => {});
+  }, []);
+
+  async function handleCreateSource() {
+    const name = newSourceName.trim();
+    if (!name) return;
+    setCreatingSource(true);
+    try {
+      const created = await api.createSource(name);
+      setSources((prev) => [...prev, created]);
+      setSelectedSourceId(created.id);
+      setShowNewSourceForm(false);
+      setNewSourceName('');
+    } catch {
+      // ignore — source creation failure shouldn't block uploads
+    } finally {
+      setCreatingSource(false);
+    }
+  }
 
   const handleFiles = useCallback((files: File[]) => {
     const newEntries: QueuedFile[] = files.map((file) => {
@@ -50,7 +76,7 @@ export default function UploadPage() {
     for (const qf of toUpload) {
       updateStatus(qf.file.name, 'uploading');
       try {
-        const res = await api.uploadFile(qf.file);
+        const res = await api.uploadFile(qf.file, selectedSourceId || undefined);
         updateStatus(qf.file.name, res.is_duplicate ? 'duplicate' : 'created');
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Upload failed';
@@ -123,6 +149,54 @@ export default function UploadPage() {
             <button className="btn btn-outline" onClick={clearCompleted}>
               Clear Completed
             </button>
+          )}
+        </div>
+      </div>
+      <div className="upload-source-section card">
+        <div className="filter-group">
+          <label>Tag uploads with a source</label>
+          <div className="upload-source-row">
+            <select
+              value={selectedSourceId}
+              onChange={(e) => setSelectedSourceId(e.target.value)}
+            >
+              <option value="">No source</option>
+              {sources.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+            {!showNewSourceForm && (
+              <button
+                className="btn btn-outline btn-sm"
+                onClick={() => setShowNewSourceForm(true)}
+              >
+                + New Source
+              </button>
+            )}
+          </div>
+          {showNewSourceForm && (
+            <div className="upload-new-source-form">
+              <input
+                type="text"
+                placeholder="Source name"
+                value={newSourceName}
+                onChange={(e) => setNewSourceName(e.target.value)}
+                maxLength={200}
+              />
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={handleCreateSource}
+                disabled={creatingSource || !newSourceName.trim()}
+              >
+                {creatingSource ? 'Creating...' : 'Create'}
+              </button>
+              <button
+                className="btn btn-outline btn-sm"
+                onClick={() => { setShowNewSourceForm(false); setNewSourceName(''); }}
+              >
+                Cancel
+              </button>
+            </div>
           )}
         </div>
       </div>

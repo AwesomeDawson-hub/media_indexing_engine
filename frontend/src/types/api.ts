@@ -59,6 +59,7 @@ export interface MediaItemResponse {
   status: string;
   width?: number;
   height?: number;
+  source_id?: string;
   created_at: string;
 }
 
@@ -143,6 +144,14 @@ export interface SearchResponse {
   page: number;
   per_page: number;
   results: SearchResultItem[];
+}
+
+export interface SourceResponse {
+  id: string;
+  name: string;
+  source_type: string;
+  archived_at?: string | null;
+  created_at: string;
 }
 
 export interface ApiError {

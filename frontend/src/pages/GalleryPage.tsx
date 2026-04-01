@@ -3,7 +3,7 @@ import { useSearchParams, Link, useLocation } from 'react-router-dom';
 import * as api from '../api/client';
 import { getMediaFileUrl } from '../api/client';
 import type { SearchFilters } from '../api/client';
-import type { MediaItemResponse, SearchResultItem } from '../types/api';
+import type { MediaItemResponse, SearchResultItem, SourceResponse } from '../types/api';
 import MediaCard from '../components/MediaCard';
 import MediaListRow from '../components/MediaListRow';
 import ViewToggle from '../components/ViewToggle';
@@ -63,6 +63,9 @@ function FilterPanel({
   onReset,
   onClearSearch,
   onSortChange,
+  sources,
+  sourceId,
+  setSourceId,
 }: {
   hasPeople: boolean | null;
   setHasPeople: (v: boolean | null) => void;
@@ -84,6 +87,9 @@ function FilterPanel({
   onApply: () => void;
   onReset: () => void;
   onClearSearch: () => void;
+  sources: SourceResponse[];
+  sourceId: string;
+  setSourceId: (v: string) => void;
 }) {
   return (
     <div className="filter-panel card">
@@ -164,6 +170,16 @@ function FilterPanel({
         </div>
 
         <div className="filter-group">
+          <label>Source</label>
+          <select value={sourceId} onChange={(e) => setSourceId(e.target.value)}>
+            <option value="">Any source</option>
+            {sources.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="filter-group">
           <label>Sort By</label>
           <select value={sortBy} onChange={(e) => onSortChange(e.target.value)}>
             {isSearchMode && <option value="relevance">Relevance</option>}
@@ -238,6 +254,8 @@ export default function GalleryPage() {
     if (s) return s;
     return queryParam ? 'relevance' : 'newest';
   });
+  const [sources, setSources] = useState<SourceResponse[]>([]);
+  const [sourceId, setSourceId] = useState(searchParams.get('source_id') || '');
 
   const isSearchMode = Boolean(queryParam);
 
@@ -245,6 +263,11 @@ export default function GalleryPage() {
   useEffect(() => {
     sessionStorage.setItem('gallery_last_url', location.pathname + location.search);
   });
+
+  // Fetch sources once on mount for the source filter dropdown
+  useEffect(() => {
+    api.listSources().then(setSources).catch(() => {});
+  }, []);
 
   // Track the last query submitted via the form so the URL-change effect
   // doesn't double-fire when handleSubmit already kicked off the search.
@@ -270,9 +293,10 @@ export default function GalleryPage() {
       if (mimeType) next.set('mime_type', mimeType); else next.delete('mime_type');
       if (aspectRatio) next.set('aspect_ratio', aspectRatio); else next.delete('aspect_ratio');
       if (sizeBucket) next.set('size', sizeBucket); else next.delete('size');
+      if (sourceId) next.set('source_id', sourceId); else next.delete('source_id');
       return next;
     }, { replace: true });
-  }, [hasPeople, orientation, mood, mimeType, aspectRatio, sizeBucket, setSearchParams]);
+  }, [hasPeople, orientation, mood, mimeType, aspectRatio, sizeBucket, sourceId, setSearchParams]);
 
   function buildFilters(): SearchFilters {
     return {
@@ -281,6 +305,7 @@ export default function GalleryPage() {
       mood: mood || null,
       mime_type: mimeType || null,
       aspect_ratio: aspectRatio || null,
+      source_id: sourceId || null,
       sort_by: sortBy,
       ...sizeBucketToWidthParams(sizeBucket),
     };
@@ -299,7 +324,7 @@ export default function GalleryPage() {
       if (showLoading) setBrowseLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasPeople, orientation, mood, mimeType, aspectRatio, sizeBucket, sortBy]);
+  }, [hasPeople, orientation, mood, mimeType, aspectRatio, sizeBucket, sortBy, sourceId]);
 
   async function doSearch(q: string, p: number, sortOverride?: string) {
     setSearchLoading(true);
@@ -385,6 +410,7 @@ export default function GalleryPage() {
     if (mimeType) submitParams.mime_type = mimeType;
     if (aspectRatio) submitParams.aspect_ratio = aspectRatio;
     if (sizeBucket) submitParams.size = sizeBucket;
+    if (sourceId) submitParams.source_id = sourceId;
     if (effectiveSort !== 'relevance') submitParams.sort = effectiveSort;
     setSearchParams(submitParams);
     doSearch(q, 1, effectiveSort);
@@ -412,6 +438,7 @@ export default function GalleryPage() {
     if (mimeType) params.mime_type = mimeType;
     if (aspectRatio) params.aspect_ratio = aspectRatio;
     if (sizeBucket) params.size = sizeBucket;
+    if (sourceId) params.source_id = sourceId;
     const defaultSort = isSearchMode ? 'relevance' : 'newest';
     if (sortBy !== defaultSort) params.sort = sortBy;
     // page intentionally omitted — Apply always resets to page 1
@@ -447,6 +474,7 @@ export default function GalleryPage() {
     setMimeType('');
     setAspectRatio('');
     setSizeBucket('');
+    setSourceId('');
     setSortBy(isSearchMode ? 'relevance' : 'newest');
     // Strip filter params from URL, keeping only q
     const params: Record<string, string> = {};
@@ -466,7 +494,7 @@ export default function GalleryPage() {
   }
 
   const hasActiveFilters =
-    hasPeople !== null || orientation || mood || mimeType || aspectRatio || sizeBucket ||
+    hasPeople !== null || orientation || mood || mimeType || aspectRatio || sizeBucket || sourceId ||
     (isSearchMode ? sortBy !== 'relevance' : sortBy !== 'newest');
 
   const totalPages = isSearchMode
@@ -510,6 +538,7 @@ export default function GalleryPage() {
         aspectRatio={aspectRatio} setAspectRatio={setAspectRatio}
         sizeBucket={sizeBucket} setSizeBucket={setSizeBucket}
         sortBy={sortBy} setSortBy={setSortBy}
+        sources={sources} sourceId={sourceId} setSourceId={setSourceId}
         isSearchMode={isSearchMode}
         hasActiveFilters={Boolean(hasActiveFilters)}
         onApply={handleApplyFilters}

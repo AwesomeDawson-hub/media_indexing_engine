@@ -9,6 +9,7 @@ import type {
   ReanalyzeResponse,
   SearchResponse,
   QuotaStatus,
+  SourceResponse,
   ApiError,
 } from '../types/api';
 
@@ -114,20 +115,22 @@ export async function getProfile(): Promise<UserProfile> {
   return request<UserProfile>('/api/v1/auth/me');
 }
 
-export async function uploadFile(file: File): Promise<UploadResponse> {
+export async function uploadFile(file: File, sourceId?: string): Promise<UploadResponse> {
   const formData = new FormData();
   formData.append('file', file);
+  if (sourceId) formData.append('source_id', sourceId);
   return request<UploadResponse>('/api/v1/upload', {
     method: 'POST',
     body: formData,
   });
 }
 
-export async function uploadBatch(files: File[]): Promise<BatchUploadResponse> {
+export async function uploadBatch(files: File[], sourceId?: string): Promise<BatchUploadResponse> {
   const formData = new FormData();
   for (const file of files) {
     formData.append('files', file);
   }
+  if (sourceId) formData.append('source_id', sourceId);
   return request<BatchUploadResponse>('/api/v1/upload/batch', {
     method: 'POST',
     body: formData,
@@ -161,6 +164,7 @@ export async function listMediaFiltered(
   if (filters.max_width) params.set('max_width', String(filters.max_width));
   if (filters.aspect_ratio) params.set('aspect_ratio', filters.aspect_ratio);
   if (filters.tags) params.set('tags', filters.tags);
+  if (filters.source_id) params.set('source_id', filters.source_id);
   if (filters.sort_by && filters.sort_by !== 'newest') params.set('sort_by', filters.sort_by);
   return request<PaginatedResponse>(`/api/v1/media?${params.toString()}`);
 }
@@ -286,6 +290,7 @@ export interface SearchFilters {
   max_height?: number | null;
   aspect_ratio?: string | null;
   tags?: string | null;
+  source_id?: string | null;
   sort_by?: string;
 }
 
@@ -315,6 +320,18 @@ export async function search(
   if (filters.sort_by && filters.sort_by !== 'relevance') params.set('sort_by', filters.sort_by);
 
   return request<SearchResponse>(`/api/v1/search?${params.toString()}`);
+}
+
+export async function listSources(includeArchived = false): Promise<SourceResponse[]> {
+  const params = includeArchived ? '?include_archived=true' : '';
+  return request<SourceResponse[]>(`/api/v1/sources${params}`);
+}
+
+export async function createSource(name: string, sourceType = 'manual'): Promise<SourceResponse> {
+  return request<SourceResponse>('/api/v1/sources', {
+    method: 'POST',
+    body: JSON.stringify({ name, source_type: sourceType }),
+  });
 }
 
 export async function getQuotaStatus(): Promise<QuotaStatus> {
