@@ -8,9 +8,29 @@ import type {
   AnalysisResponse,
   ReanalyzeResponse,
   SearchResponse,
+  QuotaStatus,
+  ApiError,
 } from '../types/api';
 
 const BASE_URL = '';
+
+export class ApiRequestError extends Error {
+  status: number;
+  errorCode: string;
+  error?: string;
+  remaining?: number;
+  limit?: number;
+
+  constructor(status: number, data: ApiError) {
+    super(data.detail || 'Request failed');
+    this.name = 'ApiRequestError';
+    this.status = status;
+    this.errorCode = data.error_code;
+    this.error = data.error;
+    this.remaining = data.remaining;
+    this.limit = data.limit;
+  }
+}
 
 function getToken(): string | null {
   return localStorage.getItem('auth_token');
@@ -55,11 +75,11 @@ async function request<T>(
   }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({
+    const error = await response.json().catch((): ApiError => ({
       detail: 'Request failed',
       error_code: 'unknown',
     }));
-    throw new Error(error.detail || 'Request failed');
+    throw new ApiRequestError(response.status, error);
   }
 
   return response.json() as Promise<T>;
@@ -295,4 +315,8 @@ export async function search(
   if (filters.sort_by && filters.sort_by !== 'relevance') params.set('sort_by', filters.sort_by);
 
   return request<SearchResponse>(`/api/v1/search?${params.toString()}`);
+}
+
+export async function getQuotaStatus(): Promise<QuotaStatus> {
+  return request<QuotaStatus>('/api/v1/quota/status');
 }

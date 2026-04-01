@@ -1,6 +1,7 @@
 """Upload API endpoints: single and batch file upload."""
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
+from sqlalchemy import delete as sql_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_db, get_current_user_id
@@ -8,11 +9,13 @@ from src.api.schemas import UploadResponse, BatchUploadResponse, BatchFileResult
 from src.ingestion.upload_service import UploadService
 from src.analysis.processor import analyze_media_item
 from src.analysis.anthropic_provider import AnthropicVisionProvider, AnalysisError
+from src.quota.quota_service import QuotaService, QuotaExceededError, build_quota_exceeded_detail
 from src.storage.file_store import get_file_store
 from src.search.embedder import Embedder
 from src.search.chromadb_store import ChromaDBVectorStore
 from src.search.indexing_service import IndexingService
 from src.config import settings
+from src.models import MediaItem, ProcessingJob
 
 import logging
 
@@ -22,6 +25,7 @@ router = APIRouter(prefix="/api/v1", tags=["upload"])
 
 _file_store = get_file_store(settings.storage)
 _upload_service = UploadService(_file_store)
+_quota_service = QuotaService()
 
 
 def _get_vision_provider():
@@ -48,6 +52,18 @@ _vision_provider = _get_vision_provider()
 _indexing_service = _get_indexing_service()
 
 
+async def _cleanup_unqueued_upload(db: AsyncSession, media_item_id: str, storage_path: str) -> None:
+    """Delete a freshly created upload when analysis cannot be queued."""
+    await db.execute(sql_delete(ProcessingJob).where(ProcessingJob.media_item_id == media_item_id))
+    await db.execute(sql_delete(MediaItem).where(MediaItem.id == media_item_id))
+    await db.commit()
+
+    try:
+        await _file_store.delete(storage_path)
+    except Exception:
+        logger.warning("Failed to delete quota-rejected upload file %s", storage_path, exc_info=True)
+
+
 @router.post("/upload", status_code=201)
 async def upload_file(
     background_tasks: BackgroundTasks,
@@ -66,7 +82,22 @@ async def upload_file(
 
     # Enqueue background processing for new uploads
     if not result.is_duplicate and result.processing_job_id and _vision_provider:
-        background_tasks.add_task(analyze_media_item, result.processing_job_id, _vision_provider, _file_store, _indexing_service)
+        try:
+            reservation_id = await _quota_service.reserve(db, user_id, result.media_item.id)
+        except QuotaExceededError as exc:
+            await _cleanup_unqueued_upload(db, result.media_item.id, result.media_item.storage_path)
+            raise HTTPException(
+                status_code=429,
+                detail=build_quota_exceeded_detail(exc),
+            )
+        background_tasks.add_task(
+            analyze_media_item,
+            result.processing_job_id,
+            _vision_provider,
+            _file_store,
+            _indexing_service,
+            reservation_id,
+        )
 
     item = result.media_item
     if result.is_duplicate:
@@ -116,30 +147,53 @@ async def upload_batch(
 
     batch_result = await _upload_service.process_batch(db, user_id, file_data)
 
-    # Enqueue background processing for new uploads
-    for r in batch_result.results:
-        if r.success and not r.is_duplicate and r.processing_job_id and _vision_provider:
-            background_tasks.add_task(analyze_media_item, r.processing_job_id, _vision_provider, _file_store, _indexing_service)
-
     results: list[BatchFileResult] = []
+    successful = 0
+    duplicates = 0
+    failed = 0
     for (filename, _), r in zip(file_data, batch_result.results):
         if not r.success:
             results.append(BatchFileResult(filename=filename, status="error", error=r.error))
+            failed += 1
         elif r.is_duplicate:
             results.append(BatchFileResult(
                 filename=filename, status="duplicate",
                 id=r.media_item.id, content_hash=r.media_item.content_hash,
             ))
+            duplicates += 1
         else:
+            if r.processing_job_id and _vision_provider:
+                try:
+                    reservation_id = await _quota_service.reserve(db, user_id, r.media_item.id)
+                except QuotaExceededError:
+                    await _cleanup_unqueued_upload(db, r.media_item.id, r.media_item.storage_path)
+                    results.append(BatchFileResult(
+                        filename=filename,
+                        status="error",
+                        error="Monthly quota exceeded",
+                    ))
+                    failed += 1
+                    continue
+
+                background_tasks.add_task(
+                    analyze_media_item,
+                    r.processing_job_id,
+                    _vision_provider,
+                    _file_store,
+                    _indexing_service,
+                    reservation_id,
+                )
+
             results.append(BatchFileResult(
                 filename=filename, status="created",
                 id=r.media_item.id, content_hash=r.media_item.content_hash,
             ))
+            successful += 1
 
     return BatchUploadResponse(
         total=batch_result.total,
-        successful=batch_result.successful,
-        duplicates=batch_result.duplicates,
-        failed=batch_result.failed,
+        successful=successful,
+        duplicates=duplicates,
+        failed=failed,
         results=results,
     )

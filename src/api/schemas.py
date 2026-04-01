@@ -185,3 +185,12 @@ class BatchReanalyzeResponse(BaseModel):
 class BatchDeleteResponse(BaseModel):
     deleted: int
     message: str
+
+
+class QuotaStatusResponse(BaseModel):
+    plan_name: str
+    monthly_limit: int
+    consumed: int
+    reserved: int
+    remaining: int
+    period_month: str  # "YYYY-MM"

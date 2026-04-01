@@ -11,7 +11,7 @@ _Update this document at the end of every session and at every workstream transi
 | **Current Phase** | Phase 4 — Beta Operations & Commercial Foundations (**in progress**) |
 | **Current Workstream** | None — P4-001 complete; P4-002 not yet started |
 | **Last Completed Work** | P4-001 — Gallery & Detail UX Continuity (2026-03-31): all 6 UX changes delivered |
-| **Next Task** | Activate P4-002 — Plans, Quotas & Analysis Confirmation |
+| **Next Task** | Review and approve `P4-002 — Plans, Quotas & Analysis Confirmation` using `docs/planning/P4-002_plan.md` |
 | **Next Step Requested** | Operator reviews P4-001 changes on the live stack, then activates P4-002 |
 
 ## Required Reading

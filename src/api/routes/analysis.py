@@ -11,8 +11,11 @@ from src.api.schemas import AnalysisResponse, MetadataFields, JobInfo, Reanalyze
 from src.api.routes.upload import _vision_provider, _file_store, _indexing_service
 from src.analysis.processor import analyze_media_item
 from src.models import MediaItem, MediaMetadata, ProcessingJob
+from src.quota.quota_service import QuotaExceededError, QuotaService, build_quota_exceeded_detail
 
 router = APIRouter(prefix="/api/v1", tags=["analysis"])
+
+_quota_service = QuotaService()
 
 
 @router.get("/media/{media_id}/analysis")
@@ -120,22 +123,41 @@ async def reanalyze(
     if active_job is not None:
         raise HTTPException(status_code=409, detail="Analysis already in progress")
 
-    # Create new processing job
-    new_job = ProcessingJob(
-        media_item_id=media_id,
-        job_type="analysis",
-        status="pending",
-    )
-    db.add(new_job)
-    await db.flush()
-    job_id = new_job.id
+    reservation_id: str | None = None
+    if _vision_provider:
+        try:
+            reservation_id = await _quota_service.reserve(db, user_id, media_id)
+        except QuotaExceededError as exc:
+            raise HTTPException(status_code=429, detail=build_quota_exceeded_detail(exc))
 
-    item.status = "uploaded"
-    await db.commit()
+    try:
+        new_job = ProcessingJob(
+            media_item_id=media_id,
+            job_type="analysis",
+            status="pending",
+        )
+        db.add(new_job)
+        await db.flush()
+        job_id = new_job.id
+
+        item.status = "uploaded"
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        if reservation_id is not None:
+            await _quota_service.release(db, reservation_id)
+        raise
 
     # Enqueue background task
     if _vision_provider:
-        background_tasks.add_task(analyze_media_item, job_id, _vision_provider, _file_store, _indexing_service)
+        background_tasks.add_task(
+            analyze_media_item,
+            job_id,
+            _vision_provider,
+            _file_store,
+            _indexing_service,
+            reservation_id,
+        )
 
     return ReanalyzeResponse(
         media_item_id=media_id,
@@ -163,7 +185,7 @@ async def reanalyze_batch(
     )
     items = result.scalars().all()
 
-    queued = 0
+    eligible_items: list[MediaItem] = []
     for item in items:
         # Skip items with in-progress analysis
         active_result = await db.execute(
@@ -176,23 +198,50 @@ async def reanalyze_batch(
             logger.info("Skipping %s — analysis already in progress", item.id)
             continue
 
-        new_job = ProcessingJob(
-            media_item_id=item.id,
-            job_type="analysis",
-            status="pending",
-        )
-        db.add(new_job)
-        await db.flush()
-        job_id = new_job.id
+        eligible_items.append(item)
 
-        item.status = "uploaded"
+    reservation_map: dict[str, str] = {}
+    if _vision_provider:
+        try:
+            for item in eligible_items:
+                reservation_map[item.id] = await _quota_service.reserve(db, user_id, item.id)
+        except QuotaExceededError as exc:
+            for reservation_id in reservation_map.values():
+                await _quota_service.release(db, reservation_id)
+            raise HTTPException(status_code=429, detail=build_quota_exceeded_detail(exc))
 
-        if _vision_provider:
-            background_tasks.add_task(analyze_media_item, job_id, _vision_provider, _file_store, _indexing_service)
+    queued = 0
+    try:
+        for item in eligible_items:
+            new_job = ProcessingJob(
+                media_item_id=item.id,
+                job_type="analysis",
+                status="pending",
+            )
+            db.add(new_job)
+            await db.flush()
+            job_id = new_job.id
 
-        queued += 1
+            item.status = "uploaded"
 
-    await db.commit()
+            if _vision_provider:
+                background_tasks.add_task(
+                    analyze_media_item,
+                    job_id,
+                    _vision_provider,
+                    _file_store,
+                    _indexing_service,
+                    reservation_map.get(item.id),
+                )
+
+            queued += 1
+
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        for reservation_id in reservation_map.values():
+            await _quota_service.release(db, reservation_id)
+        raise
 
     return BatchReanalyzeResponse(queued=queued, message=f"{queued} item(s) queued for re-analysis")
 

@@ -1,6 +1,10 @@
 """Integration tests for upload endpoints."""
 
 import pytest
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from src.models import MediaItem, ProcessingJob, QuotaEvent, User
 from tests.conftest import JPEG_BYTES, PNG_BYTES, PDF_BYTES, GIF_BYTES
 
 
@@ -137,3 +141,69 @@ async def test_processing_job_created(client, db_engine):
         assert jobs[0].job_type == "analysis"
         # Status may be pending or completed depending on background task timing
         assert jobs[0].status in ("pending", "running", "completed")
+
+
+@pytest.mark.asyncio
+async def test_upload_over_limit_returns_structured_429_and_cleans_up(client, db_engine):
+    """Over-limit uploads return structured 429 and do not leave orphaned records behind."""
+    factory = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
+
+    async with factory() as db:
+        user = (await db.execute(select(User).where(User.id == "test-user-1"))).scalar_one()
+        user.monthly_limit = 0
+        await db.commit()
+
+    resp = await client.post(
+        "/api/v1/upload",
+        files={"file": ("quota.jpg", JPEG_BYTES, "image/jpeg")},
+    )
+
+    assert resp.status_code == 429
+    body = resp.json()
+    assert body["detail"] == "Monthly quota exceeded"
+    assert body["error_code"] == "QUOTA_EXCEEDED"
+    assert body["error"] == "quota_exceeded"
+    assert body["remaining"] == 0
+    assert body["limit"] == 0
+
+    async with factory() as db:
+        items = (await db.execute(select(MediaItem))).scalars().all()
+        jobs = (await db.execute(select(ProcessingJob))).scalars().all()
+        events = (await db.execute(select(QuotaEvent))).scalars().all()
+        assert items == []
+        assert jobs == []
+        assert events == []
+
+
+@pytest.mark.asyncio
+async def test_batch_upload_marks_over_limit_file_as_error(client, db_engine):
+    """Batch uploads report quota exhaustion explicitly instead of silently skipping analysis."""
+    factory = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
+
+    async with factory() as db:
+        user = (await db.execute(select(User).where(User.id == "test-user-1"))).scalar_one()
+        user.monthly_limit = 1
+        await db.commit()
+
+    resp = await client.post(
+        "/api/v1/upload/batch",
+        files=[
+            ("files", ("allowed.jpg", JPEG_BYTES, "image/jpeg")),
+            ("files", ("blocked.png", PNG_BYTES, "image/png")),
+        ],
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["successful"] == 1
+    assert body["duplicates"] == 0
+    assert body["failed"] == 1
+
+    statuses = {result["filename"]: result for result in body["results"]}
+    assert statuses["allowed.jpg"]["status"] == "created"
+    assert statuses["blocked.png"]["status"] == "error"
+    assert statuses["blocked.png"]["error"] == "Monthly quota exceeded"
+
+    async with factory() as db:
+        items = (await db.execute(select(MediaItem))).scalars().all()
+        assert len(items) == 1

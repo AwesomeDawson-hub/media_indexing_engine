@@ -1,9 +1,9 @@
 """SQLAlchemy ORM models for users, media_items, and processing_jobs."""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, Index
+from sqlalchemy import BigInteger, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
@@ -24,6 +24,8 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     display_name: Mapped[str] = mapped_column(String(100), nullable=False)
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    plan_name: Mapped[str] = mapped_column(String(50), nullable=False, default="basic")
+    monthly_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=500)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
 
@@ -95,3 +97,18 @@ class MediaMetadata(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
 
     media_item: Mapped["MediaItem"] = relationship(back_populates="analysis_metadata")
+
+
+class QuotaEvent(Base):
+    __tablename__ = "quota_events"
+    __table_args__ = (
+        Index("ix_quota_events_user_period", "user_id", "period_month"),
+        Index("ix_quota_events_user_period_type", "user_id", "period_month", "event_type"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(20), nullable=False)  # reserved / consumed / released
+    media_item_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("media_items.id"), nullable=True)
+    period_month: Mapped[date] = mapped_column(Date, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)

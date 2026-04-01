@@ -128,6 +128,15 @@ export interface SearchResultItem {
   score: number;
 }
 
+export interface QuotaStatus {
+  plan_name: string;
+  monthly_limit: number;
+  consumed: number;
+  reserved: number;
+  remaining: number;
+  period_month: string; // "YYYY-MM"
+}
+
 export interface SearchResponse {
   query: string;
   total: number;
@@ -139,4 +148,7 @@ export interface SearchResponse {
 export interface ApiError {
   detail: string;
   error_code: string;
+  error?: string;
+  remaining?: number;
+  limit?: number;
 }

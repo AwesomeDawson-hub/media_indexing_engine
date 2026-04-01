@@ -195,6 +195,75 @@ docker compose build --no-cache
 docker compose up -d
 ```
 
+### Public beta deployment on a VPS
+
+The simplest path for beta testers is a single Linux VPS running Docker with HTTPS in front of the existing stack.
+
+Recommended baseline:
+
+- Ubuntu 24.04 LTS VPS
+- 4 vCPU / 8 GB RAM to start
+- A domain or subdomain pointed at the server (`beta.yourdomain.com`)
+
+Steps:
+
+1. Copy the repo to the VPS.
+2. Copy `.env.example` to `.env` and fill in real values.
+3. Set these public-beta values in `.env`:
+  - `DOMAIN=beta.yourdomain.com`
+4. Start the stack with the beta override:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build
+```
+
+What the beta override does:
+
+- hides `backend`, `postgres`, and `chromadb` from the public internet
+- removes direct public exposure of the frontend container
+- adds a `caddy` service that terminates HTTPS automatically and proxies traffic to the frontend
+
+After the containers are up:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.beta.yml ps
+curl https://beta.yourdomain.com/api/v1/health
+```
+
+Expected result:
+
+```json
+{"status": "ok", "version": "0.1.0"}
+```
+
+Operational recommendation for beta:
+
+- keep `STORAGE_PROVIDER=local` initially unless you specifically need S3 now
+- use daily database backups before inviting testers
+- rotate `AUTH_SECRET_KEY` and set a real `POSTGRES_PASSWORD`
+- do not expose ports `8000`, `8001`, or `5432` publicly on the VPS
+
+### AWS EC2 temporary-hostname note
+
+If you deploy the beta on AWS EC2 and use the default AWS hostname (for example `ec2-xx-xx-xx-xx.compute-1.amazonaws.com`) instead of a real domain you control, automatic HTTPS will fail because ACME/Let's Encrypt will not issue certificates for that hostname.
+
+In that case, use a temporary HTTP-only Caddyfile until you attach a real domain:
+
+```caddy
+http://ec2-xx-xx-xx-xx.compute-1.amazonaws.com {
+  encode gzip
+  reverse_proxy frontend:80
+}
+```
+
+Then access the site with the full `http://...` URL, not `https://...`.
+
+Important caveats:
+
+- some browsers will cache a failed HTTPS attempt or force HTTPS automatically; use an Incognito/InPrivate window if the normal browser keeps refusing the connection
+- this is a temporary beta-only workaround
+- once a real domain is attached, switch `DOMAIN` back to that domain and restore the default HTTPS Caddyfile
+
 ---
 
 ## Known Configuration Notes

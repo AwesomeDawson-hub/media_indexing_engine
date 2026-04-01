@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import DropZone from '../components/DropZone';
 import FileQueue, { type QueuedFile } from '../components/FileQueue';
 import * as api from '../api/client';
+import type { QuotaStatus } from '../types/api';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/tiff', 'image/bmp', 'image/avif'];
 const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.tiff', '.tif', '.bmp', '.avif'];
@@ -18,6 +19,13 @@ function isAllowedFile(file: File): boolean {
 export default function UploadPage() {
   const [queue, setQueue] = useState<QueuedFile[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [quotaStatus, setQuotaStatus] = useState<QuotaStatus | null>(null);
+  const [showQuotaModal, setShowQuotaModal] = useState(false);
+  const [quotaLoading, setQuotaLoading] = useState(false);
+  const queuedCount = queue.filter((q) => q.status === 'queued').length;
+  const hasCompleted = queue.some((q) => q.status !== 'queued' && q.status !== 'uploading');
+  const exceedsQuota = quotaStatus !== null && queuedCount > quotaStatus.remaining;
+  const quotaDepleted = quotaStatus !== null && quotaStatus.remaining === 0;
 
   const handleFiles = useCallback((files: File[]) => {
     const newEntries: QueuedFile[] = files.map((file) => {
@@ -45,11 +53,44 @@ export default function UploadPage() {
         const res = await api.uploadFile(qf.file);
         updateStatus(qf.file.name, res.is_duplicate ? 'duplicate' : 'created');
       } catch (err: unknown) {
-        updateStatus(qf.file.name, 'error', err instanceof Error ? err.message : 'Upload failed');
+        const message = err instanceof Error ? err.message : 'Upload failed';
+        if (err instanceof api.ApiRequestError && err.error === 'quota_exceeded') {
+          updateStatus(qf.file.name, 'error', 'Monthly quota exceeded');
+          for (const pendingFile of toUpload) {
+            if (pendingFile.file.name !== qf.file.name) {
+              updateStatus(pendingFile.file.name, 'error', 'Monthly quota exceeded');
+            }
+          }
+          break;
+        }
+
+        updateStatus(qf.file.name, 'error', message);
       }
     }
 
     setUploading(false);
+  }
+
+  async function handleClickProcess() {
+    const toUpload = queue.filter((q) => q.status === 'queued');
+    if (toUpload.length === 0) return;
+
+    setQuotaLoading(true);
+    try {
+      const status = await api.getQuotaStatus();
+      setQuotaStatus(status);
+      setShowQuotaModal(true);
+    } catch {
+      // Quota check unavailable — proceed without modal
+      await handleUpload();
+    } finally {
+      setQuotaLoading(false);
+    }
+  }
+
+  async function handleConfirmUpload() {
+    setShowQuotaModal(false);
+    await handleUpload();
   }
 
   function updateStatus(filename: string, status: QueuedFile['status'], error?: string) {
@@ -64,9 +105,6 @@ export default function UploadPage() {
     setQueue((prev) => prev.filter((q) => q.status === 'queued' || q.status === 'uploading'));
   }
 
-  const queuedCount = queue.filter((q) => q.status === 'queued').length;
-  const hasCompleted = queue.some((q) => q.status !== 'queued' && q.status !== 'uploading');
-
   return (
     <div>
       <div className="page-header">
@@ -75,10 +113,10 @@ export default function UploadPage() {
           {queuedCount > 0 && (
             <button
               className="btn btn-primary"
-              onClick={handleUpload}
-              disabled={uploading}
+              onClick={handleClickProcess}
+              disabled={uploading || quotaLoading}
             >
-              {uploading ? 'Processing...' : `Process ${queuedCount} file${queuedCount > 1 ? 's' : ''}`}
+              {quotaLoading ? 'Checking quota...' : uploading ? 'Processing...' : `Process ${queuedCount} file${queuedCount > 1 ? 's' : ''}`}
             </button>
           )}
           {hasCompleted && (
@@ -95,6 +133,55 @@ export default function UploadPage() {
       <div className="file-queue-scroll">
         <FileQueue files={queue} />
       </div>
+
+      {showQuotaModal && quotaStatus && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h2>Confirm Processing</h2>
+            <p>
+              Plan: <strong>{quotaStatus.plan_name}</strong> &mdash; {quotaStatus.period_month}
+            </p>
+            <p>
+              Selected now: <strong>{queuedCount}</strong>
+            </p>
+            <p>
+              Used this month:{' '}
+              <strong>{quotaStatus.consumed + quotaStatus.reserved}</strong> /{' '}
+              {quotaStatus.monthly_limit}
+            </p>
+            <p>
+              Available: <strong>{quotaStatus.remaining}</strong>
+            </p>
+            <p>
+              Re-analysis overwrites existing AI metadata, but original capture date and geo-location
+              are preserved.
+            </p>
+            {exceedsQuota && quotaStatus.remaining > 0 && (
+              <p className="text-warning">
+                Selected files exceed your remaining monthly quota. Reduce the selection before
+                processing.
+              </p>
+            )}
+            {quotaDepleted && (
+              <p className="text-danger">
+                Monthly quota exhausted. Wait until next month or change the selection.
+              </p>
+            )}
+            <div className="modal-actions">
+              <button className="btn btn-outline" onClick={() => setShowQuotaModal(false)}>
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={handleConfirmUpload}
+                disabled={exceedsQuota || quotaDepleted}
+              >
+                Confirm and Process
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

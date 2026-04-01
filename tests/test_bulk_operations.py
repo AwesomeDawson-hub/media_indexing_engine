@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.models import MediaItem, ProcessingJob
+from src.models import MediaItem, ProcessingJob, QuotaEvent, User
 from src.storage.file_store import LocalFileStore
 from tests.conftest import JPEG_BYTES, PNG_BYTES, DEV_USER_1, DEV_USER_2
 
@@ -104,6 +104,44 @@ async def test_reanalyze_batch_cap_exceeded(client):
         json={"media_ids": ids},
     )
     assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_reanalyze_batch_over_limit_returns_structured_429(client, db_engine):
+    """Batch re-analysis should fail cleanly when the selection exceeds remaining quota."""
+    id1 = await _upload_jpeg(client, "img1.jpg")
+    id2 = await _upload_png(client, "img2.png")
+    await asyncio.sleep(0.5)
+
+    factory = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
+    async with factory() as db:
+        user = (await db.execute(select(User).where(User.id == DEV_USER_1))).scalar_one()
+        user.monthly_limit = 3
+        await db.commit()
+
+    resp = await client.post(
+        "/api/v1/media/reanalyze-batch",
+        json={"media_ids": [id1, id2]},
+    )
+
+    assert resp.status_code == 429
+    body = resp.json()
+    assert body["detail"] == "Monthly quota exceeded"
+    assert body["error_code"] == "QUOTA_EXCEEDED"
+    assert body["error"] == "quota_exceeded"
+    assert body["remaining"] == 0
+    assert body["limit"] == 3
+
+    async with factory() as db:
+        jobs = (await db.execute(
+            select(ProcessingJob).where(ProcessingJob.media_item_id.in_([id1, id2]))
+        )).scalars().all()
+        assert len(jobs) == 2
+
+        released = (await db.execute(
+            select(QuotaEvent).where(QuotaEvent.event_type == "released")
+        )).scalars().all()
+        assert len(released) == 1
 
 
 # ---------------------------------------------------------------------------

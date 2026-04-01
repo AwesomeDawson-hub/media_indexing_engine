@@ -20,6 +20,7 @@ from src.analysis.schemas import MediaMetadataResult
 from src.config import settings
 from src.database import async_session
 from src.models import MediaItem, MediaMetadata, ProcessingJob
+from src.quota.quota_service import QuotaService
 from src.storage.file_store import FileStore
 
 if TYPE_CHECKING:
@@ -27,6 +28,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 _analysis_semaphore = asyncio.Semaphore(max(1, settings.analysis.max_concurrent))
+_quota_service = QuotaService()
 
 
 def _serialize_metadata(result: MediaMetadataResult) -> dict:
@@ -90,10 +92,12 @@ async def analyze_media_item(
     vision_provider: VisionProvider,
     file_store: FileStore,
     indexing_service: IndexingService | None = None,
+    reservation_id: str | None = None,
 ) -> None:
     """Background task: run AI analysis for a processing job.
 
     Full flow: load job → read file → prepare image → call AI → persist metadata → update statuses.
+    If reservation_id is provided, marks the quota event consumed on success or released on permanent failure.
     """
     max_attempts = settings.processing.max_attempts
 
@@ -160,6 +164,11 @@ async def analyze_media_item(
                 job.completed_at = datetime.now(timezone.utc)
                 await db.commit()
                 logger.info("Job %s completed successfully", job_id)
+
+                if reservation_id:
+                    async with async_session() as quota_db:
+                        await _quota_service.consume(quota_db, reservation_id)
+
                 return
 
             except Exception as e:
@@ -193,6 +202,11 @@ async def analyze_media_item(
                     media_item.status = "error"
                     await db.commit()
                     logger.error("Job %s failed permanently after %d attempts", job_id, job.attempts)
+
+                    if reservation_id:
+                        async with async_session() as quota_db:
+                            await _quota_service.release(quota_db, reservation_id)
+
                     return
 
         if retry_delay <= 0:

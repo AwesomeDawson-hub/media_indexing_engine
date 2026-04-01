@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.models import MediaItem, MediaMetadata, ProcessingJob
+from src.models import MediaItem, MediaMetadata, ProcessingJob, User
 from tests.conftest import JPEG_BYTES
 
 
@@ -182,3 +182,36 @@ async def test_reanalyze_conflict(client):
     resp2 = await client.post(f"/api/v1/media/{item_id}/reanalyze")
     # It may be 409 or 202 depending on timing. Let's just verify the endpoint works.
     assert resp2.status_code in (202, 409)
+
+
+@pytest.mark.asyncio
+async def test_reanalyze_over_limit_returns_structured_429(client, db_engine):
+    """Manual re-analysis must pass the same quota checks as first-time analysis."""
+    resp = await client.post(
+        "/api/v1/upload",
+        files={"file": ("photo.jpg", JPEG_BYTES, "image/jpeg")},
+    )
+    assert resp.status_code == 201
+    item_id = resp.json()["id"]
+    await asyncio.sleep(0.5)
+
+    factory = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
+    async with factory() as db:
+        user = (await db.execute(select(User).where(User.id == "test-user-1"))).scalar_one()
+        user.monthly_limit = 1
+        await db.commit()
+
+    resp = await client.post(f"/api/v1/media/{item_id}/reanalyze")
+    assert resp.status_code == 429
+    body = resp.json()
+    assert body["detail"] == "Monthly quota exceeded"
+    assert body["error_code"] == "QUOTA_EXCEEDED"
+    assert body["error"] == "quota_exceeded"
+    assert body["remaining"] == 0
+    assert body["limit"] == 1
+
+    async with factory() as db:
+        jobs = (await db.execute(
+            select(ProcessingJob).where(ProcessingJob.media_item_id == item_id)
+        )).scalars().all()
+        assert len(jobs) == 1
