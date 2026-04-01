@@ -8,9 +8,9 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | **Current Phase** | Phase 4 — Beta Operations & Commercial Foundations |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | P4-003 — Source Registry & Source-Aware Media (In Progress) |
+| **Active Workstream** | None — awaiting P4-004 activation |
 | **Last Updated** | 2026-04-01 |
-| **Updated By** | AI — Engineer (P4-002 closeout) |
+| **Updated By** | AI — Engineer (P4-003 closeout) |
 
 ## System Health
 
@@ -22,8 +22,8 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 | Registry complete | Yes |
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
-| Test status | 91/91 pass (79 backend integration + 12 S3FileStore unit tests) |
-| Active workstream | P4-003 — Source Registry & Source-Aware Media (In Progress) |
+| Test status | 115/115 pass (103 backend integration + 12 S3FileStore unit tests) |
+| Active workstream | None — P4-003 closed, awaiting P4-004 activation |
 | Last governance audit | 2026-03-31 — Pre-Phase-4 Auditor review (0 blocking findings) |
 
 ## Recent Activity
@@ -79,6 +79,8 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 - **2026-03-31:** P4-001 post-implementation fixes applied during local + AWS smoke: poll terminal-status allowlist fix (`35ad90d`); Delete button on Media Detail (`90624a5`); Clear Search button in filter panel (`90624a5`); `btn-danger` red CSS (`c113393`); sort order written to URL immediately on change (`311617a`); filter state written to URL immediately on change (`d91975c`). All local and AWS smoke flows pass: filter+page back-nav, search back-nav, sort persistence, delete, Gallery nav link, processing badge auto-clear, Clear Search. P4-001 fully closed.
 - **2026-03-31:** P4-002 (Plans, Quotas & Analysis Confirmation) implemented and fully closed. Alembic migration `7a8b9c0d1e2f` (plan_name/monthly_limit on users + quota_events ledger). `QuotaService` with reserve/consume/release + `SELECT FOR UPDATE`. `GET /api/v1/quota/status` endpoint. Upload and re-analysis routes enforce quota; processor consumes/releases. Frontend modal shows plan, period, selected count, used/limit, available, overwrite note, geo note; confirm disabled when exhausted. Structured HTTP 429 with error_code/error/remaining/limit. 5 new quota tests; 91/91 total pass. ADR-013 recorded. Bug fix: batch delete now clears quota_events before media_items (FK constraint). Local + AWS smoke passed. Commits: `c147790`, `6a1d20d`, `5ca5ee6`.
 
+- **2026-04-01:** P4-003 (Source Registry & Source-Aware Media) implemented and fully closed. Alembic migration `a1b2c3d4e5f6` adds `sources` table + `source_id` FK on `media_items`. 4 source API endpoints (create/list/archive/restore), all user-scoped. `source_id` filter on `GET /api/v1/media`. Upload endpoints accept `source_id` form param with 403 IDOR protection. Frontend: source selector + inline create-source form on UploadPage; Source dropdown in GalleryPage filter panel wired to URL. 24 new tests in `tests/test_sources.py`; 115/115 total pass. TypeScript clean. Commits: `13e9c69`, `003e67d`, `a96d81a`, `4a3e5b7`, `30bb319`. AWS deploy completed.
+
 ## Blockers
 
 - No application blockers.
@@ -90,13 +92,12 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 
 ## Notes for Next Session
 
-- **P4-002 is fully closed.** Local + AWS smoke both passed. Migration live on AWS postgres. Delete bug (FK constraint on quota_events) fixed and deployed.
-- **Next workstream: P4-003** — Source Registry & Source-Aware Media.
-- **Most recent commits (newest first):** `5ca5ee6` delete FK fix; `6a1d20d` P4-002 docs closeout; `c147790` P4-002 quota enforcement + tests; `d91975c` filter state to URL; `311617a` sort to URL; `e8dedcf` P4-001.
-- **ADR-013** recorded in `docs/DECISION_LOG.md` (reservation ledger semantics).
+- **P4-003 is fully closed.** Local 115/115 tests pass. AWS deploy completed.
+- **Next workstream: P4-004** — Admin Console & User Profile Management.
+- **Most recent commits (newest first):** `30bb319` (Step 8 tests); `4a3e5b7` (Steps 6+7 frontend); `a96d81a` (Steps 4+5 upload/media); `003e67d` (Steps 2+3 schemas/routes); `13e9c69` (Step 1 model/migration).
 - **AWS beta is live:** `http://ec2-13-216-223-46.compute-1.amazonaws.com` (HTTP only, temporary — ACME refuses AWS hostname). Stack: `docker-compose.yml` + `docker-compose.beta.yml`. SSH key: `C:\Code\AWS\media-indexing-key.pem`, user `ubuntu`.
 - **Before inviting broader beta users:** rotate the exposed `ANTHROPIC_API_KEY`, `POSTGRES_PASSWORD`, and `AUTH_SECRET_KEY`.
 - **System is production-deployable:** `docker compose up -d` starts all services. Copy `.env.example` → `.env`, fill secrets.
 - **Health endpoint:** `GET /api/v1/health` → `{"status":"ok","version":"0.1.0"}` — no auth required.
 - **Schema changes** require `alembic revision --autogenerate` + review + `alembic upgrade head`. Back up the AWS DB before any migration deploy.
-- **Codebase:** Python backend (FastAPI, 91 tests) + React/TS frontend (Vite + nginx) + Docker stack (postgres, chromadb, backend, frontend, caddy).
+- **Codebase:** Python backend (FastAPI, 115 tests) + React/TS frontend (Vite + nginx) + Docker stack (postgres, chromadb, backend, frontend, caddy).

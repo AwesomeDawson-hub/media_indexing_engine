@@ -9,10 +9,10 @@ _Update this document at the end of every session and at every workstream transi
 | Field | Value |
 |---|---|
 | **Current Phase** | Phase 4 — Beta Operations & Commercial Foundations (**in progress**) |
-| **Current Workstream** | P4-003 — Source Registry & Source-Aware Media (In Progress) |
-| **Last Completed Work** | P4-002 — Plans, Quotas & Analysis Confirmation (2026-03-31): quota enforcement + modal + 91/91 tests + AWS deploy + delete FK fix |
-| **Next Task** | Implement P4-003 per `docs/planning/P4-003_plan.md` |
-| **Next Step Requested** | Start P4-003 planning |
+| **Current Workstream** | None — awaiting P4-004 activation |
+| **Last Completed Work** | P4-003 — Source Registry & Source-Aware Media (2026-04-01): sources API, source_id on uploads/media, frontend selector+filter, 115/115 tests, AWS deploy |
+| **Next Task** | Activate P4-004 — Admin Console & User Profile Management |
+| **Next Step Requested** | Start P4-004 planning |
 
 ## Required Reading
 
@@ -94,7 +94,17 @@ When suggesting code changes:
 
 ## Recent Session Activity
 
-- **P4-002 AWS deploy + closeout (2026-03-31):**
+- **P4-003 implementation + AWS deploy (2026-04-01):**
+  - Full Source Registry implemented across 8 steps.
+  - Step 1: `Source` model + Alembic migration `a1b2c3d4e5f6` (sources table, source_id FK on media_items). `batch_alter_table` required for SQLite FK compat.
+  - Steps 2+3: `SourceResponse`/`SourceCreateRequest` schemas, `source_id` on `MediaItemResponse`, `src/api/routes/sources.py` with 4 endpoints (create, list, archive, restore), registered in `app.py`.
+  - Steps 4+5: `source_id` query filter on `GET /api/v1/media`; `source_id: str | None = Form(None)` on both upload endpoints with `_resolve_source_id()` helper (404 not found, 403 cross-user IDOR); propagated through `upload_service.py`.
+  - Steps 6+7: Frontend — `SourceResponse` type, `listSources()`/`createSource()` in `client.ts`; UploadPage: source selector + inline create-source form, auto-selects new source; GalleryPage: Source dropdown in FilterPanel, wired to URL params, buildFilters, apply/reset.
+  - Step 8: `tests/test_sources.py` — 24 tests (create/list/archive/restore/IDOR/filter). 115/115 total pass. TypeScript clean.
+  - AWS deploy: `git push`, EC2 pull + `docker compose up -d --build`, migration `a1b2c3d4e5f6` ran on startup. Smoke: source create, list, source-tagged upload, gallery filter validated.
+  - Commits: `13e9c69`, `003e67d`, `a96d81a`, `4a3e5b7`, `30bb319`, docs closeout.
+
+- **P4-002 AWS deploy + closeout (2026-03-31):****
   - `pg_dump` backup taken on EC2: `media_indexing_pre_p4002_20260401_040910.sql.gz`.
   - `git push origin master` pushed 6 commits (`d91975c..5ca5ee6`); git stash + pull on EC2, merge conflicts resolved (server config files: `--ours`; test files: `--theirs`).
   - `docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build` rebuilt all 5 containers; migration `7a8b9c0d1e2f` ran on startup.
@@ -208,7 +218,7 @@ When suggesting code changes:
 
 - No application blockers.
 - Operational limitation remains: public beta is live over temporary HTTP on the EC2 hostname, but full HTTPS beta access is blocked until a real domain is attached.
-- Phase 4 is in progress: P4-001 and P4-002 are complete. Next workstream is P4-003 (Source Registry & Source-Aware Media).
+- Phase 4 is in progress: P4-001, P4-002, and P4-003 are complete. Next workstream is P4-004 (Admin Console & User Profile Management).
 
 ## Document Ownership Note
 

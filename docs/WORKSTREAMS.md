@@ -50,12 +50,7 @@ _Phase 4 — Beta Operations & Commercial Foundations. Full phase plan at `docs/
 
 ## In Progress
 
-### P4-003: Source Registry & Source-Aware Media
-- **Objective:** Persist named sources, associate media with sources, add archive/restore behavior for deleted sources, and establish the connector abstraction for future online sources.
-- **Phase:** Phase 4 — Beta Operations & Commercial Foundations
-- **Status:** In Progress
-- **Started:** 2026-04-01
-- **Plan:** `docs/planning/P4-003_plan.md`
+_No workstreams currently in progress._
 
 ---
 
@@ -83,6 +78,15 @@ _These changes were applied directly without a formal workstream, after Phase 1 
 ---
 
 ## Completed
+
+### P4-003: Source Registry & Source-Aware Media
+- **Objective:** Persist named sources, associate media with sources, add archive/restore behavior for deleted sources, and establish the connector abstraction for future online sources.
+- **Phase:** Phase 4 — Beta Operations & Commercial Foundations
+- **Status:** Completed
+- **Started:** 2026-04-01
+- **Completed:** 2026-04-01
+- **Plan:** `docs/planning/P4-003_plan.md`
+- **Outcome:** Full source registry implemented across all 8 steps. Alembic migration `a1b2c3d4e5f6` adds `sources` table (id, user_id FK, name, source_type, archived_at soft-delete, created_at, updated_at) and `source_id` nullable FK on `media_items`. `Source` model with user and media_items relationships. 4 API endpoints: `POST /api/v1/sources` (create, 201), `GET /api/v1/sources` (list, excludes archived by default, `?include_archived=true`), `POST /api/v1/sources/{id}/archive` (soft-delete, idempotent), `POST /api/v1/sources/{id}/restore` (idempotent). `source_id` filter on `GET /api/v1/media`. Upload endpoints accept `source_id: str | None = Form(None)` with ownership validation (404 if not found, 403 if cross-user IDOR protection). Frontend: source selector + inline create-source form on UploadPage; Source dropdown filter in GalleryPage FilterPanel, wired to URL params. 24 new tests in `tests/test_sources.py`; **115/115 total tests pass**. TypeScript clean. Commits: `13e9c69` (Step 1), `003e67d` (Steps 2+3), `a96d81a` (Steps 4+5), `4a3e5b7` (Steps 6+7), `30bb319` (Step 8).
 
 ### P4-002: Plans, Quotas & Analysis Confirmation
 - **Objective:** Enforce monthly image-processing limits, add quota-aware confirmation on the Sources page, and protect capture date/geo-location from overwrite.
