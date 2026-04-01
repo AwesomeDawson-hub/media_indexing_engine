@@ -8,9 +8,9 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | **Current Phase** | Phase 4 — Beta Operations & Commercial Foundations |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | P4-002: Plans, Quotas & Analysis Confirmation |
+| **Active Workstream** | None — P4-002 complete; P4-003 not yet started |
 | **Last Updated** | 2026-04-01 |
-| **Updated By** | AI — Engineer (P4-002 implementation) |
+| **Updated By** | AI — Engineer (P4-002 closeout) |
 
 ## System Health
 
@@ -22,8 +22,8 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 | Registry complete | Yes |
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
-| Test status | 82/82 pass (70 backend integration + 12 S3FileStore unit tests) |
-| Active workstream | P4-002 In Progress — migration + backend quota service + frontend modal implemented; pending local smoke test |
+| Test status | 91/91 pass (79 backend integration + 12 S3FileStore unit tests) |
+| Active workstream | None — P4-002 complete (local smoke passed); awaiting AWS deploy |
 | Last governance audit | 2026-03-31 — Pre-Phase-4 Auditor review (0 blocking findings) |
 
 ## Recent Activity
@@ -77,18 +77,21 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 - **2026-03-31:** P4-001 (Gallery & Detail UX Continuity) moved to In Progress. Plan approved. Pre-Phase-4 Auditor review passed with 0 blocking findings.
 - **2026-03-31:** P4-001 (Gallery & Detail UX Continuity) completed. All 6 changes delivered: filters always visible; Source button removed from Gallery header; size bucket dimension filter (Small/Medium/Large) wired to backend `min_width`/`max_width`; StatusBadge hides `completed` status; MetadataDisplay split into Metadata + Additional Search Data sections; Back-to-Gallery restores full gallery URL state via React Router location state. 82/82 tests pass. Commit: `e8dedcf`.
 - **2026-03-31:** P4-001 post-implementation fixes applied during local + AWS smoke: poll terminal-status allowlist fix (`35ad90d`); Delete button on Media Detail (`90624a5`); Clear Search button in filter panel (`90624a5`); `btn-danger` red CSS (`c113393`); sort order written to URL immediately on change (`311617a`); filter state written to URL immediately on change (`d91975c`). All local and AWS smoke flows pass: filter+page back-nav, search back-nav, sort persistence, delete, Gallery nav link, processing badge auto-clear, Clear Search. P4-001 fully closed.
+- **2026-04-01:** P4-002 (Plans, Quotas & Analysis Confirmation) implemented and local smoke complete. Alembic migration `7a8b9c0d1e2f` (plan_name/monthly_limit on users + quota_events ledger). `QuotaService` with reserve/consume/release + `SELECT FOR UPDATE`. `GET /api/v1/quota/status` endpoint. Upload and re-analysis routes enforce quota; processor consumes/releases. Frontend modal shows plan, period, selected count, used/limit, available, overwrite note, geo note; confirm disabled when exhausted. Structured HTTP 429 with error_code/error/remaining/limit. 5 new quota tests; 91/91 total pass. ADR-013 recorded. Commit: `c147790`. AWS deploy pending.
 
 ## Blockers
 
 - No application blockers.
 - Operational limitation: current beta access is temporary HTTP-only on the EC2 hostname. A real domain is required before restoring HTTPS.
+- P4-002 local smoke complete; **AWS deploy (pg_dump + alembic upgrade head + smoke) still required** before P4-002 is fully closed.
 
 ## Notes for Next Session
 
-- **P4-001 is fully closed.** All 6 original changes plus all smoke-discovered fixes are committed and validated on both local and AWS beta.
-- **Next workstream: P4-002** — Plans, Quotas & Analysis Confirmation. See `docs/planning/PHASE_4_beta_operations_plan.md` for full spec. Key deliverables: per-user monthly processing limits data model, usage ledger/reservation semantics, Sources-page confirmation modal (count + remaining quota + metadata overwrite warning + date/geo preservation note), server-side quota enforcement, plan-limit fields.
-- **P4-002 key constraints:** quota enforcement must be server-side AND transactional (atomic reservation); prefer ledger/reservation model over mutable counter; metadata overwrite must preserve original date and geo-location in downloaded files; frontend quota display is advisory only.
-- **Most recent commits (newest first):** `d91975c` filter state to URL on change; `311617a` sort to URL on change; `c113393` btn-danger CSS; `90624a5` Delete button + Clear Search; `35ad90d` poll terminal-status fix; `e8dedcf` P4-001 original 6 changes.
+- **P4-002 local smoke is complete.** All 5 smoke flows passed: upload → quota consumed; re-analysis → quota decremented; over-limit → modal disabled; forced 429 → structured payload; duplicate → no extra quota event. Commit: `c147790`.
+- **P4-002 remaining exit criterion: AWS deploy.** Steps: `pg_dump` backup on EC2, `git pull`, `docker compose up -d --build`, `alembic upgrade head` (runs automatically on startup), verify `GET /api/v1/quota/status` on live stack, run AWS smoke flow.
+- **ADR-013** recorded in `docs/DECISION_LOG.md` (reservation ledger semantics).
+- **Next after AWS deploy: P4-003** — Source Registry & Source-Aware Media.
+- **Most recent commits (newest first):** `c147790` P4-002 quota enforcement + tests; `d91975c` filter state to URL; `311617a` sort to URL; `c113393` btn-danger CSS; `90624a5` Delete + Clear Search; `35ad90d` poll fix; `e8dedcf` P4-001.
 - **AWS beta is live:** `http://ec2-13-216-223-46.compute-1.amazonaws.com` (HTTP only, temporary — ACME refuses AWS hostname). Stack: `docker-compose.yml` + `docker-compose.beta.yml`. SSH key: `C:\Code\AWS\media-indexing-key.pem`, user `ubuntu`.
 - **Before inviting broader beta users:** rotate the exposed `ANTHROPIC_API_KEY`, `POSTGRES_PASSWORD`, and `AUTH_SECRET_KEY`.
 - **System is production-deployable:** `docker compose up -d` starts all services. Copy `.env.example` → `.env`, fill secrets.

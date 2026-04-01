@@ -55,8 +55,9 @@ media_indexing_engine/
 
 **Workstream:** WS-001
 **Responsibilities:**
-- ORM models: User, MediaItem, ProcessingJob, MediaMetadata
+- ORM models: User, MediaItem, ProcessingJob, MediaMetadata, QuotaEvent (**P4-002**)
 - Unique constraint `(user_id, content_hash)` on media_items
+- User: `plan_name` (default `'basic'`), `monthly_limit` (default 500) columns added (**P4-002**)
 - FK relationships between all entities
 
 ### src/ingestion/
@@ -83,17 +84,25 @@ media_indexing_engine/
 **Workstream:** WS-001 (scaffold), WS-004 (hardening)
 **Files:**
 - `app.py` — FastAPI app creation, lifespan (DB init: `create_tables()` in dev, `run_migrations()` in prod — **P3-002**; dev user seed), router registration
-- `schemas.py` — Pydantic response models (UploadResponse, BatchUploadResponse, MediaItemResponse, PaginatedResponse); `MediaItemResponse` and `SearchMediaItem` include `width`/`height` fields (**P3-001**); `BatchOperationRequest` (validated 1–50 `media_ids`), `BatchReanalyzeResponse`, `BatchDeleteResponse` (**P3-003**)
+- `schemas.py` — Pydantic response models (UploadResponse, BatchUploadResponse, MediaItemResponse, PaginatedResponse); `MediaItemResponse` and `SearchMediaItem` include `width`/`height` fields (**P3-001**); `BatchOperationRequest` (validated 1–50 `media_ids`), `BatchReanalyzeResponse`, `BatchDeleteResponse` (**P3-003**); `QuotaStatusResponse` (**P4-002**)
 - `dependencies.py` — DB session dependency + JWT auth dependency (`get_current_user_id` with dev mode fallback)
 - `error_handlers.py` — Standardized error response format (`detail` + `error_code`)
 - `rate_limit.py` — In-memory sliding window rate limiter for auth endpoints
-- `routes/upload.py` — `POST /api/v1/upload`, `POST /api/v1/upload/batch` (dispatches analysis via mock/real provider)
+- `routes/upload.py` — `POST /api/v1/upload`, `POST /api/v1/upload/batch`; reserves quota before enqueue; returns `HTTP 429 QUOTA_EXCEEDED` with structured payload on exhaustion; batch returns per-item error (**P4-002**)
 - `routes/media.py` — `GET /api/v1/media` (full filter+sort: `has_people`, `orientation`, `mood`, `mime_type`, `min/max_width/height`, `aspect_ratio`, `tags`, `sort_by`; metadata-based filters JOIN `MediaMetadata`; aspect ratio uses post-query Python filtering via `_matches_aspect_ratio()`), `GET /api/v1/media/{id}`, `GET /api/v1/media/{id}/file` (**P3-001**)
-- `routes/analysis.py` — `GET /api/v1/media/{id}/analysis`, `POST /api/v1/media/{id}/reanalyze`; `POST /api/v1/media/reanalyze-batch` (50-item cap, user-scoped, skips in-progress items); `DELETE /api/v1/media/batch` (50-item cap, user-scoped, deletes DB rows + physical file + vector embeddings best-effort) (**P3-003**)
+- `routes/analysis.py` — `GET /api/v1/media/{id}/analysis`, `POST /api/v1/media/{id}/reanalyze` (quota-enforced — **P4-002**); `POST /api/v1/media/reanalyze-batch` (50-item cap, all-or-nothing quota — **P4-002**, **P3-003**); `DELETE /api/v1/media/batch` (50-item cap, user-scoped, deletes DB rows + physical file + vector embeddings best-effort) (**P3-003**)
 - `routes/search.py` — `GET /api/v1/search?q=...` (natural language search with pagination)
 - `routes/auth.py` — `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `GET /api/v1/auth/me`
 - `routes/download.py` — `GET /api/v1/media/{id}/download` (single enriched file), `POST /api/v1/media/download-batch` (ZIP archive), `POST /api/v1/media/{id}/convert-png` (BMP/GIF → PNG with metadata) — **P2-002**; all formats now use AI title as download filename via `_MIME_TO_EXT` dict + `_ext_for_mime()` helper (**P3-001**)
 - `routes/health.py` — `GET /api/v1/health` (no auth; returns `{"status":"ok","version":"0.1.0"}`; used by Docker health checks) (**P3-004**)
+- `routes/quota.py` — `GET /api/v1/quota/status` (user-scoped; returns plan_name, monthly_limit, consumed, reserved, remaining, period_month) (**P4-002**)
+
+### src/quota/
+
+**Location:** `src/quota/`
+**Workstream:** P4-002
+**Files:**
+- `quota_service.py` — `QuotaService`: `get_status()`, `reserve()`, `consume()`, `release()`; `QuotaExceededError`; `build_quota_exceeded_detail()`; concurrency via `SELECT FOR UPDATE` on `users` row; ledger-based remaining = `monthly_limit - consumed - reserved` for current UTC month
 
 ### src/auth/
 
@@ -113,7 +122,7 @@ media_indexing_engine/
 - `mock_provider.py` — `MockVisionProvider` returning canned metadata (for testing)
 - `image_prep.py` — Image resize (max 1568px longest side) + JPEG conversion + base64 encoding
 - `schemas.py` — `MediaMetadataResult` Pydantic model (13 ADR-005 fields) + `parse_ai_response()` JSON parser
-- `processor.py` — `analyze_media_item()` background task: load file → prepare → AI call → persist metadata → update statuses
+- `processor.py` — `analyze_media_item()` background task: load file → prepare → AI call → persist metadata → update statuses; `reservation_id` param: consume on success, release on permanent failure (**P4-002**)
 
 ### src/enrichment/
 

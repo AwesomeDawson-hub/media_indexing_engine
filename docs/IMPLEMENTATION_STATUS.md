@@ -31,6 +31,32 @@ Each completed workstream gets one entry in the log below, following this struct
 
 ## Completed Workstream Log
 
+### P4-002: Plans, Quotas & Analysis Confirmation
+- **Phase:** Phase 4 — Beta Operations & Commercial Foundations
+- **Completed:** 2026-04-01
+- **Objective:** Enforce per-user monthly analysis limits, add quota-aware confirmation modal on the Sources page, protect capture date/geo-location from overwrite on re-analysis, and provide a structured 429 response on quota exhaustion.
+- **Outcome:** Full reservation-ledger quota system implemented end-to-end. `quota_events` table stores `reserved`/`consumed`/`released` events per user per month. `SELECT FOR UPDATE` on the `users` row serializes quota decisions under concurrent uploads. All upload and re-analysis paths enforce quota before enqueueing work. Frontend modal shows plan info, usage counts, overwrite/geo warning, and disables confirm when exhausted. Structured `HTTP 429` with `error_code`/`error`/`remaining`/`limit` body. All 5 local smoke scenarios passed. 91/91 tests pass. TypeScript clean. ADR-013 recorded.
+- **Key decisions:** Ledger model chosen over mutable counter (audit trail, concurrency safety, future billing bridge). Batch upload uses per-item best-effort error; batch re-analysis uses all-or-nothing 429 — both intentional and tested. `SELECT FOR UPDATE` on users row preferred over a separate quota lock table (simpler, avoids deadlock complexity at current scale). `period_month` stored as PostgreSQL `Date` (first day of month), serialized as `"YYYY-MM"` in API — matches UTC server time.
+- **Artifacts produced:**
+  - Created: `alembic/versions/7a8b9c0d1e2f_quota_plans.py` (migration: plan_name/monthly_limit on users + quota_events table)
+  - Created: `src/quota/__init__.py`, `src/quota/quota_service.py` (`QuotaService`, `QuotaExceededError`, `build_quota_exceeded_detail`)
+  - Created: `src/api/routes/quota.py` (`GET /api/v1/quota/status`)
+  - Created: `tests/test_quota.py` (5 tests: status endpoint, consumption, user-scoped, lifecycle, duplicate no-quota)
+  - Modified: `src/models.py` (User: plan_name, monthly_limit; QuotaEvent model)
+  - Modified: `src/api/schemas.py` (QuotaStatusResponse)
+  - Modified: `src/api/app.py` (quota router registered)
+  - Modified: `src/api/routes/upload.py` (reserve before enqueue; 429+cleanup on exceeded; per-item batch error)
+  - Modified: `src/api/routes/analysis.py` (reanalyze: reserve before job; reanalyze-batch: all-or-nothing with rollback)
+  - Modified: `src/analysis/processor.py` (reservation_id param; consume on success; release on permanent failure)
+  - Modified: `src/api/error_handlers.py` (dict passthrough for arbitrary keys → error/remaining/limit reach response body)
+  - Modified: `frontend/src/types/api.ts` (QuotaStatus interface, ApiError optional fields)
+  - Modified: `frontend/src/api/client.ts` (ApiRequestError class, getQuotaStatus())
+  - Modified: `frontend/src/pages/UploadPage.tsx` (quota modal: exceedsQuota/quotaDepleted compute, modal copy, geo note, 429 fast-fail)
+  - Modified: `frontend/src/index.css` (modal overlay + utility text classes)
+  - Modified: `docs/DECISION_LOG.md` (ADR-013)
+- **Validation performed:** 91/91 backend tests pass. TypeScript build clean (`npx tsc --noEmit`). Full local smoke: upload → consumed; re-analysis → decremented; over-limit modal disabled; forced 429 returns structured payload; duplicate upload does not create additional quota event. Commit: `c147790`.
+- **AWS deploy status:** Pending — local smoke complete; EC2 deploy (pg_dump backup → `alembic upgrade head` → smoke) required before full closeout.
+
 ### P4-001: Gallery & Detail UX Continuity
 - **Phase:** Phase 4 — Beta Operations & Commercial Foundations
 - **Completed:** 2026-03-31

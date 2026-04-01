@@ -151,6 +151,16 @@ Each decision follows this structure:
 - **Alternatives considered:** Kubernetes (overengineered for V1 scale requirements), bare-metal manual setup (error-prone, not reproducible), single Docker image with all services (violates separation of concerns, makes updates difficult).
 - **Consequences:** Requires Docker 24+ and Docker Compose v2 on the deployment host. Manual end-to-end smoke test against the Docker stack is required to fully validate PostgreSQL + S3 integration (not automated in CI). Kubernetes migration is possible later without architectural changes.
 
+### ADR-013: Monthly Quota Uses Reservation Ledger Semantics
+- **Date:** 2026-03-31
+- **Workstream:** P4-002
+- **Status:** Accepted
+- **Context:** The system needs enforceable monthly analysis limits that remain correct under concurrent requests and can later support billing reconciliation. A mutable counter on `users` is simple but does not preserve an audit trail, makes refund/release handling brittle, and is difficult to reconcile when failures occur.
+- **Decision:** Use a `quota_events` ledger as the authoritative monthly-usage record. Reserve quota before analysis is enqueued (`event_type=reserved`), convert the reservation to `consumed` on success, and `released` on permanent failure. Compute remaining quota as `monthly_limit - consumed - reserved` for the current UTC month. Row-level locking (`SELECT FOR UPDATE` on the `users` row) serializes quota decisions per user without introducing a mutable counter.
+- **Reasoning:** The ledger preserves history, supports concurrency-safe reservation semantics, and provides a clean bridge into future billing and admin reconciliation. Reservation-before-enqueue prevents double-spend under concurrent uploads. The `reserved` state ensures in-flight work is counted against the limit even before analysis completes.
+- **Alternatives considered:** Mutable `used_this_month` integer on `users` (rejected: weak auditability, no in-flight visibility, race-prone); app-memory counters (rejected: invalid in distributed deployments); eventual reconciliation from processing jobs (rejected: too indirect and failure-prone).
+- **Consequences:** All analysis-triggering paths must reserve quota before enqueueing work. Background job success/failure paths must finalize reservation state (`consume` or `release`). Future billing and admin tooling should read from the `quota_events` ledger. Batch upload uses per-item best-effort error semantics; batch re-analysis uses all-or-nothing 429 semantics — both are intentional and tested. The `period_month` field is stored as a PostgreSQL `Date` (first day of month) and serialized as `"YYYY-MM"` in the API response.
+
 ### ADR-012: User Isolation Must Be Enforced at the Database Layer for All Read Paths
 - **Date:** 2026-03-29
 - **Workstream:** Post-Phase-3 bug fix (commit fd5013e)

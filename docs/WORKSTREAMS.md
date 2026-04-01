@@ -29,25 +29,7 @@ _Phase 4 — Beta Operations & Commercial Foundations. Full phase plan at `docs/
 
 
 
-### P4-002: Plans, Quotas & Analysis Confirmation
-- **Objective:** Enforce monthly image-processing limits, add quota-aware confirmation on the Sources page, and protect capture date/geo-location from overwrite.
-- **Phase:** Phase 4 — Beta Operations & Commercial Foundations
-- **Status:** In Progress
-- **Plan:** `docs/planning/P4-002_plan.md`
-- **Started:** 2026-04-01
-- **Changes so far:**
-  - Alembic migration `7a8b9c0d1e2f`: adds `plan_name` / `monthly_limit` to users and creates `quota_events` table with indexes
-  - `src/models.py`: added `plan_name`, `monthly_limit` to `User`; added `QuotaEvent` model
-  - `src/api/schemas.py`: added `QuotaStatusResponse`
-  - `src/quota/quota_service.py`: `QuotaService` with `get_status`, `reserve`, `consume`, `release`
-  - `src/api/routes/quota.py`: `GET /api/v1/quota/status`
-  - `src/api/routes/upload.py`: reserves quota before analysis; returns 429 `QUOTA_EXCEEDED` if limit reached; batch silently skips
-  - `src/analysis/processor.py`: `reservation_id` param; consumes on success, releases on permanent failure
-  - `src/api/app.py`: registered quota router
-  - `frontend/src/types/api.ts`: added `QuotaStatus` interface
-  - `frontend/src/api/client.ts`: added `getQuotaStatus()`
-  - `frontend/src/pages/UploadPage.tsx`: quota-check modal before upload; "Monthly quota exceeded" error for 429 responses
-  - `frontend/src/index.css`: modal overlay + utility text classes
+
 
 ### P4-003: Source Registry & Source-Aware Media
 - **Objective:** Persist named sources, associate media with sources, add archive/restore behavior for deleted sources, and establish the connector abstraction for future online sources.
@@ -77,6 +59,8 @@ _No workstreams currently in progress._
 
 ---
 
+---
+
 ## Post-Phase 3 Bug Fixes (Applied 2026-03-29, commit fd5013e)
 
 _These production bug fixes were applied directly without a formal workstream, after Phase 3 closeout:_
@@ -99,6 +83,15 @@ _These changes were applied directly without a formal workstream, after Phase 1 
 ---
 
 ## Completed
+
+### P4-002: Plans, Quotas & Analysis Confirmation
+- **Objective:** Enforce monthly image-processing limits, add quota-aware confirmation on the Sources page, and protect capture date/geo-location from overwrite.
+- **Phase:** Phase 4 — Beta Operations & Commercial Foundations
+- **Status:** Completed (local smoke passed; AWS deploy pending)
+- **Plan:** `docs/planning/P4-002_plan.md`
+- **Started:** 2026-04-01
+- **Completed:** 2026-04-01
+- **Outcome:** Quota enforcement fully implemented and smoke-tested locally. Alembic migration `7a8b9c0d1e2f` adds `plan_name`/`monthly_limit` to `users` and creates `quota_events` ledger. `QuotaService` implements reserve/consume/release with `SELECT FOR UPDATE` concurrency. `GET /api/v1/quota/status` endpoint live. Upload and re-analysis routes enforce quota (single: 429+cleanup; batch: per-item error). Processor consumes on success, releases on failure. Frontend modal shows plan, period, selected count, used/limit, available, overwrite note, geo note; confirm button disabled when exhausted. `ApiRequestError` fast-fail on 429. 5 new quota tests; 91/91 total tests pass. TypeScript clean. ADR-013 recorded. Commit: `c147790`.
 
 ### P4-001: Gallery & Detail UX Continuity
 - **Objective:** Keep filters visible, add dimensions filtering, simplify status display, reorganize Media Detail, and preserve Gallery state when returning from details. Source-backed filtering is explicitly deferred to P4-003.

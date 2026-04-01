@@ -9,10 +9,10 @@ _Update this document at the end of every session and at every workstream transi
 | Field | Value |
 |---|---|
 | **Current Phase** | Phase 4 — Beta Operations & Commercial Foundations (**in progress**) |
-| **Current Workstream** | None — P4-001 complete; P4-002 not yet started |
-| **Last Completed Work** | P4-001 — Gallery & Detail UX Continuity (2026-03-31): all 6 UX changes delivered |
-| **Next Task** | Review and approve `P4-002 — Plans, Quotas & Analysis Confirmation` using `docs/planning/P4-002_plan.md` |
-| **Next Step Requested** | Operator reviews P4-001 changes on the live stack, then activates P4-002 |
+| **Current Workstream** | None — P4-002 local smoke complete; AWS deploy pending |
+| **Last Completed Work** | P4-002 — Plans, Quotas & Analysis Confirmation (2026-04-01): quota enforcement + modal + 91/91 tests |
+| **Next Task** | AWS deploy for P4-002: `pg_dump` backup → `git pull` on EC2 → `docker compose up -d --build` → verify `GET /api/v1/quota/status` → smoke |
+| **Next Step Requested** | Operator performs AWS deploy and smoke, then activates P4-003 |
 
 ## Required Reading
 
@@ -93,6 +93,15 @@ When suggesting code changes:
 - Hardcoding credentials or configuration
 
 ## Recent Session Activity
+
+- **P4-002 implementation + smoke session (2026-04-01):**
+  - Quota enforcement system implemented end-to-end: `quota_events` ledger, `QuotaService` (reserve/consume/release with `SELECT FOR UPDATE`), `GET /api/v1/quota/status`, upload + reanalyze routes enforce quota, processor consumes on success / releases on failure.
+  - Frontend: confirmation modal shows plan, period, selected count, used/limit, available, overwrite warning, geo note; confirm button disabled when quota exhausted; `ApiRequestError` fast-fail on 429.
+  - 5 new quota tests created (`tests/test_quota.py`); 91/91 total backend tests pass. TypeScript clean.
+  - Local smoke complete: upload → consumed (499 remaining); re-analysis → decremented; over-limit → modal disabled + button non-clickable; forced HTTP 429 → `{error_code, error, remaining, limit}` payload; duplicate upload → quota unchanged.
+  - ADR-013 recorded in `docs/DECISION_LOG.md` (reservation ledger semantics).
+  - Commit: `c147790` — "P4-002: quota enforcement, structured 429, frontend modal, tests (91/91)".
+  - **AWS deploy still required** before P4-002 is fully closed.
 
 - **AWS public beta deployment session (2026-03-29):**
   - Operator chose AWS instead of a generic VPS recommendation.
