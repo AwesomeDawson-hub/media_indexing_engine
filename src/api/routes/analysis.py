@@ -10,7 +10,7 @@ from src.api.dependencies import get_db, get_current_user_id
 from src.api.schemas import AnalysisResponse, MetadataFields, JobInfo, ReanalyzeResponse, BatchOperationRequest, BatchReanalyzeResponse, BatchDeleteResponse
 from src.api.routes.upload import _vision_provider, _file_store, _indexing_service
 from src.analysis.processor import analyze_media_item
-from src.models import MediaItem, MediaMetadata, ProcessingJob
+from src.models import MediaItem, MediaMetadata, ProcessingJob, QuotaEvent
 from src.quota.quota_service import QuotaExceededError, QuotaService, build_quota_exceeded_detail
 
 router = APIRouter(prefix="/api/v1", tags=["analysis"])
@@ -277,6 +277,7 @@ async def delete_batch(
 
     if deleted_ids:
         # Delete child records first to avoid FK constraint violations
+        await db.execute(sql_delete(QuotaEvent).where(QuotaEvent.media_item_id.in_(deleted_ids)))
         await db.execute(sql_delete(MediaMetadata).where(MediaMetadata.media_item_id.in_(deleted_ids)))
         await db.execute(sql_delete(ProcessingJob).where(ProcessingJob.media_item_id.in_(deleted_ids)))
         await db.execute(sql_delete(MediaItem).where(MediaItem.id.in_(deleted_ids), MediaItem.user_id == user_id))
