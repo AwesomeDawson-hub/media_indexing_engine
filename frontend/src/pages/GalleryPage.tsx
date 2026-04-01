@@ -250,6 +250,30 @@ export default function GalleryPage() {
   // doesn't double-fire when handleSubmit already kicked off the search.
   const lastSubmittedQuery = useRef('');
 
+  // Skip the initial mount so we don't redundantly re-write URL values that
+  // were just read from it — only write on subsequent user-driven changes.
+  const filtersWritten = useRef(false);
+
+  // Mirror filter state to URL immediately on every change so that back-navigation
+  // restores the exact filter combination the user had set, regardless of whether
+  // they clicked "Apply Filters".
+  useEffect(() => {
+    if (!filtersWritten.current) {
+      filtersWritten.current = true;
+      return;
+    }
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (hasPeople !== null) next.set('has_people', String(hasPeople)); else next.delete('has_people');
+      if (orientation) next.set('orientation', orientation); else next.delete('orientation');
+      if (mood) next.set('mood', mood); else next.delete('mood');
+      if (mimeType) next.set('mime_type', mimeType); else next.delete('mime_type');
+      if (aspectRatio) next.set('aspect_ratio', aspectRatio); else next.delete('aspect_ratio');
+      if (sizeBucket) next.set('size', sizeBucket); else next.delete('size');
+      return next;
+    }, { replace: true });
+  }, [hasPeople, orientation, mood, mimeType, aspectRatio, sizeBucket, setSearchParams]);
+
   function buildFilters(): SearchFilters {
     return {
       has_people: hasPeople,
