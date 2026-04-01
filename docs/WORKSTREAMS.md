@@ -31,11 +31,6 @@ _Phase 4 — Beta Operations & Commercial Foundations. Full phase plan at `docs/
 
 
 
-### P4-003: Source Registry & Source-Aware Media
-- **Objective:** Persist named sources, associate media with sources, add archive/restore behavior for deleted sources, and establish the connector abstraction for future online sources.
-- **Phase:** Phase 4 — Beta Operations & Commercial Foundations
-- **Status:** Planned
-
 ### P4-004: Admin Console & User Profile Management
 - **Objective:** Add admin-only user management, backend RBAC, audited admin actions, self-service profile updates, verified email change, and account recovery.
 - **Phase:** Phase 4 — Beta Operations & Commercial Foundations
@@ -55,7 +50,12 @@ _Phase 4 — Beta Operations & Commercial Foundations. Full phase plan at `docs/
 
 ## In Progress
 
-_No workstreams currently in progress._
+### P4-003: Source Registry & Source-Aware Media
+- **Objective:** Persist named sources, associate media with sources, add archive/restore behavior for deleted sources, and establish the connector abstraction for future online sources.
+- **Phase:** Phase 4 — Beta Operations & Commercial Foundations
+- **Status:** In Progress
+- **Started:** 2026-04-01
+- **Plan:** `docs/planning/P4-003_plan.md`
 
 ---
 

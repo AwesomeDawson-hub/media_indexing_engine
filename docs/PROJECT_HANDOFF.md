@@ -9,9 +9,9 @@ _Update this document at the end of every session and at every workstream transi
 | Field | Value |
 |---|---|
 | **Current Phase** | Phase 4 — Beta Operations & Commercial Foundations (**in progress**) |
-| **Current Workstream** | None — P4-002 fully complete (local + AWS smoke passed 2026-03-31) |
+| **Current Workstream** | P4-003 — Source Registry & Source-Aware Media (In Progress) |
 | **Last Completed Work** | P4-002 — Plans, Quotas & Analysis Confirmation (2026-03-31): quota enforcement + modal + 91/91 tests + AWS deploy + delete FK fix |
-| **Next Task** | Activate P4-003 — Source Registry & Source-Aware Media |
+| **Next Task** | Implement P4-003 per `docs/planning/P4-003_plan.md` |
 | **Next Step Requested** | Start P4-003 planning |
 
 ## Required Reading
