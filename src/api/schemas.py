@@ -14,6 +14,7 @@ class MediaItemResponse(BaseModel):
     status: str
     width: int | None = None
     height: int | None = None
+    source_id: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -123,6 +124,23 @@ class SearchResponse(BaseModel):
     page: int
     per_page: int
     results: list[SearchResultItemResponse]
+
+
+# Source schemas
+
+class SourceResponse(BaseModel):
+    id: str
+    name: str
+    source_type: str
+    archived_at: datetime | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class SourceCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    source_type: str = Field(default="manual")
 
 
 # Auth schemas
