@@ -21,6 +21,7 @@ export default function MediaDetailPage() {
   const [reanalyzing, setReanalyzing] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [converting, setConverting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval>>();
   const imgSrc = useAuthImage(id ? getMediaFileUrl(id) : '');
 
@@ -77,6 +78,19 @@ export default function MediaDetailPage() {
       setError(err instanceof Error ? err.message : 'Re-analyze failed');
     } finally {
       setReanalyzing(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!id) return;
+    if (!window.confirm('Delete this item? This cannot be undone.')) return;
+    setDeleting(true);
+    try {
+      await api.deleteBatch([id]);
+      navigate(backHref, { replace: true });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Delete failed');
+      setDeleting(false);
     }
   }
 
@@ -150,15 +164,31 @@ export default function MediaDetailPage() {
                   >
                     {converting ? 'Converting...' : 'Convert to PNG with metadata'}
                   </button>
+                  <button
+                    className="btn btn-danger"
+                    onClick={handleDelete}
+                    disabled={deleting}
+                  >
+                    {deleting ? 'Deleting...' : 'Delete'}
+                  </button>
                 </>
               ) : (
-                <button
-                  className="btn btn-primary"
-                  onClick={handleDownload}
-                  disabled={downloading}
-                >
-                  {downloading ? 'Downloading...' : 'Download (with metadata)'}
-                </button>
+                <>
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleDownload}
+                    disabled={downloading}
+                  >
+                    {downloading ? 'Downloading...' : 'Download (with metadata)'}
+                  </button>
+                  <button
+                    className="btn btn-danger"
+                    onClick={handleDelete}
+                    disabled={deleting}
+                  >
+                    {deleting ? 'Deleting...' : 'Delete'}
+                  </button>
+                </>
               )}
             </div>
           )}

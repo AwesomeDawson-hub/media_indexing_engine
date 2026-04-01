@@ -61,6 +61,7 @@ function FilterPanel({
   hasActiveFilters,
   onApply,
   onReset,
+  onClearSearch,
 }: {
   hasPeople: boolean | null;
   setHasPeople: (v: boolean | null) => void;
@@ -80,6 +81,7 @@ function FilterPanel({
   hasActiveFilters: boolean;
   onApply: () => void;
   onReset: () => void;
+  onClearSearch: () => void;
 }) {
   return (
     <div className="filter-panel card">
@@ -174,7 +176,10 @@ function FilterPanel({
       <div className="filter-actions">
         <button className="btn btn-primary btn-sm" onClick={onApply}>Apply Filters</button>
         {hasActiveFilters && (
-          <button className="btn btn-outline btn-sm" onClick={onReset}>Reset</button>
+          <button className="btn btn-outline btn-sm" onClick={onReset}>Reset Filters</button>
+        )}
+        {isSearchMode && (
+          <button className="btn btn-outline btn-sm" onClick={onClearSearch}>Clear Search</button>
         )}
       </div>
     </div>
@@ -472,6 +477,7 @@ export default function GalleryPage() {
         hasActiveFilters={Boolean(hasActiveFilters)}
         onApply={handleApplyFilters}
         onReset={resetFilters}
+        onClearSearch={clearSearch}
       />
 
       {error && <div className="alert alert-danger">{error}</div>}
