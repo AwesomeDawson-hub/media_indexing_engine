@@ -43,13 +43,14 @@ export default function MediaDetailPage() {
 
   useEffect(() => {
     if (!id || !analysis) return;
-    if (analysis.status !== 'pending' && analysis.status !== 'processing') return;
+    const isTerminal = (s: string) => ['completed', 'failed', 'error'].includes(s);
+    if (isTerminal(analysis.status)) return;
 
     pollRef.current = setInterval(async () => {
       try {
         const a = await api.getAnalysis(id);
         setAnalysis(a);
-        if (a.status !== 'pending' && a.status !== 'processing') {
+        if (isTerminal(a.status)) {
           clearInterval(pollRef.current);
           // Re-fetch media so status badge reflects the completed state
           const m = await api.getMedia(id);
