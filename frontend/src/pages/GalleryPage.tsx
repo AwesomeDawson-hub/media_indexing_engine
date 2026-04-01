@@ -62,6 +62,7 @@ function FilterPanel({
   onApply,
   onReset,
   onClearSearch,
+  onSortChange,
 }: {
   hasPeople: boolean | null;
   setHasPeople: (v: boolean | null) => void;
@@ -77,6 +78,7 @@ function FilterPanel({
   setSizeBucket: (v: string) => void;
   sortBy: string;
   setSortBy: (v: string) => void;
+  onSortChange: (v: string) => void;
   isSearchMode: boolean;
   hasActiveFilters: boolean;
   onApply: () => void;
@@ -163,7 +165,7 @@ function FilterPanel({
 
         <div className="filter-group">
           <label>Sort By</label>
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+          <select value={sortBy} onChange={(e) => onSortChange(e.target.value)}>
             {isSearchMode && <option value="relevance">Relevance</option>}
             <option value="newest">Newest First</option>
             <option value="oldest">Oldest First</option>
@@ -365,6 +367,17 @@ export default function GalleryPage() {
     setSelected(new Set());
   }
 
+  function handleSortChange(value: string) {
+    setSortBy(value);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      const defaultSort = isSearchMode ? 'relevance' : 'newest';
+      if (value !== defaultSort) next.set('sort', value);
+      else next.delete('sort');
+      return next;
+    }, { replace: true });
+  }
+
   function handleApplyFilters() {
     // Write active filters to URL so back-navigation can restore them
     const params: Record<string, string> = {};
@@ -478,6 +491,7 @@ export default function GalleryPage() {
         onApply={handleApplyFilters}
         onReset={resetFilters}
         onClearSearch={clearSearch}
+        onSortChange={handleSortChange}
       />
 
       {error && <div className="alert alert-danger">{error}</div>}
