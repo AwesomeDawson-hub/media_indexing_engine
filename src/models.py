@@ -30,6 +30,25 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
 
     media_items: Mapped[list["MediaItem"]] = relationship(back_populates="user")
+    sources: Mapped[list["Source"]] = relationship(back_populates="user")
+
+
+class Source(Base):
+    __tablename__ = "sources"
+    __table_args__ = (
+        Index("ix_sources_user_id", "user_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(50), nullable=False, default="manual")
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
+
+    user: Mapped["User"] = relationship(back_populates="sources")
+    media_items: Mapped[list["MediaItem"]] = relationship(back_populates="source")
 
 
 class MediaItem(Base):
@@ -49,10 +68,12 @@ class MediaItem(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="uploaded")
     width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    source_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("sources.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
 
     user: Mapped["User"] = relationship(back_populates="media_items")
+    source: Mapped["Source | None"] = relationship(back_populates="media_items")
     processing_jobs: Mapped[list["ProcessingJob"]] = relationship(back_populates="media_item")
     analysis_metadata: Mapped["MediaMetadata | None"] = relationship(back_populates="media_item", uselist=False)
 
