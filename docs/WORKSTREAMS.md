@@ -89,9 +89,9 @@ _These changes were applied directly without a formal workstream, after Phase 1 
 - **Phase:** Phase 4 — Beta Operations & Commercial Foundations
 - **Status:** Completed
 - **Plan:** `docs/planning/P4-002_plan.md`
-- **Started:** 2026-04-01
-- **Completed:** 2026-04-01
-- **Outcome:** Quota enforcement fully implemented, smoke-tested locally and on AWS beta. Alembic migration `7a8b9c0d1e2f` adds `plan_name`/`monthly_limit` to `users` and creates `quota_events` ledger. `QuotaService` implements reserve/consume/release with `SELECT FOR UPDATE` concurrency. `GET /api/v1/quota/status` endpoint live. Upload and re-analysis routes enforce quota (single: 429+cleanup; batch: per-item error). Processor consumes on success, releases on failure. Frontend modal shows plan, period, selected count, used/limit, available, overwrite note, geo note; confirm button disabled when exhausted. `ApiRequestError` fast-fail on 429. 5 new quota tests; 91/91 total tests pass. TypeScript clean. ADR-013 recorded. Bug fix: batch delete clears quota_events before media_items (FK constraint). Migration ran on AWS postgres; upload→analysis→consumed (1) and delete (with quota_events) validated on AWS beta 2026-04-01. Commits: `c147790`, `6a1d20d`, `5ca5ee6`.
+- **Started:** 2026-03-31
+- **Completed:** 2026-03-31
+- **Outcome:** Quota enforcement fully implemented, smoke-tested locally and on AWS beta. Alembic migration `7a8b9c0d1e2f` adds `plan_name`/`monthly_limit` to `users` and creates `quota_events` ledger. `QuotaService` implements reserve/consume/release with `SELECT FOR UPDATE` concurrency. `GET /api/v1/quota/status` endpoint live. Upload and re-analysis routes enforce quota (single: 429+cleanup; batch: per-item error). Processor consumes on success, releases on failure. Frontend modal shows plan, period, selected count, used/limit, available, overwrite note, geo note; confirm button disabled when exhausted. `ApiRequestError` fast-fail on 429. 5 new quota tests; 91/91 total tests pass. TypeScript clean. ADR-013 recorded. Bug fix: batch delete clears quota_events before media_items (FK constraint). Migration ran on AWS postgres; upload→analysis→consumed (1) and delete (with quota_events) validated on AWS beta 2026-03-31. Commits: `c147790`, `6a1d20d`, `5ca5ee6`.
 
 ### P4-001: Gallery & Detail UX Continuity
 - **Objective:** Keep filters visible, add dimensions filtering, simplify status display, reorganize Media Detail, and preserve Gallery state when returning from details. Source-backed filtering is explicitly deferred to P4-003.

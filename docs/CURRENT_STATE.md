@@ -9,7 +9,7 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 | **Current Phase** | Phase 4 — Beta Operations & Commercial Foundations |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
 | **Active Workstream** | None — P4-002 complete; P4-003 not yet started |
-| **Last Updated** | 2026-04-01 |
+| **Last Updated** | 2026-03-31 |
 | **Updated By** | AI — Engineer (P4-002 closeout) |
 
 ## System Health
@@ -77,12 +77,16 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 - **2026-03-31:** P4-001 (Gallery & Detail UX Continuity) moved to In Progress. Plan approved. Pre-Phase-4 Auditor review passed with 0 blocking findings.
 - **2026-03-31:** P4-001 (Gallery & Detail UX Continuity) completed. All 6 changes delivered: filters always visible; Source button removed from Gallery header; size bucket dimension filter (Small/Medium/Large) wired to backend `min_width`/`max_width`; StatusBadge hides `completed` status; MetadataDisplay split into Metadata + Additional Search Data sections; Back-to-Gallery restores full gallery URL state via React Router location state. 82/82 tests pass. Commit: `e8dedcf`.
 - **2026-03-31:** P4-001 post-implementation fixes applied during local + AWS smoke: poll terminal-status allowlist fix (`35ad90d`); Delete button on Media Detail (`90624a5`); Clear Search button in filter panel (`90624a5`); `btn-danger` red CSS (`c113393`); sort order written to URL immediately on change (`311617a`); filter state written to URL immediately on change (`d91975c`). All local and AWS smoke flows pass: filter+page back-nav, search back-nav, sort persistence, delete, Gallery nav link, processing badge auto-clear, Clear Search. P4-001 fully closed.
-- **2026-04-01:** P4-002 (Plans, Quotas & Analysis Confirmation) implemented and fully closed. Alembic migration `7a8b9c0d1e2f` (plan_name/monthly_limit on users + quota_events ledger). `QuotaService` with reserve/consume/release + `SELECT FOR UPDATE`. `GET /api/v1/quota/status` endpoint. Upload and re-analysis routes enforce quota; processor consumes/releases. Frontend modal shows plan, period, selected count, used/limit, available, overwrite note, geo note; confirm disabled when exhausted. Structured HTTP 429 with error_code/error/remaining/limit. 5 new quota tests; 91/91 total pass. ADR-013 recorded. Bug fix: batch delete now clears quota_events before media_items (FK constraint). Local + AWS smoke passed. Commits: `c147790`, `6a1d20d`, `5ca5ee6`.
+- **2026-03-31:** P4-002 (Plans, Quotas & Analysis Confirmation) implemented and fully closed. Alembic migration `7a8b9c0d1e2f` (plan_name/monthly_limit on users + quota_events ledger). `QuotaService` with reserve/consume/release + `SELECT FOR UPDATE`. `GET /api/v1/quota/status` endpoint. Upload and re-analysis routes enforce quota; processor consumes/releases. Frontend modal shows plan, period, selected count, used/limit, available, overwrite note, geo note; confirm disabled when exhausted. Structured HTTP 429 with error_code/error/remaining/limit. 5 new quota tests; 91/91 total pass. ADR-013 recorded. Bug fix: batch delete now clears quota_events before media_items (FK constraint). Local + AWS smoke passed. Commits: `c147790`, `6a1d20d`, `5ca5ee6`.
 
 ## Blockers
 
 - No application blockers.
 - Operational limitation: current beta access is temporary HTTP-only on the EC2 hostname. A real domain is required before restoring HTTPS.
+
+## Known Bugs (Unresolved)
+
+- **Gallery empty after bulk delete of all items on current page:** When the user clicks "Select All" then deletes, only the current page items are deleted (correct). However, the gallery immediately shows the empty-state "no images" message instead of fetching the next page of results. The gallery needs to re-query with the current filters/pagination after a successful batch delete so remaining images on other pages are loaded. Requires a frontend fix in the delete-batch response handler.
 
 ## Notes for Next Session
 
@@ -91,9 +95,8 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 - **Most recent commits (newest first):** `5ca5ee6` delete FK fix; `6a1d20d` P4-002 docs closeout; `c147790` P4-002 quota enforcement + tests; `d91975c` filter state to URL; `311617a` sort to URL; `e8dedcf` P4-001.
 - **ADR-013** recorded in `docs/DECISION_LOG.md` (reservation ledger semantics).
 - **AWS beta is live:** `http://ec2-13-216-223-46.compute-1.amazonaws.com` (HTTP only, temporary — ACME refuses AWS hostname). Stack: `docker-compose.yml` + `docker-compose.beta.yml`. SSH key: `C:\Code\AWS\media-indexing-key.pem`, user `ubuntu`.
-- **AWS beta is live:** `http://ec2-13-216-223-46.compute-1.amazonaws.com` (HTTP only, temporary — ACME refuses AWS hostname). Stack: `docker-compose.yml` + `docker-compose.beta.yml`. SSH key: `C:\Code\AWS\media-indexing-key.pem`, user `ubuntu`.
 - **Before inviting broader beta users:** rotate the exposed `ANTHROPIC_API_KEY`, `POSTGRES_PASSWORD`, and `AUTH_SECRET_KEY`.
 - **System is production-deployable:** `docker compose up -d` starts all services. Copy `.env.example` → `.env`, fill secrets.
 - **Health endpoint:** `GET /api/v1/health` → `{"status":"ok","version":"0.1.0"}` — no auth required.
 - **Schema changes** require `alembic revision --autogenerate` + review + `alembic upgrade head`. Back up the AWS DB before any migration deploy.
-- **Codebase:** Python backend (FastAPI, 82 tests) + React/TS frontend (Vite + nginx) + Docker stack (postgres, chromadb, backend, frontend, caddy).
+- **Codebase:** Python backend (FastAPI, 91 tests) + React/TS frontend (Vite + nginx) + Docker stack (postgres, chromadb, backend, frontend, caddy).

@@ -9,8 +9,8 @@ _Update this document at the end of every session and at every workstream transi
 | Field | Value |
 |---|---|
 | **Current Phase** | Phase 4 — Beta Operations & Commercial Foundations (**in progress**) |
-| **Current Workstream** | None — P4-002 fully complete (local + AWS smoke passed 2026-04-01) |
-| **Last Completed Work** | P4-002 — Plans, Quotas & Analysis Confirmation (2026-04-01): quota enforcement + modal + 91/91 tests + AWS deploy + delete FK fix |
+| **Current Workstream** | None — P4-002 fully complete (local + AWS smoke passed 2026-03-31) |
+| **Last Completed Work** | P4-002 — Plans, Quotas & Analysis Confirmation (2026-03-31): quota enforcement + modal + 91/91 tests + AWS deploy + delete FK fix |
 | **Next Task** | Activate P4-003 — Source Registry & Source-Aware Media |
 | **Next Step Requested** | Start P4-003 planning |
 
@@ -94,7 +94,7 @@ When suggesting code changes:
 
 ## Recent Session Activity
 
-- **P4-002 AWS deploy + closeout (2026-04-01):**
+- **P4-002 AWS deploy + closeout (2026-03-31):**
   - `pg_dump` backup taken on EC2: `media_indexing_pre_p4002_20260401_040910.sql.gz`.
   - `git push origin master` pushed 6 commits (`d91975c..5ca5ee6`); git stash + pull on EC2, merge conflicts resolved (server config files: `--ours`; test files: `--theirs`).
   - `docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build` rebuilt all 5 containers; migration `7a8b9c0d1e2f` ran on startup.
@@ -102,7 +102,7 @@ When suggesting code changes:
   - Delete FK bug fixed in same session: `quota_events.media_item_id` FK caused batch delete to fail for post-P4-002 files; fix: clear quota_events before media_items in `delete_batch()`. Commit: `5ca5ee6`.
   - P4-002 fully closed. Commits: `c147790`, `6a1d20d`, `5ca5ee6`.
 
-- **P4-002 implementation + smoke session (2026-04-01):**
+- **P4-002 implementation + smoke session (2026-03-31):**
   - Quota enforcement system implemented end-to-end: `quota_events` ledger, `QuotaService` (reserve/consume/release with `SELECT FOR UPDATE`), `GET /api/v1/quota/status`, upload + reanalyze routes enforce quota, processor consumes on success / releases on failure.
   - Frontend: confirmation modal shows plan, period, selected count, used/limit, available, overwrite warning, geo note; confirm button disabled when quota exhausted; `ApiRequestError` fast-fail on 429.
   - 5 new quota tests created (`tests/test_quota.py`); 91/91 total backend tests pass. TypeScript clean.
@@ -208,7 +208,7 @@ When suggesting code changes:
 
 - No application blockers.
 - Operational limitation remains: public beta is live over temporary HTTP on the EC2 hostname, but full HTTPS beta access is blocked until a real domain is attached.
-- Phase 4 implementation has not started yet; operator approval of workstream order is still required.
+- Phase 4 is in progress: P4-001 and P4-002 are complete. Next workstream is P4-003 (Source Registry & Source-Aware Media).
 
 ## Document Ownership Note
 

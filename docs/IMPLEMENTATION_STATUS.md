@@ -33,7 +33,7 @@ Each completed workstream gets one entry in the log below, following this struct
 
 ### P4-002: Plans, Quotas & Analysis Confirmation
 - **Phase:** Phase 4 — Beta Operations & Commercial Foundations
-- **Completed:** 2026-04-01
+- **Completed:** 2026-03-31
 - **Objective:** Enforce per-user monthly analysis limits, add quota-aware confirmation modal on the Sources page, protect capture date/geo-location from overwrite on re-analysis, and provide a structured 429 response on quota exhaustion.
 - **Outcome:** Full reservation-ledger quota system implemented end-to-end. `quota_events` table stores `reserved`/`consumed`/`released` events per user per month. `SELECT FOR UPDATE` on the `users` row serializes quota decisions under concurrent uploads. All upload and re-analysis paths enforce quota before enqueueing work. Frontend modal shows plan info, usage counts, overwrite/geo warning, and disables confirm when exhausted. Structured `HTTP 429` with `error_code`/`error`/`remaining`/`limit` body. All 5 local smoke scenarios passed. 91/91 tests pass. TypeScript clean. ADR-013 recorded.
 - **Key decisions:** Ledger model chosen over mutable counter (audit trail, concurrency safety, future billing bridge). Batch upload uses per-item best-effort error; batch re-analysis uses all-or-nothing 429 — both intentional and tested. `SELECT FOR UPDATE` on users row preferred over a separate quota lock table (simpler, avoids deadlock complexity at current scale). `period_month` stored as PostgreSQL `Date` (first day of month), serialized as `"YYYY-MM"` in API — matches UTC server time.
@@ -55,7 +55,7 @@ Each completed workstream gets one entry in the log below, following this struct
   - Modified: `frontend/src/index.css` (modal overlay + utility text classes)
   - Modified: `docs/DECISION_LOG.md` (ADR-013)
 - **Validation performed:** 91/91 backend tests pass. TypeScript build clean (`npx tsc --noEmit`). Full local smoke: upload → consumed; re-analysis → decremented; over-limit modal disabled; forced 429 returns structured payload; duplicate upload does not create additional quota event. Commit: `c147790`.
-- **AWS deploy status:** Complete — migration `7a8b9c0d1e2f` ran on AWS postgres; quota endpoint live; upload→analysis→consumed and delete (with quota_events FK fix) validated on AWS beta 2026-04-01.
+- **AWS deploy status:** Complete — migration `7a8b9c0d1e2f` ran on AWS postgres; quota endpoint live; upload→analysis→consumed and delete (with quota_events FK fix) validated on AWS beta 2026-03-31.
 
 ### P4-001: Gallery & Detail UX Continuity
 - **Phase:** Phase 4 — Beta Operations & Commercial Foundations
