@@ -46,8 +46,14 @@ Each completed workstream gets one entry in the log below, following this struct
   - Modified: `frontend/src/components/MediaCard.tsx` (fromPath prop + state on Link)
   - Modified: `frontend/src/components/MediaListRow.tsx` (fromPath prop + state on Link)
   - Modified: `docs/CURRENT_STATE.md`, `docs/WORKSTREAMS.md`, `docs/PROJECT_HANDOFF.md`, `docs/planning/PHASE_4_beta_operations_plan.md`, `docs/planning/P4-001_plan.md`
-- **Validation performed:** 82/82 backend tests pass (`python -m pytest tests/ -q`). `npm run build` (tsc + vite) clean. Frontend Docker container rebuilt and running. Manual smoke checklist to be completed by operator against live stack.
-- **Lessons learned:** Backend dimension params were already wired — backend-first planning pays off. `location.state` pattern is clean for gallery-state preservation without URL pollution.
+- **Validation performed:** 82/82 backend tests pass (`python -m pytest tests/ -q`). `npm run build` (tsc + vite) clean. Frontend Docker container rebuilt and running. Full local smoke (7 flows) and AWS beta smoke (7 flows) passed. AWS deploy: `git pull` on EC2 + `docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build`.
+- **Post-implementation fixes applied during smoke (all committed to master):**
+  - `35ad90d` — poll terminal-status fix: `MediaDetailPage` poll used a denylist that missed `running` status; replaced with allowlist `['completed','failed','error']` so badge auto-clears correctly.
+  - `90624a5` — Delete button added to Media Detail (right of Download, both format branches); Clear Search button added to filter panel (visible in search mode only); both use existing `deleteBatch()` API.
+  - `c113393` — `.btn-danger` CSS added to `index.css` (red `#dc2626`, hover `#b91c1c`).
+  - `311617a` — Sort order written to URL immediately via `handleSortChange` so back-navigation preserves sort.
+  - `d91975c` — Filter state (all 6 filter values) written to URL immediately on change via a `useEffect`, matching the sort persistence pattern. Mount-skip ref prevents initial clobber.
+- **Lessons learned:** Backend dimension params were already wired — backend-first planning pays off. `location.state` pattern is clean for gallery-state preservation without URL pollution. Sort and filter state must both write to URL on change — any state that is read from the URL on back-nav must be written to the URL on every user change, not only on form submit.
 
 ### P3-004: Production Deployment
 - **Phase:** Phase 3 — Polish & Production Readiness

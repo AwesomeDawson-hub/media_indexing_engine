@@ -92,7 +92,7 @@ _These changes were applied directly without a formal workstream, after Phase 1 
 - **Started:** 2026-03-31
 - **Completed:** 2026-03-31
 - **Plan:** `docs/planning/P4-001_plan.md`
-- **Outcome:** All 6 changes delivered. Filters always visible (toggle removed). Source button removed from Gallery header. Size bucket filter (Small/Medium/Large) wired to backend `min_width`/`max_width`. StatusBadge hides `completed` status. MetadataDisplay split into Metadata + Additional Search Data sections. Back-to-Gallery Link restores full gallery URL state via React Router location state.
+- **Outcome:** All 6 changes delivered plus 5 smoke-discovered fixes. Filters always visible (toggle removed). Source button removed from Gallery header. Size bucket filter (Small/Medium/Large) wired to backend `min_width`/`max_width`. StatusBadge hides `completed` status. MetadataDisplay split into Metadata + Additional Search Data sections. Back-to-Gallery Link restores full gallery URL state. Smoke fixes: poll terminal-status allowlist; Delete button on Media Detail; Clear Search button in filter panel; btn-danger CSS; sort + filter state both written to URL immediately on every change. All 7 local and 7 AWS smoke flows pass. Final commits: `e8dedcf` (original 6) through `d91975c` (filter persistence).
 
 ### P3-004: Production Deployment
 - **Objective:** Implement S3-compatible `S3FileStore`, add a health endpoint (`GET /api/v1/health`), validate PostgreSQL end-to-end, and produce a Docker + docker-compose stack for the full system (backend, frontend, ChromaDB, PostgreSQL).
