@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import * as api from '../api/client';
 import { getMediaFileUrl } from '../api/client';
-import { useAuthImage } from '../api/useAuthImage';
+import { useAuthImage, prefetchAuthImage } from '../api/useAuthImage';
 import type { MediaItemResponse, AnalysisResponse } from '../types/api';
 import StatusBadge from '../components/StatusBadge';
 import MetadataDisplay from '../components/MetadataDisplay';
@@ -38,6 +38,12 @@ export default function MediaDetailPage() {
   const currentIdx = ids.indexOf(id ?? '');
   const prevId = currentIdx > 0 ? ids[currentIdx - 1] : null;
   const nextId = currentIdx < ids.length - 1 ? ids[currentIdx + 1] : null;
+
+  // Warm the image cache for neighbours so arrow/swipe navigation feels instant
+  useEffect(() => {
+    if (prevId) prefetchAuthImage(getMediaFileUrl(prevId));
+    if (nextId) prefetchAuthImage(getMediaFileUrl(nextId));
+  }, [prevId, nextId]);
 
   function goToId(targetId: string) {
     navigate(`/media/${targetId}`, { state: { from: backHref, ids } });

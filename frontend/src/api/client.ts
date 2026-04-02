@@ -22,6 +22,33 @@ import type {
 
 const BASE_URL = '';
 
+// ---------------------------------------------------------------------------
+// In-memory API cache — avoids redundant round-trips when navigating back to
+// an already-fetched media item. Analysis is only cached once terminal so that
+// in-flight polling continues to fetch fresh data.
+// ---------------------------------------------------------------------------
+const _apiCache = new Map<string, { data: unknown; ts: number }>();
+const API_CACHE_TTL = 60_000; // 60 s
+
+function fromCache<T>(key: string): T | null {
+  const entry = _apiCache.get(key);
+  if (entry && Date.now() - entry.ts < API_CACHE_TTL) return entry.data as T;
+  return null;
+}
+
+function toCache(key: string, data: unknown): void {
+  _apiCache.set(key, { data, ts: Date.now() });
+}
+
+export function invalidateMediaCache(id: string): void {
+  _apiCache.delete(`media:${id}`);
+  _apiCache.delete(`analysis:${id}`);
+}
+
+export function clearApiCache(): void {
+  _apiCache.clear();
+}
+
 export class ApiRequestError extends Error {
   status: number;
   errorCode: string;
@@ -179,7 +206,11 @@ export async function listMediaFiltered(
 }
 
 export async function getMedia(id: string): Promise<MediaItemResponse> {
-  return request<MediaItemResponse>(`/api/v1/media/${id}`);
+  const cached = fromCache<MediaItemResponse>(`media:${id}`);
+  if (cached) return cached;
+  const data = await request<MediaItemResponse>(`/api/v1/media/${id}`);
+  toCache(`media:${id}`, data);
+  return data;
 }
 
 export function getMediaFileUrl(id: string): string {
@@ -187,10 +218,18 @@ export function getMediaFileUrl(id: string): string {
 }
 
 export async function getAnalysis(id: string): Promise<AnalysisResponse> {
-  return request<AnalysisResponse>(`/api/v1/media/${id}/analysis`);
+  const cached = fromCache<AnalysisResponse>(`analysis:${id}`);
+  if (cached) return cached;
+  const data = await request<AnalysisResponse>(`/api/v1/media/${id}/analysis`);
+  // Only cache terminal states — in-progress items are actively polled
+  if (['completed', 'failed', 'error'].includes(data.status)) {
+    toCache(`analysis:${id}`, data);
+  }
+  return data;
 }
 
 export async function reanalyze(id: string): Promise<ReanalyzeResponse> {
+  invalidateMediaCache(id);
   return request<ReanalyzeResponse>(`/api/v1/media/${id}/reanalyze`, {
     method: 'POST',
   });
@@ -214,6 +253,7 @@ export async function reanalyzeBatch(ids: string[]): Promise<BatchReanalyzeRespo
 }
 
 export async function deleteBatch(ids: string[]): Promise<BatchDeleteResponse> {
+  ids.forEach(invalidateMediaCache);
   return request<BatchDeleteResponse>('/api/v1/media/batch', {
     method: 'DELETE',
     body: JSON.stringify({ media_ids: ids }),

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { UserProfile } from '../types/api';
 import * as api from '../api/client';
+import { clearAuthImageCache } from '../api/useAuthImage';
 
 interface AuthContextValue {
   user: UserProfile | null;
@@ -57,6 +58,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(() => {
     localStorage.removeItem('auth_token');
+    clearAuthImageCache();
+    api.clearApiCache();
     setToken(null);
     setUser(null);
   }, []);
