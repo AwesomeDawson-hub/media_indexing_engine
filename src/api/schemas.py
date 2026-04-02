@@ -162,6 +162,13 @@ class UserProfile(BaseModel):
     id: str
     email: str
     display_name: str
+    role: str = "user"
+    phone: str | None = None
+    company: str | None = None
+    icon_url: str | None = None
+    disabled_at: datetime | None = None
+    plan_name: str = "basic"
+    monthly_limit: int = 500
 
     model_config = {"from_attributes": True}
 
@@ -214,3 +221,84 @@ class QuotaStatusResponse(BaseModel):
     reserved: int
     remaining: int
     period_month: str  # "YYYY-MM"
+
+
+# Admin + profile schemas
+
+class ProfileUpdateRequest(BaseModel):
+    display_name: str | None = Field(default=None, min_length=1, max_length=100)
+    phone: str | None = Field(default=None, max_length=50)
+    company: str | None = Field(default=None, max_length=200)
+    icon_url: str | None = Field(default=None, max_length=500)
+
+
+class AdminUserSummary(BaseModel):
+    id: str
+    email: str
+    display_name: str
+    role: str
+    phone: str | None = None
+    company: str | None = None
+    icon_url: str | None = None
+    plan_name: str
+    monthly_limit: int
+    disabled_at: datetime | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AdminUserDetailResponse(AdminUserSummary):
+    quota_this_month: int = 0
+
+
+class AdminUpdateUserRequest(BaseModel):
+    email: str | None = None
+    display_name: str | None = Field(default=None, min_length=1, max_length=100)
+    phone: str | None = Field(default=None, max_length=50)
+    company: str | None = Field(default=None, max_length=200)
+    icon_url: str | None = Field(default=None, max_length=500)
+    plan_name: str | None = None
+    monthly_limit: int | None = Field(default=None, ge=0)
+    role: str | None = None
+    disabled: bool | None = None
+
+
+class AuditLogEntry(BaseModel):
+    id: str
+    action: str
+    detail: str | None = None
+    target_user_id: str | None = None
+    acting_admin_id: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AdminUsersListResponse(BaseModel):
+    users: list[AdminUserSummary]
+    total: int
+
+
+class AuditLogListResponse(BaseModel):
+    entries: list[AuditLogEntry]
+    total: int
+
+
+# Token-based flows
+
+class EmailChangeRequest(BaseModel):
+    new_email: str
+
+
+class EmailChangeConfirmRequest(BaseModel):
+    token: str
+
+
+class PasswordResetRequest(BaseModel):
+    email: str
+
+
+class PasswordResetConfirmRequest(BaseModel):
+    token: str
+    new_password: str = Field(..., min_length=8)

@@ -2,6 +2,13 @@ export interface UserProfile {
   id: string;
   email: string;
   display_name: string;
+  role: string;
+  phone?: string | null;
+  company?: string | null;
+  icon_url?: string | null;
+  disabled_at?: string | null;
+  plan_name: string;
+  monthly_limit: number;
 }
 
 export interface AuthResponse {
@@ -163,4 +170,41 @@ export interface ApiError {
   remaining?: number;
   limit?: number;
   archived_source_id?: string;
+}
+
+export interface AdminUserSummary {
+  id: string;
+  email: string;
+  display_name: string;
+  role: string;
+  phone?: string | null;
+  company?: string | null;
+  icon_url?: string | null;
+  plan_name: string;
+  monthly_limit: number;
+  disabled_at?: string | null;
+  created_at: string;
+}
+
+export interface AdminUserDetail extends AdminUserSummary {
+  quota_this_month: number;
+}
+
+export interface AdminUsersListResponse {
+  users: AdminUserSummary[];
+  total: number;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  action: string;
+  detail?: string | null;
+  target_user_id?: string | null;
+  acting_admin_id: string;
+  created_at: string;
+}
+
+export interface AuditLogListResponse {
+  entries: AuditLogEntry[];
+  total: number;
 }

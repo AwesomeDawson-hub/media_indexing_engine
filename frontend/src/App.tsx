@@ -9,6 +9,8 @@ import GalleryPage from './pages/GalleryPage';
 import UploadPage from './pages/UploadPage';
 import MediaDetailPage from './pages/MediaDetailPage';
 import SourcesPage from './pages/SourcesPage';
+import ProfilePage from './pages/ProfilePage';
+import AdminPage from './pages/AdminPage';
 
 export default function App() {
   return (
@@ -27,6 +29,8 @@ export default function App() {
             <Route path="/upload" element={<UploadPage />} />
             <Route path="/sources" element={<SourcesPage />} />
             <Route path="/media/:id" element={<MediaDetailPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/admin" element={<AdminPage />} />
           </Route>
         </Route>
       </Routes>

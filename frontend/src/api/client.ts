@@ -11,6 +11,10 @@ import type {
   QuotaStatus,
   SourceResponse,
   ApiError,
+  AdminUserSummary,
+  AdminUserDetail,
+  AdminUsersListResponse,
+  AuditLogListResponse,
 } from '../types/api';
 
 const BASE_URL = '';
@@ -346,4 +350,91 @@ export async function restoreSource(id: string): Promise<SourceResponse> {
 
 export async function getQuotaStatus(): Promise<QuotaStatus> {
   return request<QuotaStatus>('/api/v1/quota/status');
+}
+
+// Profile management
+
+export async function updateProfile(data: {
+  display_name?: string;
+  phone?: string | null;
+  company?: string | null;
+  icon_url?: string | null;
+}): Promise<UserProfile> {
+  return request<UserProfile>('/api/v1/auth/me', {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function requestEmailChange(newEmail: string): Promise<{ token?: string; message: string }> {
+  return request<{ token?: string; message: string }>('/api/v1/auth/email-change/request', {
+    method: 'POST',
+    body: JSON.stringify({ new_email: newEmail }),
+  });
+}
+
+export async function confirmEmailChange(token: string): Promise<UserProfile> {
+  return request<UserProfile>('/api/v1/auth/email-change/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  });
+}
+
+export async function requestPasswordReset(email: string): Promise<{ token?: string; message: string }> {
+  return request<{ token?: string; message: string }>('/api/v1/auth/password-reset/request', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function confirmPasswordReset(token: string, newPassword: string): Promise<{ message: string }> {
+  return request<{ message: string }>('/api/v1/auth/password-reset/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ token, new_password: newPassword }),
+  });
+}
+
+// Admin API
+
+export async function adminListUsers(
+  page = 1,
+  perPage = 50,
+  search?: string,
+): Promise<AdminUsersListResponse> {
+  const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+  if (search) params.set('search', search);
+  return request<AdminUsersListResponse>(`/api/v1/admin/users?${params.toString()}`);
+}
+
+export async function adminGetUser(userId: string): Promise<AdminUserDetail> {
+  return request<AdminUserDetail>(`/api/v1/admin/users/${userId}`);
+}
+
+export async function adminUpdateUser(
+  userId: string,
+  data: {
+    email?: string;
+    display_name?: string;
+    phone?: string | null;
+    company?: string | null;
+    icon_url?: string | null;
+    plan_name?: string;
+    monthly_limit?: number;
+    role?: string;
+    disabled?: boolean;
+  },
+): Promise<AdminUserSummary> {
+  return request<AdminUserSummary>(`/api/v1/admin/users/${userId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function adminGetAuditLog(
+  page = 1,
+  targetUserId?: string,
+): Promise<AuditLogListResponse> {
+  const params = new URLSearchParams({ page: String(page) });
+  if (targetUserId) params.set('target_user_id', targetUserId);
+  return request<AuditLogListResponse>(`/api/v1/admin/audit-log?${params.toString()}`);
 }
