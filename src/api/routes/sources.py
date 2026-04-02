@@ -20,9 +20,29 @@ async def create_source(
     user_id: str = Depends(get_current_user_id),
 ) -> SourceResponse:
     """Create a new source scoped to the current user."""
+    # Check for name collision (case-insensitive) among this user's sources
+    existing = await db.execute(
+        select(Source).where(
+            Source.user_id == user_id,
+            func.lower(Source.name) == body.name.strip().lower(),
+        )
+    )
+    conflict = existing.scalar_one_or_none()
+    if conflict is not None:
+        if conflict.archived_at is None:
+            raise HTTPException(
+                status_code=409,
+                detail={"message": f"A source named '{conflict.name}' already exists.", "error_code": "source_name_conflict"},
+            )
+        else:
+            raise HTTPException(
+                status_code=409,
+                detail={"message": f"'{conflict.name}' exists but is archived.", "error_code": "source_name_archived", "archived_source_id": conflict.id},
+            )
+
     source = Source(
         user_id=user_id,
-        name=body.name,
+        name=body.name.strip(),
         source_type=body.source_type,
     )
     db.add(source)

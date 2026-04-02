@@ -21,6 +21,7 @@ export class ApiRequestError extends Error {
   error?: string;
   remaining?: number;
   limit?: number;
+  archivedSourceId?: string;
 
   constructor(status: number, data: ApiError) {
     super(data.detail || 'Request failed');
@@ -30,6 +31,7 @@ export class ApiRequestError extends Error {
     this.error = data.error;
     this.remaining = data.remaining;
     this.limit = data.limit;
+    this.archivedSourceId = data.archived_source_id;
   }
 }
 

@@ -162,4 +162,5 @@ export interface ApiError {
   error?: string;
   remaining?: number;
   limit?: number;
+  archived_source_id?: string;
 }

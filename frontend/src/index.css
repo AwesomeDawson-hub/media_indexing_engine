@@ -672,6 +672,16 @@ input:focus {
   display: inline-block;
 }
 
+.upload-new-source-error {
+  margin-top: 6px;
+  font-size: 0.8125rem;
+  color: var(--danger, #e53e3e);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 /* === Sources Page === */
 .sources-list {
   display: flex;
