@@ -8,9 +8,9 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | **Current Phase** | Phase 4 — Beta Operations & Commercial Foundations |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | P4-005 — Billing Groundwork & Commercial Modeling |
+| **Active Workstream** | P4-006 (next) |
 | **Last Updated** | 2026-04-01 |
-| **Updated By** | AI — Engineer (P4-004 closeout + P4-005 start) |
+| **Updated By** | AI — Engineer (P4-005 complete) |
 
 ## System Health
 
@@ -22,12 +22,13 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 | Registry complete | Yes |
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
-| Test status | 135/135 pass (backend integration) |
-| Active workstream | P4-005 In Progress — Billing Groundwork & Commercial Modeling |
+| Test status | 147/147 pass (backend integration) |
+| Active workstream | P4-005 Completed — awaiting P4-006 |
 | Last governance audit | 2026-03-31 — Pre-Phase-4 Auditor review (0 blocking findings) |
 
 ## Recent Activity
 
+- **2026-04-01:** P4-005 (Billing Groundwork & Commercial Modeling) completed. StripeConfig added to config.py with full env-var wiring. User model extended with stripe_customer_id, stripe_subscription_id, billing_status. StripeEvent table added for webhook idempotency. Migration c3d4e5f6a7b8 created. Billing service (checkout sessions, portal sessions, webhook processing, apply_subscription_event). Billing routes: GET /status, POST /create-checkout-session, POST /create-portal-session, POST /webhook. AdminUserSummary + AdminUpdateUserRequest extended with billing fields; admin PATCH supports billing_status override with validation. Frontend: BillingPage.tsx with plan comparison and upgrade/manage buttons; Billing nav link; billing API functions in client.ts; BillingStatus types. 12 new tests; 147/147 pass. Commit: 406d5c6. AWS deployed.
 - **2026-04-01:** P4-004 (Admin Console & User Profile Management) completed. Migration `b2c3d4e5f6a7` applied. RBAC, admin routes, profile self-service, verified email change, password reset, audit log. `ProfilePage.tsx` + `AdminPage.tsx`. 20 new tests; 135/135 pass. Commit `cb3326c`. AWS deployed, dev user seeded as admin.
 - **2026-04-01:** P4-005 (Billing Groundwork & Commercial Modeling) started. Plan at `docs/planning/P4-005_plan.md`. at `Projects/media_indexing_engine/`. Directory scaffolded, README created. Phase 1 plan created with 6 workstreams (WS-000 through WS-005).
 - **2026-03-27:** WS-000 (Core Foundations) completed. Prior art extracted from `marketing_asset_pipeline`. Identity model, metadata schema, storage model, and entity design defined. 8 ADRs recorded (ADR-001 through ADR-008). Next: WS-001 (Ingestion Pipeline).
@@ -94,10 +95,11 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 
 ## Notes for Next Session
 
-- **P4-003 is fully closed + Sources UX polish shipped.** Local 115/115 tests pass. AWS deployed and smoke-tested (`media_count` confirmed in Sources response).
-- **Next workstream: P4-004** — Admin Console & User Profile Management.
-- **Most recent commits (newest first):** `323b40f` (duplicate source name prevention); `da6e4ef` (Sources management page); `ae0c1e6` (source_name in detail, Upload title fix); `30bb319` (P4-003 Step 8 tests); `4a3e5b7` (P4-003 Steps 6+7 frontend).
+- **P4-005 is fully closed.** 147/147 tests pass. Commit `406d5c6`. AWS deployed.
+- **Next workstream: P4-006** — OCR Search Enrichment (or next per WORKSTREAMS.md backlog).
+- **Most recent commits (newest first):** `406d5c6` (P4-005 billing); `cb3326c` (P4-004 admin); `323b40f` (duplicate source name prevention).
 - **AWS beta is live:** `http://ec2-13-216-223-46.compute-1.amazonaws.com` (HTTP only, temporary — ACME refuses AWS hostname). Stack: `docker-compose.yml` + `docker-compose.beta.yml`. SSH key: `C:\Code\AWS\media-indexing-key.pem`, user `ubuntu`.
+- **Stripe note:** All billing runs in dev/test mode (no real charges). To enable: set STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_ID_ADVANCED, STRIPE_PRICE_ID_PREMIUM on the server.
 - **Before inviting broader beta users:** rotate the exposed `ANTHROPIC_API_KEY`, `POSTGRES_PASSWORD`, and `AUTH_SECRET_KEY`.
 - **System is production-deployable:** `docker compose up -d` starts all services. Copy `.env.example` → `.env`, fill secrets.
 - **Health endpoint:** `GET /api/v1/health` → `{"status":"ok","version":"0.1.0"}` — no auth required.

@@ -31,11 +31,6 @@ _Phase 4 — Beta Operations & Commercial Foundations. Full phase plan at `docs/
 
 
 
-### P4-005: Billing Groundwork & Commercial Modeling
-- **Objective:** Measure image-processing cost, codify plan tiers, and implement Stripe test-mode billing groundwork without enabling live paid launch.
-- **Phase:** Phase 4 — Beta Operations & Commercial Foundations
-- **Status:** Planned
-
 ### P4-006: OCR Search Enrichment
 - **Objective:** Extract text from images, store it as additional search data, and make it searchable.
 - **Phase:** Phase 4 — Beta Operations & Commercial Foundations
@@ -84,6 +79,14 @@ _These changes were applied directly without a formal workstream, after Phase 1 
 ---
 
 ## Completed
+
+### P4-005: Billing Groundwork & Commercial Modeling
+- **Objective:** Measure image-processing cost, codify plan tiers, and implement Stripe test-mode billing groundwork without enabling live paid launch.
+- **Phase:** Phase 4 --- Beta Operations & Commercial Foundations
+- **Status:** Completed
+- **Started:** 2026-04-01
+- **Completed:** 2026-04-01
+- **Plan:** \docs/planning/P4-005_plan.md- **Outcome:** StripeConfig added to config.py (secret_key, webhook_secret, price IDs, test_mode). User model extended with stripe_customer_id, stripe_subscription_id, billing_status (default: none). StripeEvent table added for webhook idempotency. Alembic migration \c3d4e5f6a7b8\ creates billing columns and stripe_events table. \src/billing/billing_service.py\ implements checkout session creation, portal session creation, webhook signature verification, and apply_subscription_event() with idempotency. Billing routes: GET /api/v1/billing/status, POST /create-checkout-session, POST /create-portal-session, POST /webhook. AdminUserSummary and AdminUpdateUserRequest extended with billing fields; admin PATCH handler supports billing_status override with validation against allowed values. Frontend: BillingPage.tsx (plan comparison, upgrade/manage buttons, session success/cancel URL param handling), Billing nav link in Layout, billing API functions in client.ts, BillingStatus types in api.ts. 12 new tests in test_billing.py; **147/147 total tests pass**. Commit: Ćd5c6\. AWS deployed.
 
 ### P4-004: Admin Console & User Profile Management
 - **Objective:** Add admin-only user management, backend RBAC, audited admin actions, self-service profile updates, verified email change, and account recovery.
