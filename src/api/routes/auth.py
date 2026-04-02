@@ -24,6 +24,7 @@ from src.api.rate_limit import login_limiter, register_limiter
 from src.auth.passwords import hash_password, verify_password
 from src.auth.tokens import create_access_token
 from src.config import settings
+from src.email_service import send_password_reset
 from src.models import PendingToken, User
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -240,6 +241,8 @@ async def request_password_reset(
 
         if settings.auth.dev_mode:
             return {"token": plaintext, "message": "Use this token to reset your password."}
+
+        send_password_reset(user.email, plaintext)
 
     return {"message": "If that email is registered, you will receive reset instructions."}
 

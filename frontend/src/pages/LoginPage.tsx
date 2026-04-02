@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function LoginPage() {
   const { login } = useAuth();
+  const location = useLocation();
+  const successMessage = (location.state as { message?: string } | null)?.message ?? '';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -26,6 +28,7 @@ export default function LoginPage() {
     <div className="auth-page">
       <form className="auth-form card" onSubmit={handleSubmit}>
         <h1>Sign In</h1>
+        {successMessage && <div className="alert alert-success">{successMessage}</div>}
         {error && <div className="alert alert-danger">{error}</div>}
         <div className="form-group">
           <label htmlFor="email">Email</label>
@@ -52,6 +55,9 @@ export default function LoginPage() {
         </button>
         <p className="auth-link">
           Don't have an account? <Link to="/register">Register</Link>
+        </p>
+        <p className="auth-link">
+          <Link to="/forgot-password">Forgot your password?</Link>
         </p>
       </form>
     </div>

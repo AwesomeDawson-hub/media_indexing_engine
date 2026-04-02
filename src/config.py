@@ -103,6 +103,13 @@ class StripeConfig:
 
 
 @dataclass
+class EmailConfig:
+    from_address: str = ""          # e.g. noreply@vyzindex.com — empty = sending disabled
+    aws_region: str = "us-east-1"
+    app_url: str = "https://vyzindex.com"
+
+
+@dataclass
 class Settings:
     app: AppConfig = field(default_factory=AppConfig)
     storage: StorageConfig = field(default_factory=StorageConfig)
@@ -114,6 +121,7 @@ class Settings:
     auth: AuthConfig = field(default_factory=AuthConfig)
     download: DownloadConfig = field(default_factory=DownloadConfig)
     stripe: StripeConfig = field(default_factory=StripeConfig)
+    email: EmailConfig = field(default_factory=EmailConfig)
 
 
 def load_settings(path: Path = DEFAULT_SETTINGS_PATH) -> Settings:
@@ -135,6 +143,7 @@ def load_settings(path: Path = DEFAULT_SETTINGS_PATH) -> Settings:
         auth=AuthConfig(**raw.get("auth", {})),
         download=DownloadConfig(**raw.get("download", {})),
         stripe=StripeConfig(**raw.get("stripe", {})),
+        email=EmailConfig(**raw.get("email", {})),
     )
 
     # Override secret key from env var if set (production override)
@@ -176,6 +185,14 @@ def load_settings(path: Path = DEFAULT_SETTINGS_PATH) -> Settings:
     env_stripe_premium = os.environ.get("STRIPE_PRICE_ID_PREMIUM")
     if env_stripe_premium:
         s.stripe.price_id_premium = env_stripe_premium
+
+    env_email_from = os.environ.get("EMAIL_FROM")
+    if env_email_from:
+        s.email.from_address = env_email_from
+
+    env_email_region = os.environ.get("EMAIL_AWS_REGION")
+    if env_email_region:
+        s.email.aws_region = env_email_region
 
     return s
 
