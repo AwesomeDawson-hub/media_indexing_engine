@@ -31,11 +31,6 @@ _Phase 4 — Beta Operations & Commercial Foundations. Full phase plan at `docs/
 
 
 
-### P4-004: Admin Console & User Profile Management
-- **Objective:** Add admin-only user management, backend RBAC, audited admin actions, self-service profile updates, verified email change, and account recovery.
-- **Phase:** Phase 4 — Beta Operations & Commercial Foundations
-- **Status:** Planned
-
 ### P4-005: Billing Groundwork & Commercial Modeling
 - **Objective:** Measure image-processing cost, codify plan tiers, and implement Stripe test-mode billing groundwork without enabling live paid launch.
 - **Phase:** Phase 4 — Beta Operations & Commercial Foundations
@@ -46,11 +41,22 @@ _Phase 4 — Beta Operations & Commercial Foundations. Full phase plan at `docs/
 - **Phase:** Phase 4 — Beta Operations & Commercial Foundations
 - **Status:** Planned
 
+### Future: Ingestion Connectors (Source Sync)
+- **Objective:** Extend the Source Registry (P4-003) to support connected sources — cloud storage accounts (S3, Google Drive, Dropbox), local watched folders, etc. — so the system can automatically ingest media from those origins.
+- **Design notes:** Add a `config` JSONB column to `sources`, implement a sync/ingestion job system (poll or webhook), store credentials encrypted. Current `source_type` field already anticipates this (currently `"manual"`; future values: `"s3_bucket"`, `"google_drive"`, `"local_folder"`, etc.). No schema changes needed before this workstream starts.
+- **Phase:** Phase 5 or later
+- **Status:** Future idea — architect review recommended when scoping
+
 ---
 
 ## In Progress
 
-_No workstreams currently in progress._
+### P4-004: Admin Console & User Profile Management
+- **Objective:** Add admin-only user management, backend RBAC, audited admin actions, self-service profile updates, verified email change, and account recovery.
+- **Phase:** Phase 4 — Beta Operations & Commercial Foundations
+- **Status:** In Progress
+- **Started:** 2026-04-01
+- **Plan:** `docs/planning/P4-004_plan.md`
 
 ---
 

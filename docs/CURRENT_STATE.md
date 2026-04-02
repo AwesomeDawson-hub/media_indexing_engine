@@ -8,9 +8,9 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | **Current Phase** | Phase 4 — Beta Operations & Commercial Foundations |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | None — awaiting P4-004 activation |
+| **Active Workstream** | P4-004 — Admin Console & User Profile Management |
 | **Last Updated** | 2026-04-01 |
-| **Updated By** | AI — Engineer (P4-003 closeout) |
+| **Updated By** | AI — Engineer (Sources UX polish + AWS deploy) |
 
 ## System Health
 
@@ -23,7 +23,7 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
 | Test status | 115/115 pass (103 backend integration + 12 S3FileStore unit tests) |
-| Active workstream | None — P4-003 closed, awaiting P4-004 activation |
+| Active workstream | P4-004 In Progress — Admin Console & User Profile Management |
 | Last governance audit | 2026-03-31 — Pre-Phase-4 Auditor review (0 blocking findings) |
 
 ## Recent Activity
@@ -80,6 +80,7 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 - **2026-03-31:** P4-002 (Plans, Quotas & Analysis Confirmation) implemented and fully closed. Alembic migration `7a8b9c0d1e2f` (plan_name/monthly_limit on users + quota_events ledger). `QuotaService` with reserve/consume/release + `SELECT FOR UPDATE`. `GET /api/v1/quota/status` endpoint. Upload and re-analysis routes enforce quota; processor consumes/releases. Frontend modal shows plan, period, selected count, used/limit, available, overwrite note, geo note; confirm disabled when exhausted. Structured HTTP 429 with error_code/error/remaining/limit. 5 new quota tests; 91/91 total pass. ADR-013 recorded. Bug fix: batch delete now clears quota_events before media_items (FK constraint). Local + AWS smoke passed. Commits: `c147790`, `6a1d20d`, `5ca5ee6`.
 
 - **2026-04-01:** P4-003 (Source Registry & Source-Aware Media) implemented and fully closed. Alembic migration `a1b2c3d4e5f6` adds `sources` table + `source_id` FK on `media_items`. 4 source API endpoints (create/list/archive/restore), all user-scoped. `source_id` filter on `GET /api/v1/media`. Upload endpoints accept `source_id` form param with 403 IDOR protection. Frontend: source selector + inline create-source form on UploadPage; Source dropdown in GalleryPage filter panel wired to URL. 24 new tests in `tests/test_sources.py`; 115/115 total pass. TypeScript clean. Commits: `13e9c69`, `003e67d`, `a96d81a`, `4a3e5b7`, `30bb319`. AWS deploy completed.
+- **2026-04-01:** Post-P4-003 Sources UX polish applied (no formal workstream). Fixes/improvements surfaced during user testing: (1) Upload page h1 was "Source" — corrected to "Upload". (2) `source_name` added to `MediaItemResponse` + shown as `📁 [Source Name]` in Media Detail metadata bar. (3) New Sources management page (`/sources`) with archive/restore buttons, media count per source, "Show archived" toggle. (4) Duplicate source name prevention: backend case-insensitive 409 with `source_name_conflict` / `source_name_archived` + `archived_source_id`; UploadPage shows inline error with "Restore it" CTA. (5) Local dev DB duplicate `cc7f61de` ("Folder 1" with 0 items) deleted. Commits: `ae0c1e6`, `da6e4ef`, `323b40f`. AWS deployed and smoke-tested (`media_count` in sources response confirmed).
 
 ## Blockers
 
@@ -92,9 +93,9 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 
 ## Notes for Next Session
 
-- **P4-003 is fully closed.** Local 115/115 tests pass. AWS deploy completed.
+- **P4-003 is fully closed + Sources UX polish shipped.** Local 115/115 tests pass. AWS deployed and smoke-tested (`media_count` confirmed in Sources response).
 - **Next workstream: P4-004** — Admin Console & User Profile Management.
-- **Most recent commits (newest first):** `30bb319` (Step 8 tests); `4a3e5b7` (Steps 6+7 frontend); `a96d81a` (Steps 4+5 upload/media); `003e67d` (Steps 2+3 schemas/routes); `13e9c69` (Step 1 model/migration).
+- **Most recent commits (newest first):** `323b40f` (duplicate source name prevention); `da6e4ef` (Sources management page); `ae0c1e6` (source_name in detail, Upload title fix); `30bb319` (P4-003 Step 8 tests); `4a3e5b7` (P4-003 Steps 6+7 frontend).
 - **AWS beta is live:** `http://ec2-13-216-223-46.compute-1.amazonaws.com` (HTTP only, temporary — ACME refuses AWS hostname). Stack: `docker-compose.yml` + `docker-compose.beta.yml`. SSH key: `C:\Code\AWS\media-indexing-key.pem`, user `ubuntu`.
 - **Before inviting broader beta users:** rotate the exposed `ANTHROPIC_API_KEY`, `POSTGRES_PASSWORD`, and `AUTH_SECRET_KEY`.
 - **System is production-deployable:** `docker compose up -d` starts all services. Copy `.env.example` → `.env`, fill secrets.
