@@ -60,6 +60,7 @@ export interface MediaItemResponse {
   width?: number;
   height?: number;
   source_id?: string;
+  source_name?: string;
   created_at: string;
 }
 

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.dependencies import get_db, get_current_user_id
 from src.api.schemas import MediaItemResponse, PaginatedResponse
 from src.api.routes.upload import _file_store
-from src.models import MediaItem, MediaMetadata
+from src.models import MediaItem, MediaMetadata, Source
 
 router = APIRouter(prefix="/api/v1", tags=["media"])
 
@@ -42,11 +42,25 @@ async def _get_display_names(
     }
 
 
+async def _get_source_names(
+    db: AsyncSession,
+    source_ids: list[str],
+) -> dict[str, str]:
+    if not source_ids:
+        return {}
+    result = await db.execute(
+        select(Source.id, Source.name).where(Source.id.in_(source_ids))
+    )
+    return dict(result.all())
+
+
 async def _build_media_item_responses(
     db: AsyncSession,
     items: list[MediaItem],
 ) -> list[MediaItemResponse]:
     display_names = await _get_display_names(db, [item.id for item in items])
+    source_ids = [item.source_id for item in items if item.source_id]
+    source_names = await _get_source_names(db, source_ids)
     return [
         MediaItemResponse(
             id=item.id,
@@ -59,6 +73,7 @@ async def _build_media_item_responses(
             width=item.width,
             height=item.height,
             source_id=item.source_id,
+            source_name=source_names.get(item.source_id) if item.source_id else None,
             created_at=item.created_at,
         )
         for item in items

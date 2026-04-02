@@ -15,6 +15,7 @@ class MediaItemResponse(BaseModel):
     width: int | None = None
     height: int | None = None
     source_id: str | None = None
+    source_name: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

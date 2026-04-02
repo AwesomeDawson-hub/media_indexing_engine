@@ -134,7 +134,7 @@ export default function UploadPage() {
   return (
     <div>
       <div className="page-header">
-        <h1>Source</h1>
+        <h1>Upload</h1>
         <div className="upload-header-actions">
           {queuedCount > 0 && (
             <button
@@ -200,6 +200,11 @@ export default function UploadPage() {
           )}
         </div>
       </div>
+      {selectedSourceId && (
+        <p className="upload-source-active-hint">
+          Uploads will be tagged: <strong>{sources.find((s) => s.id === selectedSourceId)?.name}</strong>
+        </p>
+      )}
       <DropZone
         onFiles={handleFiles}
         accept={[...ALLOWED_TYPES, ...ALLOWED_EXTENSIONS].join(',')}

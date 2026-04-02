@@ -661,6 +661,17 @@ input:focus {
   margin-top: 8px;
 }
 
+.upload-source-active-hint {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin: 6px 0 0 0;
+  padding: 6px 10px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: inline-block;
+}
+
 /* === Media Detail === */
 .back-link {
   display: inline-block;

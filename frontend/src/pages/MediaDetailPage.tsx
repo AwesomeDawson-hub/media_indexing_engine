@@ -203,6 +203,9 @@ export default function MediaDetailPage() {
             {media.width && media.height && (
               <span>{media.width} × {media.height}</span>
             )}
+            {media.source_name && (
+              <span title="Source">📁 {media.source_name}</span>
+            )}
             <span>{new Date(media.created_at).toLocaleDateString()}</span>
           </div>
 
