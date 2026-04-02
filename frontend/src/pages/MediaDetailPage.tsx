@@ -242,7 +242,7 @@ export default function MediaDetailPage() {
       el.removeEventListener('touchend', onEnd);
       el.removeEventListener('touchcancel', onEnd);
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keyboard arrow navigation (desktop parity)
   useEffect(() => {
