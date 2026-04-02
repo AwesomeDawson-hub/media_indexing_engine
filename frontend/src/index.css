@@ -1155,3 +1155,87 @@ input:focus {
   color: var(--danger);
   font-size: 0.875rem;
 }
+
+/* === Swipe gesture (MediaDetailPage) === */
+.swipe-zone {
+  position: relative;
+  user-select: none;
+  touch-action: none;
+}
+
+.swipe-backing {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.swipe-backing-up {
+  background: #dc2626;
+}
+
+.swipe-backing-down {
+  background: var(--success);
+}
+
+.swipe-backing-label {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+
+.swipe-image-wrap {
+  position: relative;
+  z-index: 1;
+  will-change: transform;
+}
+
+.swipe-image-wrap img {
+  width: 100%;
+  display: block;
+}
+
+.swipe-nav-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  font-size: 1.75rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.swipe-zone:hover .swipe-nav-arrow {
+  opacity: 1;
+}
+
+.swipe-nav-arrow-left {
+  left: 8px;
+}
+
+.swipe-nav-arrow-right {
+  right: 8px;
+}
+
+/* On touch-only devices always show arrows as tap targets */
+@media (hover: none) {
+  .swipe-nav-arrow {
+    opacity: 0.7;
+  }
+}

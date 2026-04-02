@@ -13,10 +13,11 @@ interface MediaListRowProps {
   selected: boolean;
   onSelect: (id: string, checked: boolean) => void;
   fromPath?: string;
+  ids?: string[];
 }
 
 export default function MediaListRow({
-  id, filename, status, mimeType, fileSize, createdAt, selected, onSelect, fromPath,
+  id, filename, status, mimeType, fileSize, createdAt, selected, onSelect, fromPath, ids,
 }: MediaListRowProps) {
   const imgSrc = useAuthImage(getMediaFileUrl(id));
 
@@ -35,7 +36,7 @@ export default function MediaListRow({
           onChange={(e) => onSelect(id, e.target.checked)}
         />
       </label>
-      <Link to={`/media/${id}`} state={{ from: fromPath }} className="media-list-link">
+      <Link to={`/media/${id}`} state={{ from: fromPath, ids }} className="media-list-link">
         <div className="media-list-thumb">
           {imgSrc ? (
             <img src={imgSrc} alt={filename} />

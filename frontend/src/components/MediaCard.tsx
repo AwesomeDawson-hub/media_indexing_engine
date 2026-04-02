@@ -9,18 +9,19 @@ interface MediaCardProps {
   status: string;
   mimeType: string;
   fromPath?: string;
+  ids?: string[];
 }
 
 function truncate(str: string, max: number): string {
   return str.length > max ? str.slice(0, max - 3) + '...' : str;
 }
 
-export default function MediaCard({ id, filename, status, mimeType, fromPath }: MediaCardProps) {
+export default function MediaCard({ id, filename, status, mimeType, fromPath, ids }: MediaCardProps) {
   const isImage = mimeType.startsWith('image/');
   const imgSrc = useAuthImage(getMediaFileUrl(id));
 
   return (
-    <Link to={`/media/${id}`} state={{ from: fromPath }} className="media-card">
+    <Link to={`/media/${id}`} state={{ from: fromPath, ids }} className="media-card">
       <div className="media-card-thumb">
         {isImage && imgSrc ? (
           <img src={imgSrc} alt={filename} loading="lazy" />

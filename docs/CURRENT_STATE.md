@@ -8,9 +8,9 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | **Current Phase** | Phase 4 — Beta Operations & Commercial Foundations |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | None — awaiting next P4 workstream |
-| **Last Updated** | 2026-04-01 |
-| **Updated By** | AI — Engineer (P4-006 complete) |
+| **Active Workstream** | None — awaiting next workstream |
+| **Last Updated** | 2026-04-02 |
+| **Updated By** | AI — Engineer (HTTPS + domain live) |
 
 ## System Health
 
@@ -28,6 +28,7 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 
 ## Recent Activity
 
+- **2026-04-02:** HTTPS live on vyzindex.com. Domain registered on Route 53, A records pointed to EC2 (13.216.223.46), DOMAIN env var updated, Caddy obtained Let's Encrypt cert automatically on redeploy. App available at https://vyzindex.com. Upload performance improved: frontend now uploads 4 files concurrently (was sequential); all queue status updates batched into a single React state write.
 - **2026-04-01:** P4-006 (OCR Search Enrichment) completed. Tesseract 5.5 in Docker, pytesseract in stack, `ocr_text` column on `media_metadata` (migration `d5e6f7a8b9c0`). `--psm 11` sparse text mode, upscaling, newline collapsing, word-ratio noise filter (discard if <20% word-like tokens). OCR wired into analysis pipeline, embedding text, API schema, and frontend display. 11 new tests; 158/158 pass. Commits: `5dc4837`, `6c2002e`, `fa17515`. AWS deployed.
 - **2026-04-01:** P4-006 (OCR Search Enrichment) started.
 - **2026-04-01:** P4-005 (Billing Groundwork & Commercial Modeling) completed. StripeConfig added to config.py with full env-var wiring. User model extended with stripe_customer_id, stripe_subscription_id, billing_status. StripeEvent table added for webhook idempotency. Migration c3d4e5f6a7b8 created. Billing service (checkout sessions, portal sessions, webhook processing, apply_subscription_event). Billing routes: GET /status, POST /create-checkout-session, POST /create-portal-session, POST /webhook. AdminUserSummary + AdminUpdateUserRequest extended with billing fields; admin PATCH supports billing_status override with validation. Frontend: BillingPage.tsx with plan comparison and upgrade/manage buttons; Billing nav link; billing API functions in client.ts; BillingStatus types. 12 new tests; 147/147 pass. Commit: 406d5c6. AWS deployed.

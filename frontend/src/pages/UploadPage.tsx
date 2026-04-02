@@ -98,27 +98,54 @@ export default function UploadPage() {
 
     setUploading(true);
 
-    // Upload files one at a time for reliable per-file status
-    for (const qf of toUpload) {
-      updateStatus(qf.file.name, 'uploading');
+    // Mark all queued files as uploading in one state update
+    setQueue((prev) =>
+      prev.map((q) => (q.status === 'queued' ? { ...q, status: 'uploading' as const } : q)),
+    );
+
+    const CONCURRENCY = 4;
+    let quotaExceeded = false;
+
+    // Process files in parallel with a concurrency limit
+    const results: { filename: string; status: QueuedFile['status']; error?: string }[] = [];
+
+    async function uploadOne(qf: QueuedFile) {
+      if (quotaExceeded) {
+        results.push({ filename: qf.file.name, status: 'error', error: 'Monthly quota exceeded' });
+        return;
+      }
       try {
         const res = await api.uploadFile(qf.file, selectedSourceId || undefined);
-        updateStatus(qf.file.name, res.is_duplicate ? 'duplicate' : 'created');
+        results.push({ filename: qf.file.name, status: res.is_duplicate ? 'duplicate' : 'created' });
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Upload failed';
         if (err instanceof api.ApiRequestError && err.error === 'quota_exceeded') {
-          updateStatus(qf.file.name, 'error', 'Monthly quota exceeded');
-          for (const pendingFile of toUpload) {
-            if (pendingFile.file.name !== qf.file.name) {
-              updateStatus(pendingFile.file.name, 'error', 'Monthly quota exceeded');
-            }
-          }
-          break;
+          quotaExceeded = true;
+          results.push({ filename: qf.file.name, status: 'error', error: 'Monthly quota exceeded' });
+        } else {
+          const message = err instanceof Error ? err.message : 'Upload failed';
+          results.push({ filename: qf.file.name, status: 'error', error: message });
         }
-
-        updateStatus(qf.file.name, 'error', message);
       }
     }
+
+    // Run with concurrency cap
+    const chunks: QueuedFile[][] = [];
+    for (let i = 0; i < toUpload.length; i += CONCURRENCY) {
+      chunks.push(toUpload.slice(i, i + CONCURRENCY));
+    }
+    for (const chunk of chunks) {
+      await Promise.all(chunk.map(uploadOne));
+    }
+
+    // Apply all status updates in a single state write
+    const resultMap = new Map(results.map((r) => [r.filename, r]));
+    setQueue((prev) =>
+      prev.map((q) => {
+        const r = resultMap.get(q.file.name);
+        if (!r) return q;
+        return { ...q, status: r.status, error: r.error };
+      }),
+    );
 
     setUploading(false);
   }
@@ -143,14 +170,6 @@ export default function UploadPage() {
   async function handleConfirmUpload() {
     setShowQuotaModal(false);
     await handleUpload();
-  }
-
-  function updateStatus(filename: string, status: QueuedFile['status'], error?: string) {
-    setQueue((prev) =>
-      prev.map((q) =>
-        q.file.name === filename ? { ...q, status, error } : q,
-      ),
-    );
   }
 
   function clearCompleted() {

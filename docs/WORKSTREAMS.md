@@ -31,6 +31,20 @@ _Phase 4 — Beta Operations & Commercial Foundations. Full phase plan at `docs/
 
 
 
+### Future: Mobile-Style Detail Navigation (Swipe + Gesture Actions)
+- **Objective:** Add touch-friendly navigation to the media detail page so users can swipe left/right to move between photos, and swipe up/down to trigger delete or download, with a confirmable-once confirmation modal.
+- **Design notes:** Hook `touchstart`/`touchmove`/`touchend` events (or a small library like `react-swipeable`) on `MediaDetailPage`. Pass the ordered media list (or IDs) into the detail page so prev/next navigation is possible without going back to the gallery. **Swipe reveal pattern (Gmail-style):** as the user swipes up or down, the image translates with the finger and reveals a full-bleed colored backing behind it — green + download icon for swipe-up, red + trash icon for swipe-down. The label ("Download" / "Delete") is visible behind the image as it moves, making the action self-evident before the user commits. Releasing past a threshold triggers the action; releasing short of it snaps back. Swipe-up = download, swipe-down = delete with confirmation modal. Modal includes a "Don't show again" checkbox that writes a flag to `localStorage` — subsequent gestures skip the modal. Swipe-left/right = previous/next photo (no destructive action, no confirmation needed). Keyboard arrow key navigation should also be added at the same time for desktop parity.
+- **Source:** Beta tester feedback, 2026-04-02
+- **Phase:** Phase 5 — short workstream, frontend-only
+- **Status:** Approved for next phase planning — no architect review needed
+
+### Future: Near-Duplicate Detection & AI Best-Photo Selection
+- **Objective:** Detect visually similar images (burst shots, near-duplicates) and group them together; optionally have AI recommend the best image in a group based on technical quality signals (eyes open, faces looking at camera, sharpness, exposure).
+- **Design notes:** Phase 1 — perceptual hashing (pHash or similar) on ingest; store hash in `media_metadata`; query for Hamming distance ≤ threshold to find near-duplicates. Surface groups in the Gallery with a "similar photos" indicator. Phase 2 — AI quality scoring pass using the vision model to evaluate face quality signals in grouped images and emit a `best_pick` recommendation flag. Backend: new `perceptual_hash` column + similarity query endpoint. Frontend: grouping UI in Gallery, best-pick badge on detail page. Exact-duplicate blocking (content hash) already exists from P1; this is additive.
+- **Source:** Beta tester feedback, 2026-04-02
+- **Phase:** Phase 5 or later — backend + AI scope; architect review recommended when scoping
+- **Status:** Backlog — needs scoping before workstream is created
+
 ### Future: Ingestion Connectors (Source Sync)
 - **Objective:** Extend the Source Registry (P4-003) to support connected sources — cloud storage accounts (S3, Google Drive, Dropbox), local watched folders, etc. — so the system can automatically ingest media from those origins.
 - **Design notes:** Add a `config` JSONB column to `sources`, implement a sync/ingestion job system (poll or webhook), store credentials encrypted. Current `source_type` field already anticipates this (currently `"manual"`; future values: `"s3_bucket"`, `"google_drive"`, `"local_folder"`, etc.). No schema changes needed before this workstream starts.

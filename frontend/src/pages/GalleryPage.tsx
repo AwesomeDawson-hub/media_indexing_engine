@@ -18,11 +18,12 @@ const POLL_INTERVAL = 5000;
 const VIEW_KEY = 'gallery_view';
 
 // Search result row in list view
-function SearchListRow({ item, selected, onSelect, fromPath }: {
+function SearchListRow({ item, selected, onSelect, fromPath, ids }: {
   item: SearchResultItem;
   selected: boolean;
   onSelect: (id: string, checked: boolean) => void;
   fromPath: string;
+  ids: string[];
 }) {
   const imgSrc = useAuthImage(getMediaFileUrl(item.media_item.id));
   return (
@@ -34,7 +35,7 @@ function SearchListRow({ item, selected, onSelect, fromPath }: {
           onChange={(e) => onSelect(item.media_item.id, e.target.checked)}
         />
       </label>
-      <Link to={`/media/${item.media_item.id}`} state={{ from: fromPath }} className="media-list-link">
+      <Link to={`/media/${item.media_item.id}`} state={{ from: fromPath, ids }} className="media-list-link">
         <div className="media-list-thumb">
           {imgSrc
             ? <img src={imgSrc} alt={item.metadata.title} />
@@ -589,6 +590,7 @@ export default function GalleryPage() {
                       status={item.status}
                       mimeType={item.mime_type}
                       fromPath={location.pathname + location.search}
+                      ids={currentIds}
                     />
                   ))}
                 </div>
@@ -616,6 +618,7 @@ export default function GalleryPage() {
                       selected={selected.has(item.id)}
                       onSelect={handleSelect}
                       fromPath={location.pathname + location.search}
+                      ids={currentIds}
                     />
                   ))}
                 </div>
@@ -660,7 +663,7 @@ export default function GalleryPage() {
                     <Link
                       key={r.media_item.id}
                       to={`/media/${r.media_item.id}`}
-                      state={{ from: location.pathname + location.search }}
+                      state={{ from: location.pathname + location.search, ids: currentIds }}
                       className="search-result-card card"
                     >
                       <div className="search-result-thumb">
@@ -714,6 +717,7 @@ export default function GalleryPage() {
                       selected={selected.has(r.media_item.id)}
                       onSelect={handleSelect}
                       fromPath={location.pathname + location.search}
+                      ids={currentIds}
                     />
                   ))}
                 </div>
