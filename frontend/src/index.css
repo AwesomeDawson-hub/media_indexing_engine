@@ -1160,7 +1160,7 @@ input:focus {
 .swipe-zone {
   position: relative;
   user-select: none;
-  touch-action: none;
+  touch-action: pan-y; /* allow vertical scroll; JS handles horizontal */
 }
 
 .swipe-image-wrap {
@@ -1175,16 +1175,16 @@ input:focus {
 }
 
 .swipe-nav-arrow {
-  position: absolute;
+  position: fixed;
   top: 50%;
   transform: translateY(-50%);
-  z-index: 2;
-  background: rgba(0, 0, 0, 0.5);
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.45);
   color: #fff;
   border: none;
   border-radius: 50%;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   font-size: 1.75rem;
   line-height: 1;
   cursor: pointer;
@@ -1192,11 +1192,11 @@ input:focus {
   align-items: center;
   justify-content: center;
   padding: 0;
-  opacity: 0;
+  opacity: 0.65;
   transition: opacity 0.2s;
 }
 
-.swipe-zone:hover .swipe-nav-arrow {
+.swipe-nav-arrow:hover {
   opacity: 1;
 }
 
@@ -1206,11 +1206,4 @@ input:focus {
 
 .swipe-nav-arrow-right {
   right: 8px;
-}
-
-/* On touch-only devices always show arrows as tap targets */
-@media (hover: none) {
-  .swipe-nav-arrow {
-    opacity: 0.7;
-  }
 }

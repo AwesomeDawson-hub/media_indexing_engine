@@ -243,47 +243,44 @@ export default function MediaDetailPage() {
   const isNoEmbedFormat = NO_EMBED_TYPES.includes(media.mime_type);
 
   return (
-    <div>
+    <div ref={swipeWrapRef} className="swipe-zone">
+      {/* Fixed prev/next arrows — visible on both sides of the full page */}
+      {prevId && (
+        <button
+          className="swipe-nav-arrow swipe-nav-arrow-left"
+          onClick={() => goToId(prevId)}
+          aria-label="Previous photo"
+        >
+          &#8249;
+        </button>
+      )}
+      {nextId && (
+        <button
+          className="swipe-nav-arrow swipe-nav-arrow-right"
+          onClick={() => goToId(nextId)}
+          aria-label="Next photo"
+        >
+          &#8250;
+        </button>
+      )}
+
       <Link to={backHref} className="back-link">&larr; Back to Gallery</Link>
 
       <div className="media-detail">
         <div className="media-detail-preview">
-          <div className="swipe-zone" ref={swipeWrapRef}>
-            {/* Image / placeholder — translates with the swipe gesture */}
-            <div
-              className="swipe-image-wrap"
-              style={{
-                transform: `translateX(${swipeTx}px)`,
-                transition: isSwiping ? 'none' : 'transform 0.25s ease',
-              }}
-            >
-              {isImage && imgSrc ? (
-                <img src={imgSrc} alt={media.original_filename} />
-              ) : (
-                <div className="media-card-placeholder large">
-                  {media.mime_type.split('/')[1] || 'file'}
-                </div>
-              )}
-            </div>
-
-            {/* Desktop prev / next arrow buttons (also tappable on mobile) */}
-            {prevId && (
-              <button
-                className="swipe-nav-arrow swipe-nav-arrow-left"
-                onClick={() => goToId(prevId)}
-                aria-label="Previous photo"
-              >
-                &#8249;
-              </button>
-            )}
-            {nextId && (
-              <button
-                className="swipe-nav-arrow swipe-nav-arrow-right"
-                onClick={() => goToId(nextId)}
-                aria-label="Next photo"
-              >
-                &#8250;
-              </button>
+          <div
+            className="swipe-image-wrap"
+            style={{
+              transform: `translateX(${swipeTx}px)`,
+              transition: isSwiping ? 'none' : 'transform 0.25s ease',
+            }}
+          >
+            {isImage && imgSrc ? (
+              <img src={imgSrc} alt={media.original_filename} />
+            ) : (
+              <div className="media-card-placeholder large">
+                {media.mime_type.split('/')[1] || 'file'}
+              </div>
             )}
           </div>
 
