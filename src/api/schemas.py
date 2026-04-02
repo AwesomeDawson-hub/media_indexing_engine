@@ -135,6 +135,7 @@ class SourceResponse(BaseModel):
     source_type: str
     archived_at: datetime | None = None
     created_at: datetime
+    media_count: int = 0
 
     model_config = {"from_attributes": True}
 

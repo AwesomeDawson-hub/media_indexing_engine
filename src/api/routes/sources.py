@@ -3,12 +3,12 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_db, get_current_user_id
 from src.api.schemas import SourceCreateRequest, SourceResponse
-from src.models import Source
+from src.models import MediaItem, Source
 
 router = APIRouter(prefix="/api/v1/sources", tags=["sources"])
 
@@ -43,7 +43,24 @@ async def list_sources(
         stmt = stmt.where(Source.archived_at.is_(None))
     result = await db.execute(stmt)
     sources = result.scalars().all()
-    return [SourceResponse.model_validate(s) for s in sources]
+
+    # Fetch media counts in one query
+    source_ids = [s.id for s in sources]
+    counts: dict[str, int] = {}
+    if source_ids:
+        count_result = await db.execute(
+            select(MediaItem.source_id, func.count().label("cnt"))
+            .where(MediaItem.source_id.in_(source_ids))
+            .group_by(MediaItem.source_id)
+        )
+        counts = {sid: cnt for sid, cnt in count_result.all()}
+
+    responses = []
+    for s in sources:
+        r = SourceResponse.model_validate(s)
+        r.media_count = counts.get(s.id, 0)
+        responses.append(r)
+    return responses
 
 
 @router.post("/{source_id}/archive")

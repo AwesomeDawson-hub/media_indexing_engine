@@ -153,6 +153,7 @@ export interface SourceResponse {
   source_type: string;
   archived_at?: string | null;
   created_at: string;
+  media_count: number;
 }
 
 export interface ApiError {

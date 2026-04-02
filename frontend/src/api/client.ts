@@ -334,6 +334,14 @@ export async function createSource(name: string, sourceType = 'manual'): Promise
   });
 }
 
+export async function archiveSource(id: string): Promise<SourceResponse> {
+  return request<SourceResponse>(`/api/v1/sources/${id}/archive`, { method: 'POST' });
+}
+
+export async function restoreSource(id: string): Promise<SourceResponse> {
+  return request<SourceResponse>(`/api/v1/sources/${id}/restore`, { method: 'POST' });
+}
+
 export async function getQuotaStatus(): Promise<QuotaStatus> {
   return request<QuotaStatus>('/api/v1/quota/status');
 }

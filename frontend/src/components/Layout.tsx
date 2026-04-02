@@ -21,7 +21,8 @@ export default function Layout() {
           </Link>
           <nav className="app-nav">
             <GalleryNavLink />
-            <Link to="/upload" className="nav-link">Source</Link>
+            <Link to="/upload" className="nav-link">Upload</Link>
+            <Link to="/sources" className="nav-link">Sources</Link>
           </nav>
           <UserMenu />
         </div>

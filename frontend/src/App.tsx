@@ -8,6 +8,7 @@ import RegisterPage from './pages/RegisterPage';
 import GalleryPage from './pages/GalleryPage';
 import UploadPage from './pages/UploadPage';
 import MediaDetailPage from './pages/MediaDetailPage';
+import SourcesPage from './pages/SourcesPage';
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
           <Route element={<Layout />}>
             <Route path="/" element={<GalleryPage />} />
             <Route path="/upload" element={<UploadPage />} />
+            <Route path="/sources" element={<SourcesPage />} />
             <Route path="/media/:id" element={<MediaDetailPage />} />
           </Route>
         </Route>
