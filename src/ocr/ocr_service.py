@@ -67,6 +67,23 @@ def extract_text(file_bytes: bytes, mime_type: str) -> str:
         if len(text) > _MAX_OCR_CHARS:
             text = text[:_MAX_OCR_CHARS]
 
+        # Quality filter: real OCR text has a high proportion of word-like
+        # tokens (>=3 chars, >=80% alphabetic). Garbled texture-noise output
+        # floods with short mixed tokens like "1)", "ca1", "ge1", "w=", "|".
+        # Discard if fewer than 40% of tokens look like real words.
+        tokens = text.split()
+        if tokens:
+            word_like = sum(
+                1 for t in tokens
+                if len(t) >= 3 and sum(c.isalpha() for c in t) / len(t) >= 0.8
+            )
+            if word_like / len(tokens) < 0.40:
+                logger.debug(
+                    "OCR result discarded as noise (word ratio %.2f): %r",
+                    word_like / len(tokens), text[:80],
+                )
+                return ""
+
         return text
     except Exception as exc:
         # Tesseract not found, image unreadable, etc. — always non-fatal

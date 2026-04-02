@@ -49,6 +49,23 @@ def test_extract_text_collapses_newlines():
     assert result == "VISITING THE Polynesian Cultural Center"
 
 
+def test_extract_text_discards_garbled_noise():
+    """Results where <40% of tokens look like real words (len>=3, >=80% alpha) return ''."""
+    # Typical Tesseract noise from image texture: lots of mixed tokens
+    garbled = "1g1 ca1 | 1 (f | 1 : a+ ge1 to) = = = 4 oe — w= i -) nm BES s - —"
+    with patch("pytesseract.image_to_string", return_value=garbled):
+        result = extract_text(_make_jpeg(), "image/jpeg")
+    assert result == ""
+
+
+def test_extract_text_keeps_clean_ocr():
+    """Results with >=40% word-like tokens are kept."""
+    clean = "POLYNESIAN CULTURAL CENTER OAHU TOP TOURIST ATTRACTION"
+    with patch("pytesseract.image_to_string", return_value=clean):
+        result = extract_text(_make_jpeg(), "image/jpeg")
+    assert result == clean
+
+
 def test_extract_text_unsupported_mime_returns_empty():
     """extract_text returns '' for non-image MIME types without calling OCR."""
     result = extract_text(b"fake-video-bytes", "video/mp4")
