@@ -1161,12 +1161,15 @@ input:focus {
   position: relative;
   user-select: none;
   touch-action: pan-y; /* allow vertical scroll; JS handles horizontal */
+  overflow-x: hidden;
+}
+
+.swipe-content-wrap {
+  will-change: transform;
 }
 
 .swipe-image-wrap {
   position: relative;
-  z-index: 1;
-  will-change: transform;
 }
 
 .swipe-image-wrap img {

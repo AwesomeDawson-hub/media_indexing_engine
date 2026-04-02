@@ -264,17 +264,18 @@ export default function MediaDetailPage() {
         </button>
       )}
 
+      <div
+        className="swipe-content-wrap"
+        style={{
+          transform: `translateX(${swipeTx}px)`,
+          transition: isSwiping ? 'none' : 'transform 0.25s ease',
+        }}
+      >
       <Link to={backHref} className="back-link">&larr; Back to Gallery</Link>
 
       <div className="media-detail">
         <div className="media-detail-preview">
-          <div
-            className="swipe-image-wrap"
-            style={{
-              transform: `translateX(${swipeTx}px)`,
-              transition: isSwiping ? 'none' : 'transform 0.25s ease',
-            }}
-          >
+          <div className="swipe-image-wrap">
             {isImage && imgSrc ? (
               <img src={imgSrc} alt={media.original_filename} />
             ) : (
@@ -383,6 +384,7 @@ export default function MediaDetailPage() {
         </div>
       </div>
 
+      </div>{/* end swipe-content-wrap */}
     </div>
   );
 }
