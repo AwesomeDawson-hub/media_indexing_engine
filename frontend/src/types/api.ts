@@ -94,6 +94,7 @@ export interface MetadataFields {
   colors: string[];
   location_hint?: string;
   quality_notes?: string;
+  ocr_text?: string | null;
 }
 
 export interface JobInfo {

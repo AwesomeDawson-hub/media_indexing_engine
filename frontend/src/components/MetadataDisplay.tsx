@@ -95,6 +95,13 @@ export default function MetadataDisplay({ metadata }: MetadataDisplayProps) {
             <p>{metadata.quality_notes}</p>
           </div>
         )}
+
+        {metadata.ocr_text && (
+          <div className="metadata-field">
+            <label>Extracted Text (OCR)</label>
+            <p style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.85em' }}>{metadata.ocr_text}</p>
+          </div>
+        )}
       </div>
     </div>
   );

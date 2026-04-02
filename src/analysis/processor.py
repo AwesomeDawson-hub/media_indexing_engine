@@ -20,6 +20,7 @@ from src.analysis.schemas import MediaMetadataResult
 from src.config import settings
 from src.database import async_session
 from src.models import MediaItem, MediaMetadata, ProcessingJob
+from src.ocr.ocr_service import extract_text as ocr_extract_text
 from src.quota.quota_service import QuotaService
 from src.storage.file_store import FileStore
 
@@ -56,6 +57,7 @@ async def _upsert_metadata(
     result: MediaMetadataResult,
     provider: str,
     model: str,
+    ocr_text: str = "",
 ) -> MediaMetadata:
     """Insert or update the metadata record for a media item."""
     now = datetime.now(timezone.utc)
@@ -73,6 +75,7 @@ async def _upsert_metadata(
         meta.ai_provider = provider
         meta.ai_model = model
         meta.analyzed_at = now
+        meta.ocr_text = ocr_text or None
     else:
         # Insert new
         meta = MediaMetadata(
@@ -80,6 +83,7 @@ async def _upsert_metadata(
             ai_provider=provider,
             ai_model=model,
             analyzed_at=now,
+            ocr_text=ocr_text or None,
             **fields,
         )
         db.add(meta)
@@ -142,10 +146,15 @@ async def analyze_media_item(
                 async with _analysis_semaphore:
                     metadata_result = await vision_provider.analyze_image(image_base64, media_type)
 
+                ocr_text = ocr_extract_text(file_bytes, media_item.mime_type)
+                if ocr_text:
+                    logger.info("OCR extracted %d chars for media %s", len(ocr_text), media_item.id)
+
                 await _upsert_metadata(
                     db, media_item.id, metadata_result,
                     provider=settings.analysis.provider,
                     model=settings.analysis.model,
+                    ocr_text=ocr_text,
                 )
 
                 if indexing_service is not None:
@@ -155,6 +164,7 @@ async def analyze_media_item(
                             user_id=media_item.user_id,
                             original_filename=media_item.original_filename,
                             metadata_result=metadata_result,
+                            ocr_text=ocr_text,
                         )
                     except Exception as idx_err:
                         logger.warning("Indexing failed for %s (non-fatal): %s", media_item.id, idx_err)

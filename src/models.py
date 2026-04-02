@@ -149,6 +149,7 @@ class MediaMetadata(Base):
     colors: Mapped[str] = mapped_column(Text, nullable=False)  # JSON array
     location_hint: Mapped[str | None] = mapped_column(String(200), nullable=True)
     quality_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ocr_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     ai_provider: Mapped[str] = mapped_column(String(50), nullable=False)
     ai_model: Mapped[str] = mapped_column(String(100), nullable=False)
     analyzed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

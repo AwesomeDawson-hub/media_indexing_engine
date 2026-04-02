@@ -10,7 +10,7 @@ def _join_list(data: list[str]) -> str:
     return ", ".join(data) if data else ""
 
 
-def build_embedding_text(metadata: MediaMetadataResult) -> str:
+def build_embedding_text(metadata: MediaMetadataResult, ocr_text: str = "") -> str:
     """Build embedding text from a Pydantic metadata result (used during analysis flow)."""
     parts = [
         metadata.title,
@@ -35,6 +35,8 @@ def build_embedding_text(metadata: MediaMetadataResult) -> str:
         parts.append(f"People: {metadata.people_count} people")
     parts.append(f"Orientation: {metadata.orientation}")
     parts.append(f"Location: {metadata.location_hint or 'Unknown'}")
+    if ocr_text:
+        parts.append(f"Text: {ocr_text}")
 
     return "\n".join(parts)
 
@@ -70,5 +72,7 @@ def build_embedding_text_from_db(meta: MediaMetadata) -> str:
         parts.append(f"People: {meta.people_count} people")
     parts.append(f"Orientation: {meta.orientation}")
     parts.append(f"Location: {meta.location_hint or 'Unknown'}")
+    if meta.ocr_text:
+        parts.append(f"Text: {meta.ocr_text}")
 
     return "\n".join(parts)

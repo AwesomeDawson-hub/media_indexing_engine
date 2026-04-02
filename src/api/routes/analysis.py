@@ -66,6 +66,7 @@ async def get_analysis(
                 colors=json.loads(meta.colors),
                 location_hint=meta.location_hint,
                 quality_notes=meta.quality_notes,
+                ocr_text=meta.ocr_text,
             ),
             ai_provider=meta.ai_provider,
             ai_model=meta.ai_model,

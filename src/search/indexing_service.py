@@ -23,9 +23,10 @@ class IndexingService:
         user_id: str,
         original_filename: str,
         metadata_result: MediaMetadataResult,
+        ocr_text: str = "",
     ) -> None:
         """Build embedding text, generate embedding, upsert to vector store."""
-        text = build_embedding_text(metadata_result)
+        text = build_embedding_text(metadata_result, ocr_text=ocr_text)
         embedding = self._embedder.embed_text(text)
 
         self._vector_store.upsert(

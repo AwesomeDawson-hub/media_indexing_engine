@@ -25,6 +25,7 @@ dependencies = [
     "pillow-heif>=0.18.0",
     "alembic>=1.13.0",
     "stripe>=10.0.0",
+    "pytesseract>=0.3.10",
 ]
 
 [project.optional-dependencies]

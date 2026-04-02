@@ -46,16 +46,15 @@ _Phase 4 — Beta Operations & Commercial Foundations. Full phase plan at `docs/
 
 ## In Progress
 
-### P4-005: Billing Groundwork & Commercial Modeling
-- **Objective:** Measure image-processing cost, codify plan tiers, and implement Stripe test-mode billing groundwork without enabling live paid launch.
+### P4-006: OCR Search Enrichment
+- **Objective:** Extract text from images using Tesseract OCR, store alongside AI metadata, and incorporate into semantic search.
 - **Phase:** Phase 4 — Beta Operations & Commercial Foundations
 - **Status:** In Progress
 - **Started:** 2026-04-01
-- **Plan:** `docs/planning/P4-005_plan.md`
+- **Plan:** `docs/planning/P4-006_plan.md`
 
 ---
 
----
 
 ## Post-Phase 3 Bug Fixes (Applied 2026-03-29, commit fd5013e)
 

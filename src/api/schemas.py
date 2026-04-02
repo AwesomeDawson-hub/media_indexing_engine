@@ -70,6 +70,7 @@ class MetadataFields(BaseModel):
     colors: list[str]
     location_hint: str | None = None
     quality_notes: str | None = None
+    ocr_text: str | None = None
 
 
 class JobInfo(BaseModel):
