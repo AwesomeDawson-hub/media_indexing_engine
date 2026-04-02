@@ -575,8 +575,21 @@ export default function GalleryPage() {
                 selectedIds={Array.from(selected)}
                 onClear={() => setSelected(new Set())}
                 onDeleteSuccess={(ids) => {
-                  setBrowseItems((prev) => prev.filter((i) => !ids.includes(i.id)));
+                  const remaining = browseItems.filter((i) => !ids.includes(i.id));
+                  const newTotal = browseTotal - ids.length;
                   setSelected(new Set());
+                  if (remaining.length === 0 && newTotal > 0) {
+                    // Page is now empty but more items exist — go to page 1 and re-fetch
+                    const newPage = pageParam > 1 ? 1 : pageParam;
+                    if (newPage !== pageParam) {
+                      setSearchParams((prev) => { const p = new URLSearchParams(prev); p.set('page', '1'); return p; });
+                    } else {
+                      fetchBrowse(1, true);
+                    }
+                  } else {
+                    setBrowseItems(remaining);
+                    setBrowseTotal(newTotal);
+                  }
                 }}
               />
 
@@ -652,8 +665,16 @@ export default function GalleryPage() {
                 selectedIds={Array.from(selected)}
                 onClear={() => setSelected(new Set())}
                 onDeleteSuccess={(ids) => {
-                  setSearchResults((prev) => prev.filter((r) => !ids.includes(r.media_item.id)));
+                  const remaining = searchResults.filter((r) => !ids.includes(r.media_item.id));
+                  const newTotal = searchTotal - ids.length;
                   setSelected(new Set());
+                  if (remaining.length === 0 && newTotal > 0) {
+                    doSearch(lastSubmittedQuery.current, 1);
+                    setSearchParams((prev) => { const p = new URLSearchParams(prev); p.set('page', '1'); return p; });
+                  } else {
+                    setSearchResults(remaining);
+                    setSearchTotal(newTotal);
+                  }
                 }}
               />
 

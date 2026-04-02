@@ -31,13 +31,6 @@ _Phase 4 — Beta Operations & Commercial Foundations. Full phase plan at `docs/
 
 
 
-### Future: Mobile-Style Detail Navigation (Swipe + Gesture Actions)
-- **Objective:** Add touch-friendly navigation to the media detail page so users can swipe left/right to move between photos, and swipe up/down to trigger delete or download, with a confirmable-once confirmation modal.
-- **Design notes:** Hook `touchstart`/`touchmove`/`touchend` events (or a small library like `react-swipeable`) on `MediaDetailPage`. Pass the ordered media list (or IDs) into the detail page so prev/next navigation is possible without going back to the gallery. **Swipe reveal pattern (Gmail-style):** as the user swipes up or down, the image translates with the finger and reveals a full-bleed colored backing behind it — green + download icon for swipe-up, red + trash icon for swipe-down. The label ("Download" / "Delete") is visible behind the image as it moves, making the action self-evident before the user commits. Releasing past a threshold triggers the action; releasing short of it snaps back. Swipe-up = download, swipe-down = delete with confirmation modal. Modal includes a "Don't show again" checkbox that writes a flag to `localStorage` — subsequent gestures skip the modal. Swipe-left/right = previous/next photo (no destructive action, no confirmation needed). Keyboard arrow key navigation should also be added at the same time for desktop parity.
-- **Source:** Beta tester feedback, 2026-04-02
-- **Phase:** Phase 5 — short workstream, frontend-only
-- **Status:** Approved for next phase planning — no architect review needed
-
 ### Future: Near-Duplicate Detection & AI Best-Photo Selection
 - **Objective:** Detect visually similar images (burst shots, near-duplicates) and group them together; optionally have AI recommend the best image in a group based on technical quality signals (eyes open, faces looking at camera, sharpness, exposure).
 - **Design notes:** Phase 1 — perceptual hashing (pHash or similar) on ingest; store hash in `media_metadata`; query for Hamming distance ≤ threshold to find near-duplicates. Surface groups in the Gallery with a "similar photos" indicator. Phase 2 — AI quality scoring pass using the vision model to evaluate face quality signals in grouped images and emit a `best_pick` recommendation flag. Backend: new `perceptual_hash` column + similarity query endpoint. Frontend: grouping UI in Gallery, best-pick badge on detail page. Exact-duplicate blocking (content hash) already exists from P1; this is additive.
@@ -59,6 +52,19 @@ _No workstreams currently in progress._
 
 ---
 
+
+## Post-Phase 4 Improvements (Applied 2026-04-02)
+
+_These improvements were applied directly without formal workstreams, after P4-006 closeout. Commits: `f7f6336` through `f6ea7dc`._
+
+- **Mobile swipe navigation (MediaDetailPage):** Touch swipe left/right to navigate prev/next media item. Full-page swipe zone, viewport-fixed arrow buttons for desktop. Swipe up/down destructive actions (delete/download) were prototyped then removed after user feedback — left/right nav retained. Keyboard arrow keys also supported. Commits: `f7f6336`, `2f44bd3`, `b6d9336`, `6ff34c8`, `35757a5`. AWS deployed. _(Original scope from Planned section delivered in reduced form — swipe-up/down dropped.)_
+- **Case-insensitive email uniqueness fix:** Auth issue where `Beta@Test.com` and `beta@test.com` were treated as different accounts. Alembic migration adds `LOWER(email)` functional index on `users` table; all existing emails normalized to lowercase. Commit: `3c3ace3`. AWS deployed.
+- **Performance: multi-layer image and API caching:** (1) Module-level `blobCache: Map<string, string>` in `useAuthImage.ts` — blob URLs persist across component unmounts, avoiding repeat fetches. `clearAuthImageCache()` revokes all blobs on logout. `prefetchAuthImage(url)` fires background fetch. (2) 60s in-memory `_apiCache` in `client.ts` for `getMedia` and `getAnalysis` (terminal states only — polling still works). `invalidateMediaCache(id)` wired into `reanalyze`/`deleteBatch`. `clearApiCache()` called on logout in `AuthContext.tsx`. (3) `MediaDetailPage.tsx` prefetches neighbor image URLs via `useEffect([prevId, nextId])`. Commit: `977fafa`. AWS deployed.
+- **Password reset email infrastructure:** `src/email_service.py` created — boto3 SES, `send_password_reset(to, token)`, graceful no-op when `EMAIL_FROM` is unset, HTML + plain text, errors logged but not raised. `EmailConfig` added to `src/config.py` with env overrides (`EMAIL_FROM`, `EMAIL_AWS_REGION`). `src/api/routes/auth.py` wired to call `send_password_reset` after token creation when not in dev_mode. Frontend: `ForgotPasswordPage.tsx` (email form → API call → confirmation message), `ResetPasswordPage.tsx` (reads `?token=` param, validates passwords, redirects to `/login` on success), `/forgot-password` and `/reset-password` routes added to `App.tsx` as public routes, "Forgot your password?" link + post-reset success banner added to `LoginPage.tsx`. `requestPasswordReset` and `confirmPasswordReset` API functions already existed in `client.ts`. Commit: `f6ea7dc`. AWS deployed.
+- **AWS SES domain setup:** `noreply@vyzindex.com` identity configured in SES. DNS records added to Route 53: 3 CNAME (DKIM), 1 MX (mail.vyzindex.com), 2 TXT (SPF + DMARC). Production access request submitted; awaiting AWS approval. Email service will activate once `EMAIL_FROM=noreply@vyzindex.com` is added to server `.env`.
+- **Admin role granted to beta test accounts:** `beta@test.com`, `smoketest@test.com`, and the `+dup` variant all set to `role='admin'` via direct psql UPDATE. 3 rows updated.
+
+---
 
 ## Post-Phase 3 Bug Fixes (Applied 2026-03-29, commit fd5013e)
 

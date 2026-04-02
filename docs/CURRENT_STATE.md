@@ -6,11 +6,11 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 
 | Field | Value |
 |---|---|
-| **Current Phase** | Phase 4 — Beta Operations & Commercial Foundations |
+| **Current Phase** | Phase 4 — Beta Operations & Commercial Foundations (complete) |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | None — awaiting next workstream |
+| **Active Workstream** | None — all P4 workstreams complete; post-phase improvements applied |
 | **Last Updated** | 2026-04-02 |
-| **Updated By** | AI — Engineer (HTTPS + domain live) |
+| **Updated By** | AI — Engineer (password reset frontend, perf cache, swipe nav, SES setup) |
 
 ## System Health
 
@@ -18,16 +18,22 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | Docs aligned | Yes |
 | Drift detected | No |
-| All docs in sync | Yes — verified at Phase 3 planning reconciliation |
+| All docs in sync | Yes — updated 2026-04-02 post-session |
 | Registry complete | Yes |
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
-| Test status | 158/158 pass (156 existing + 2 new filter tests) |
-| Active workstream | P4-006 Completed — awaiting next workstream |
+| Test status | 158/158 pass (unchanged — all post-P4-006 changes are frontend-only or backward-compatible backend) |
+| Active workstream | None — all P4 workstreams complete |
 | Last governance audit | 2026-03-31 — Pre-Phase-4 Auditor review (0 blocking findings) |
 
 ## Recent Activity
 
+- **2026-04-02:** Password reset email infrastructure complete. `src/email_service.py` created (boto3 SES, graceful no-op when `EMAIL_FROM` unset). `EmailConfig` added to `src/config.py` with `EMAIL_FROM` / `EMAIL_AWS_REGION` env overrides. `auth.py` wired to call `send_password_reset` after token creation (non-dev mode). Frontend: `ForgotPasswordPage.tsx`, `ResetPasswordPage.tsx`, `/forgot-password` + `/reset-password` public routes in `App.tsx`, "Forgot your password?" link + post-reset success banner in `LoginPage.tsx`. Commit: `f6ea7dc`. AWS deployed. Email activation pending AWS SES production approval.
+- **2026-04-02:** AWS SES domain setup completed. `noreply@vyzindex.com` identity configured. Route 53 DNS records added: DKIM (3 CNAME), SPF (TXT), DMARC (TXT at `_dmarc`), MX (mail.vyzindex.com). Production access request submitted; awaiting AWS approval (up to 24h). Once approved: add `EMAIL_FROM=noreply@vyzindex.com` to server `.env` and rebuild backend.
+- **2026-04-02:** Admin role granted to all beta test accounts via psql UPDATE. `beta@test.com`, `smoketest@test.com`, and `+dup` variant all set to `role='admin'`. 3 rows updated.
+- **2026-04-02:** Performance improvements deployed. (1) Module-level `blobCache` in `useAuthImage.ts` — blob URLs persist across unmounts. (2) 60s `_apiCache` in `client.ts` for `getMedia`/`getAnalysis` (terminal states only). (3) `MediaDetailPage.tsx` prefetches neighbor images on navigation. (4) `AuthContext.tsx` logout clears both caches. Commit: `977fafa`. AWS deployed.
+- **2026-04-02:** Mobile swipe navigation shipped. Left/right swipe to go prev/next on `MediaDetailPage`. Full-page swipe zone. Viewport-fixed arrow buttons for desktop/tablet. Swipe up/down removed after testing — scope narrowed to nav-only. Commits: `f7f6336` → `35757a5`. AWS deployed.
+- **2026-04-02:** Case-insensitive email uniqueness fixed. Alembic migration adds `LOWER(email)` functional index; all existing emails normalized to lowercase in-place. Commit: `3c3ace3`. AWS deployed.
 - **2026-04-02:** HTTPS live on vyzindex.com. Domain registered on Route 53, A records pointed to EC2 (13.216.223.46), DOMAIN env var updated, Caddy obtained Let's Encrypt cert automatically on redeploy. App available at https://vyzindex.com. Upload performance improved: frontend now uploads 4 files concurrently (was sequential); all queue status updates batched into a single React state write.
 - **2026-04-01:** P4-006 (OCR Search Enrichment) completed. Tesseract 5.5 in Docker, pytesseract in stack, `ocr_text` column on `media_metadata` (migration `d5e6f7a8b9c0`). `--psm 11` sparse text mode, upscaling, newline collapsing, word-ratio noise filter (discard if <20% word-like tokens). OCR wired into analysis pipeline, embedding text, API schema, and frontend display. 11 new tests; 158/158 pass. Commits: `5dc4837`, `6c2002e`, `fa17515`. AWS deployed.
 - **2026-04-01:** P4-006 (OCR Search Enrichment) started.
@@ -90,7 +96,7 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 ## Blockers
 
 - No application blockers.
-- Operational limitation: current beta access is temporary HTTP-only on the EC2 hostname. A real domain is required before restoring HTTPS.
+- **SES production access pending:** AWS has requested additional information about our use case. Response submitted 2026-04-02. Approval expected within 24h. Password reset emails will not send until `EMAIL_FROM=noreply@vyzindex.com` is set in server `.env` (backend shows graceful no-op; tokens still work in dev_mode for testing).
 
 ## Known Bugs (Unresolved)
 
@@ -98,13 +104,13 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 
 ## Notes for Next Session
 
-- **P4-005 is fully closed.** 147/147 tests pass. Commit `406d5c6`. AWS deployed.
-- **Next workstream: P4-006** — OCR Search Enrichment (or next per WORKSTREAMS.md backlog).
-- **Most recent commits (newest first):** `406d5c6` (P4-005 billing); `cb3326c` (P4-004 admin); `323b40f` (duplicate source name prevention).
-- **AWS beta is live:** `http://ec2-13-216-223-46.compute-1.amazonaws.com` (HTTP only, temporary — ACME refuses AWS hostname). Stack: `docker-compose.yml` + `docker-compose.beta.yml`. SSH key: `C:\Code\AWS\media-indexing-key.pem`, user `ubuntu`.
-- **Stripe note:** All billing runs in dev/test mode (no real charges). To enable: set STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_ID_ADVANCED, STRIPE_PRICE_ID_PREMIUM on the server.
-- **Before inviting broader beta users:** rotate the exposed `ANTHROPIC_API_KEY`, `POSTGRES_PASSWORD`, and `AUTH_SECRET_KEY`.
-- **System is production-deployable:** `docker compose up -d` starts all services. Copy `.env.example` → `.env`, fill secrets.
-- **Health endpoint:** `GET /api/v1/health` → `{"status":"ok","version":"0.1.0"}` — no auth required.
-- **Schema changes** require `alembic revision --autogenerate` + review + `alembic upgrade head`. Back up the AWS DB before any migration deploy.
-- **Codebase:** Python backend (FastAPI, 115 tests) + React/TS frontend (Vite + nginx) + Docker stack (postgres, chromadb, backend, frontend, caddy).
+- **All P4 workstreams complete.** Phase 4 is fully delivered. Next step is Phase 5 planning.
+- **SES activation (when AWS approves):** `ssh -i "C:\Code\AWS\media-indexing-key.pem" ubuntu@vyzindex.com "echo 'EMAIL_FROM=noreply@vyzindex.com' >> ~/media_indexing_engine/.env && docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build backend"`
+- **Most recent commits (newest first):** `f6ea7dc` (password reset frontend); `977fafa` (perf caching); `3c3ace3` (email case-insensitive); `35757a5` (swipe nav polish); `a5ca548` (P4-006 docs closeout).
+- **AWS deploy command:** `ssh -i "C:\Code\AWS\media-indexing-key.pem" ubuntu@vyzindex.com "cd ~/media_indexing_engine && git pull && docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build"`
+- **HTTPS is live:** `https://vyzindex.com` — Caddy handles TLS automatically. compose files: `docker-compose.yml` + `docker-compose.beta.yml`. SSH key: `C:\Code\AWS\media-indexing-key.pem`, user `ubuntu`.
+- **Stripe note:** All billing runs in dev/test mode. To enable: set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_ADVANCED`, `STRIPE_PRICE_ID_PREMIUM` on the server.
+- **Before inviting broader beta users:** rotate the `ANTHROPIC_API_KEY`, `POSTGRES_PASSWORD`, and `AUTH_SECRET_KEY`.
+- **Known bug (low priority):** Gallery shows empty state instead of fetching next page after bulk-deleting all items on current page.
+- **Schema changes** require `alembic revision --autogenerate` + review + `alembic upgrade head`. Back up AWS DB before any migration deploy.
+- **Test status:** 158/158 pass. Tests run from `c:\AI Engineering\Projects\media_indexing_engine` with `.venv\Scripts\python.exe -m pytest tests/ -q --tb=short`.
