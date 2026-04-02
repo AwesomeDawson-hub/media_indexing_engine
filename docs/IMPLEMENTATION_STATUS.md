@@ -31,6 +31,14 @@ Each completed workstream gets one entry in the log below, following this struct
 
 ## Completed Workstream Log
 
+### P4-006: OCR Search Enrichment
+- **Phase:** Phase 4 — Beta Operations & Commercial Foundations
+- **Completed:** 2026-04-01
+- **Objective:** Extract text from images using Tesseract OCR, store it alongside AI metadata, and incorporate it into semantic search.
+- **Outcome:** Full end-to-end OCR pipeline. `pytesseract>=0.3.10` added to `pyproject.toml`; `tesseract-ocr` (v5.5) installed in Dockerfile. Alembic migration `d5e6f7a8b9c0` adds `ocr_text` nullable Text column to `media_metadata`. `src/ocr/ocr_service.py` runs Tesseract with `--psm 11 --oem 1` (sparse text — best for mixed-content images), upscales images where shortest dimension < 1000px, collapses newline fragments into single-line output, and applies word-ratio quality filter (discards if <20% of tokens are ≥3-char ≥80%-alpha words). OCR runs in the analysis processor after AI analysis; result stored in DB and passed to indexing. Both `build_embedding_text()` and `build_embedding_text_from_db()` append OCR text to semantic search vectors. `MetadataFields` schema returns `ocr_text`; analysis route populates it. Frontend `MetadataDisplay` shows "Extracted Text (OCR)" section (120px height cap, scrollable). 11 new tests in `tests/test_ocr.py`; **158/158 total tests pass**. Commits: `5dc4837`, `6c2002e`, `fa17515`, and threshold-fix commit. AWS deployed.
+- **Key decisions:** `--psm 11` (sparse text) chosen as universal default over `--psm 3` (document layout) — performs better across natural photos, posters, screenshots, and signage. Upscaling to min 1000px before OCR recovers accuracy on small images. Newlines collapsed to single space — PSM 11 returns one word per line; storing as a flat string is better for search and display. Word-ratio filter at 0.20 threshold discards Tesseract noise from image texture/compression artifacts (ratio ~0.14) while passing real mixed-content results (ratio 0.25+). 120px display cap prevents UI page-stretch from verbose OCR output.
+- **Artifacts produced:** `alembic/versions/d5e6f7a8b9c0_ocr_text.py`, `src/ocr/__init__.py`, `src/ocr/ocr_service.py`, `src/models.py` (ocr_text field), `src/analysis/processor.py` (OCR call + pass-through), `src/search/indexing_service.py` (ocr_text param), `src/search/embedding_text.py` (OCR text in both builders), `src/api/schemas.py` (ocr_text in MetadataFields), `src/api/routes/analysis.py` (ocr_text in response), `frontend/src/types/api.ts` (ocr_text field), `frontend/src/components/MetadataDisplay.tsx` (OCR display), `tests/test_ocr.py`, `pyproject.toml` (pytesseract dep), `Dockerfile` (tesseract-ocr apt package)
+
 ### P4-005: Billing Groundwork & Commercial Modeling
 - **Phase:** Phase 4 — Beta Operations & Commercial Foundations
 - **Completed:** 2026-04-01

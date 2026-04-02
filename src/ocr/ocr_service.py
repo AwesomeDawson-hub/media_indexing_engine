@@ -77,7 +77,7 @@ def extract_text(file_bytes: bytes, mime_type: str) -> str:
                 1 for t in tokens
                 if len(t) >= 3 and sum(c.isalpha() for c in t) / len(t) >= 0.8
             )
-            if word_like / len(tokens) < 0.40:
+            if word_like / len(tokens) < 0.20:
                 logger.debug(
                     "OCR result discarded as noise (word ratio %.2f): %r",
                     word_like / len(tokens), text[:80],

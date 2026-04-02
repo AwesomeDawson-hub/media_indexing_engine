@@ -31,11 +31,6 @@ _Phase 4 — Beta Operations & Commercial Foundations. Full phase plan at `docs/
 
 
 
-### P4-006: OCR Search Enrichment
-- **Objective:** Extract text from images, store it as additional search data, and make it searchable.
-- **Phase:** Phase 4 — Beta Operations & Commercial Foundations
-- **Status:** Planned
-
 ### Future: Ingestion Connectors (Source Sync)
 - **Objective:** Extend the Source Registry (P4-003) to support connected sources — cloud storage accounts (S3, Google Drive, Dropbox), local watched folders, etc. — so the system can automatically ingest media from those origins.
 - **Design notes:** Add a `config` JSONB column to `sources`, implement a sync/ingestion job system (poll or webhook), store credentials encrypted. Current `source_type` field already anticipates this (currently `"manual"`; future values: `"s3_bucket"`, `"google_drive"`, `"local_folder"`, etc.). No schema changes needed before this workstream starts.
@@ -46,12 +41,7 @@ _Phase 4 — Beta Operations & Commercial Foundations. Full phase plan at `docs/
 
 ## In Progress
 
-### P4-006: OCR Search Enrichment
-- **Objective:** Extract text from images using Tesseract OCR, store alongside AI metadata, and incorporate into semantic search.
-- **Phase:** Phase 4 — Beta Operations & Commercial Foundations
-- **Status:** In Progress
-- **Started:** 2026-04-01
-- **Plan:** `docs/planning/P4-006_plan.md`
+_No workstreams currently in progress._
 
 ---
 
@@ -78,6 +68,14 @@ _These changes were applied directly without a formal workstream, after Phase 1 
 ---
 
 ## Completed
+
+### P4-006: OCR Search Enrichment
+- **Objective:** Extract text from images using Tesseract OCR, store alongside AI metadata, and incorporate into semantic search.
+- **Phase:** Phase 4 — Beta Operations & Commercial Foundations
+- **Status:** Completed
+- **Started:** 2026-04-01
+- **Completed:** 2026-04-01
+- **Outcome:** `pytesseract>=0.3.10` added to stack; `tesseract-ocr` installed in Dockerfile. `ocr_text` nullable Text column added to `media_metadata` (migration `d5e6f7a8b9c0`). `src/ocr/ocr_service.py` extracts text using `--psm 11 --oem 1` (sparse text mode, best for mixed-content images), upscales small images before OCR, collapses newline fragments to single-line output, and filters garbled texture-noise via word-ratio quality check (discards if <20% of tokens are word-like). OCR runs after AI analysis in the processor; result stored in DB and forwarded to indexing. `build_embedding_text()` and `build_embedding_text_from_db()` include OCR text in semantic search vectors. `MetadataFields` schema returns `ocr_text` in API responses. Frontend displays "Extracted Text (OCR)" in Additional Search Data section (120px capped, scrollable). 11 new tests; **158/158 total tests pass**. Commits: `5dc4837`, `6c2002e`, `fa17515`. AWS deployed.
 
 ### P4-005: Billing Groundwork & Commercial Modeling
 - **Objective:** Measure image-processing cost, codify plan tiers, and implement Stripe test-mode billing groundwork without enabling live paid launch.

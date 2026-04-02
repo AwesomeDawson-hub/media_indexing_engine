@@ -8,9 +8,9 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | **Current Phase** | Phase 4 — Beta Operations & Commercial Foundations |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | P4-006 — OCR Search Enrichment (In Progress) |
+| **Active Workstream** | None — awaiting next P4 workstream |
 | **Last Updated** | 2026-04-01 |
-| **Updated By** | AI — Engineer (P4-005 complete) |
+| **Updated By** | AI — Engineer (P4-006 complete) |
 
 ## System Health
 
@@ -22,13 +22,14 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 | Registry complete | Yes |
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
-| Test status | 155/155 pass (147 existing + 8 new OCR tests) |
-| Active workstream | P4-006 — OCR Search Enrichment — In Progress |
+| Test status | 158/158 pass (156 existing + 2 new filter tests) |
+| Active workstream | P4-006 Completed — awaiting next workstream |
 | Last governance audit | 2026-03-31 — Pre-Phase-4 Auditor review (0 blocking findings) |
 
 ## Recent Activity
 
-- **2026-04-01:** P4-006 (OCR Search Enrichment) started. `pytesseract` + Tesseract added to stack. `ocr_text` column added to `media_metadata` (migration `d5e6f7a8b9c0`). `src/ocr/ocr_service.py` created. Analysis processor, indexing service, and embedding text updated to extract, store, and index OCR text. `ocr_text` returned in API responses (`MetadataFields`). Frontend `MetadataDisplay` updated to show extracted text. 8 new OCR tests; 155/155 pass.
+- **2026-04-01:** P4-006 (OCR Search Enrichment) completed. Tesseract 5.5 in Docker, pytesseract in stack, `ocr_text` column on `media_metadata` (migration `d5e6f7a8b9c0`). `--psm 11` sparse text mode, upscaling, newline collapsing, word-ratio noise filter (discard if <20% word-like tokens). OCR wired into analysis pipeline, embedding text, API schema, and frontend display. 11 new tests; 158/158 pass. Commits: `5dc4837`, `6c2002e`, `fa17515`. AWS deployed.
+- **2026-04-01:** P4-006 (OCR Search Enrichment) started.
 - **2026-04-01:** P4-005 (Billing Groundwork & Commercial Modeling) completed. StripeConfig added to config.py with full env-var wiring. User model extended with stripe_customer_id, stripe_subscription_id, billing_status. StripeEvent table added for webhook idempotency. Migration c3d4e5f6a7b8 created. Billing service (checkout sessions, portal sessions, webhook processing, apply_subscription_event). Billing routes: GET /status, POST /create-checkout-session, POST /create-portal-session, POST /webhook. AdminUserSummary + AdminUpdateUserRequest extended with billing fields; admin PATCH supports billing_status override with validation. Frontend: BillingPage.tsx with plan comparison and upgrade/manage buttons; Billing nav link; billing API functions in client.ts; BillingStatus types. 12 new tests; 147/147 pass. Commit: 406d5c6. AWS deployed.
 - **2026-04-01:** P4-004 (Admin Console & User Profile Management) completed. Migration `b2c3d4e5f6a7` applied. RBAC, admin routes, profile self-service, verified email change, password reset, audit log. `ProfilePage.tsx` + `AdminPage.tsx`. 20 new tests; 135/135 pass. Commit `cb3326c`. AWS deployed, dev user seeded as admin.
 - **2026-04-01:** P4-005 (Billing Groundwork & Commercial Modeling) started. Plan at `docs/planning/P4-005_plan.md`. at `Projects/media_indexing_engine/`. Directory scaffolded, README created. Phase 1 plan created with 6 workstreams (WS-000 through WS-005).

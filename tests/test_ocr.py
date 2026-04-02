@@ -50,9 +50,9 @@ def test_extract_text_collapses_newlines():
 
 
 def test_extract_text_discards_garbled_noise():
-    """Results where <40% of tokens look like real words (len>=3, >=80% alpha) return ''."""
-    # Typical Tesseract noise from image texture: lots of mixed tokens
-    garbled = "1g1 ca1 | 1 (f | 1 : a+ ge1 to) = = = 4 oe — w= i -) nm BES s - —"
+    """Results where <20% of tokens look like real words (len>=3, >=80% alpha) return ''."""
+    # Extreme noise: almost entirely digits, symbols, 1-2 char fragments
+    garbled = "1g 1tt 11 aw f1 1 ba h1ts n0 n1 ot s1 y x gy HD wl fk s7 tm re v od oe tz fm"
     with patch("pytesseract.image_to_string", return_value=garbled):
         result = extract_text(_make_jpeg(), "image/jpeg")
     assert result == ""
