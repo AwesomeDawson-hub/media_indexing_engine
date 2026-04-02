@@ -28,6 +28,7 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 
 ## Recent Activity
 
+- **2026-04-02:** Gallery empty-state bug fixed. After bulk-deleting all items on the current page, the gallery now re-fetches from page 1 if more items exist rather than showing the empty state. Both browse mode and search mode handlers updated. Commit: `04333ce`. AWS deployed.
 - **2026-04-02:** Password reset email infrastructure complete. `src/email_service.py` created (boto3 SES, graceful no-op when `EMAIL_FROM` unset). `EmailConfig` added to `src/config.py` with `EMAIL_FROM` / `EMAIL_AWS_REGION` env overrides. `auth.py` wired to call `send_password_reset` after token creation (non-dev mode). Frontend: `ForgotPasswordPage.tsx`, `ResetPasswordPage.tsx`, `/forgot-password` + `/reset-password` public routes in `App.tsx`, "Forgot your password?" link + post-reset success banner in `LoginPage.tsx`. Commit: `f6ea7dc`. AWS deployed. Email activation pending AWS SES production approval.
 - **2026-04-02:** AWS SES domain setup completed. `noreply@vyzindex.com` identity configured. Route 53 DNS records added: DKIM (3 CNAME), SPF (TXT), DMARC (TXT at `_dmarc`), MX (mail.vyzindex.com). Production access request submitted; awaiting AWS approval (up to 24h). Once approved: add `EMAIL_FROM=noreply@vyzindex.com` to server `.env` and rebuild backend.
 - **2026-04-02:** Admin role granted to all beta test accounts via psql UPDATE. `beta@test.com`, `smoketest@test.com`, and `+dup` variant all set to `role='admin'`. 3 rows updated.
@@ -100,13 +101,13 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 
 ## Known Bugs (Unresolved)
 
-- **Gallery empty after bulk delete of all items on current page:** When the user clicks "Select All" then deletes, only the current page items are deleted (correct). However, the gallery immediately shows the empty-state "no images" message instead of fetching the next page of results. The gallery needs to re-query with the current filters/pagination after a successful batch delete so remaining images on other pages are loaded. Requires a frontend fix in the delete-batch response handler.
+- None.
 
 ## Notes for Next Session
 
 - **All P4 workstreams complete.** Phase 4 is fully delivered. Next step is Phase 5 planning.
 - **SES activation (when AWS approves):** `ssh -i "C:\Code\AWS\media-indexing-key.pem" ubuntu@vyzindex.com "echo 'EMAIL_FROM=noreply@vyzindex.com' >> ~/media_indexing_engine/.env && docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build backend"`
-- **Most recent commits (newest first):** `f6ea7dc` (password reset frontend); `977fafa` (perf caching); `3c3ace3` (email case-insensitive); `35757a5` (swipe nav polish); `a5ca548` (P4-006 docs closeout).
+- **Most recent commits (newest first):** `04333ce` (gallery empty-state bug fix); `f6ea7dc` (password reset frontend); `977fafa` (perf caching); `3c3ace3` (email case-insensitive); `35757a5` (swipe nav polish).
 - **AWS deploy command:** `ssh -i "C:\Code\AWS\media-indexing-key.pem" ubuntu@vyzindex.com "cd ~/media_indexing_engine && git pull && docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build"`
 - **HTTPS is live:** `https://vyzindex.com` — Caddy handles TLS automatically. compose files: `docker-compose.yml` + `docker-compose.beta.yml`. SSH key: `C:\Code\AWS\media-indexing-key.pem`, user `ubuntu`.
 - **Stripe note:** All billing runs in dev/test mode. To enable: set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_ADVANCED`, `STRIPE_PRICE_ID_PREMIUM` on the server.
