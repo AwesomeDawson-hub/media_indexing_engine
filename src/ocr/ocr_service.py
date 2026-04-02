@@ -47,7 +47,21 @@ def extract_text(file_bytes: bytes, mime_type: str) -> str:
         if img.mode not in ("RGB", "L"):
             img = img.convert("RGB")
 
-        text: str = pytesseract.image_to_string(img)
+        # Upscale small images — Tesseract accuracy drops below ~300dpi equivalent
+        min_dim = min(img.width, img.height)
+        if min_dim < 1000:
+            scale = max(2, 1000 // min_dim)
+            img = img.resize((img.width * scale, img.height * scale), Image.LANCZOS)
+
+        # psm 11 = sparse text, finds text anywhere regardless of layout
+        # Best for posters, collages, signage, screenshots with mixed regions
+        config = "--psm 11 --oem 1"
+        text: str = pytesseract.image_to_string(img, config=config)
+        # Collapse runs of whitespace/newlines into single spaces — PSM 11
+        # produces many single-word fragments on separate lines
+        import re
+        text = re.sub(r'[\r\n]+', ' ', text)
+        text = re.sub(r'[ \t]{2,}', ' ', text)
         text = text.strip()
 
         if len(text) > _MAX_OCR_CHARS:

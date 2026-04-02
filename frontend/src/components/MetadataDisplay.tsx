@@ -99,7 +99,7 @@ export default function MetadataDisplay({ metadata }: MetadataDisplayProps) {
         {metadata.ocr_text && (
           <div className="metadata-field">
             <label>Extracted Text (OCR)</label>
-            <p style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.85em' }}>{metadata.ocr_text}</p>
+            <p style={{ fontFamily: 'monospace', fontSize: '0.85em', maxHeight: '120px', overflowY: 'auto', wordBreak: 'break-word', margin: 0, padding: '4px 0' }}>{metadata.ocr_text}</p>
           </div>
         )}
       </div>

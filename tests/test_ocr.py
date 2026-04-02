@@ -37,9 +37,16 @@ def test_extract_text_returns_text_from_mock():
 
 def test_extract_text_strips_whitespace():
     """extract_text strips leading/trailing whitespace from OCR output."""
-    with patch("pytesseract.image_to_string", return_value="  hello \n"):
+    with patch("pytesseract.image_to_string", return_value="  hello  "):
         result = extract_text(_make_jpeg(), "image/jpeg")
     assert result == "hello"
+
+
+def test_extract_text_collapses_newlines():
+    """Newlines and multi-space runs are collapsed to single spaces."""
+    with patch("pytesseract.image_to_string", return_value="VISITING THE\nPolynesian\nCultural Center\n"):
+        result = extract_text(_make_jpeg(), "image/jpeg")
+    assert result == "VISITING THE Polynesian Cultural Center"
 
 
 def test_extract_text_unsupported_mime_returns_empty():
