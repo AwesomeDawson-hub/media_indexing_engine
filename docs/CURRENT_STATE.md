@@ -8,9 +8,9 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | **Current Phase** | Phase 4 — Beta Operations & Commercial Foundations |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | P4-004 — Admin Console & User Profile Management |
+| **Active Workstream** | P4-005 — Billing Groundwork & Commercial Modeling |
 | **Last Updated** | 2026-04-01 |
-| **Updated By** | AI — Engineer (Sources UX polish + AWS deploy) |
+| **Updated By** | AI — Engineer (P4-004 closeout + P4-005 start) |
 
 ## System Health
 
@@ -22,13 +22,14 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 | Registry complete | Yes |
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
-| Test status | 115/115 pass (103 backend integration + 12 S3FileStore unit tests) |
-| Active workstream | P4-004 In Progress — Admin Console & User Profile Management |
+| Test status | 135/135 pass (backend integration) |
+| Active workstream | P4-005 In Progress — Billing Groundwork & Commercial Modeling |
 | Last governance audit | 2026-03-31 — Pre-Phase-4 Auditor review (0 blocking findings) |
 
 ## Recent Activity
 
-- **2026-03-27:** Project "Media Indexing Engine" initialized at `Projects/media_indexing_engine/`. Directory scaffolded, README created. Phase 1 plan created with 6 workstreams (WS-000 through WS-005).
+- **2026-04-01:** P4-004 (Admin Console & User Profile Management) completed. Migration `b2c3d4e5f6a7` applied. RBAC, admin routes, profile self-service, verified email change, password reset, audit log. `ProfilePage.tsx` + `AdminPage.tsx`. 20 new tests; 135/135 pass. Commit `cb3326c`. AWS deployed, dev user seeded as admin.
+- **2026-04-01:** P4-005 (Billing Groundwork & Commercial Modeling) started. Plan at `docs/planning/P4-005_plan.md`. at `Projects/media_indexing_engine/`. Directory scaffolded, README created. Phase 1 plan created with 6 workstreams (WS-000 through WS-005).
 - **2026-03-27:** WS-000 (Core Foundations) completed. Prior art extracted from `marketing_asset_pipeline`. Identity model, metadata schema, storage model, and entity design defined. 8 ADRs recorded (ADR-001 through ADR-008). Next: WS-001 (Ingestion Pipeline).
 - **2026-03-27:** Drift resolution — two audit findings fixed. (1) Launcher orphan files: `docs/README.md` and `docs/ai_prompts/consultant_role.md` added to DOCUMENT_REGISTRY.md. (2) PROJECT_HANDOFF.md: corrected references from "Launcher CURRENT_STATE.md/WORKSTREAMS.md" to project-level docs; fixed "Current Task" label to "Next Task".
 - **2026-03-27:** WS-001 (Ingestion Pipeline) moved to In Progress. Plan approved. Beginning Step 1.

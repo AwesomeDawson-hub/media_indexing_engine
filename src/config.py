@@ -94,6 +94,15 @@ class DownloadConfig:
 
 
 @dataclass
+class StripeConfig:
+    secret_key: str = ""
+    webhook_secret: str = ""
+    test_mode: bool = True
+    price_id_advanced: str = ""
+    price_id_premium: str = ""
+
+
+@dataclass
 class Settings:
     app: AppConfig = field(default_factory=AppConfig)
     storage: StorageConfig = field(default_factory=StorageConfig)
@@ -104,6 +113,7 @@ class Settings:
     search: SearchConfig = field(default_factory=SearchConfig)
     auth: AuthConfig = field(default_factory=AuthConfig)
     download: DownloadConfig = field(default_factory=DownloadConfig)
+    stripe: StripeConfig = field(default_factory=StripeConfig)
 
 
 def load_settings(path: Path = DEFAULT_SETTINGS_PATH) -> Settings:
@@ -124,6 +134,7 @@ def load_settings(path: Path = DEFAULT_SETTINGS_PATH) -> Settings:
         search=SearchConfig(**raw.get("search", {})),
         auth=AuthConfig(**raw.get("auth", {})),
         download=DownloadConfig(**raw.get("download", {})),
+        stripe=StripeConfig(**raw.get("stripe", {})),
     )
 
     # Override secret key from env var if set (production override)
@@ -149,6 +160,22 @@ def load_settings(path: Path = DEFAULT_SETTINGS_PATH) -> Settings:
     env_s3_region = os.environ.get("S3_REGION")
     if env_s3_region:
         s.storage.s3_region = env_s3_region
+
+    env_stripe_secret = os.environ.get("STRIPE_SECRET_KEY")
+    if env_stripe_secret:
+        s.stripe.secret_key = env_stripe_secret
+
+    env_stripe_webhook = os.environ.get("STRIPE_WEBHOOK_SECRET")
+    if env_stripe_webhook:
+        s.stripe.webhook_secret = env_stripe_webhook
+
+    env_stripe_advanced = os.environ.get("STRIPE_PRICE_ID_ADVANCED")
+    if env_stripe_advanced:
+        s.stripe.price_id_advanced = env_stripe_advanced
+
+    env_stripe_premium = os.environ.get("STRIPE_PRICE_ID_PREMIUM")
+    if env_stripe_premium:
+        s.stripe.price_id_premium = env_stripe_premium
 
     return s
 

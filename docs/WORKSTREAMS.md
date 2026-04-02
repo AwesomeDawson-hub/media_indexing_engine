@@ -51,12 +51,12 @@ _Phase 4 — Beta Operations & Commercial Foundations. Full phase plan at `docs/
 
 ## In Progress
 
-### P4-004: Admin Console & User Profile Management
-- **Objective:** Add admin-only user management, backend RBAC, audited admin actions, self-service profile updates, verified email change, and account recovery.
+### P4-005: Billing Groundwork & Commercial Modeling
+- **Objective:** Measure image-processing cost, codify plan tiers, and implement Stripe test-mode billing groundwork without enabling live paid launch.
 - **Phase:** Phase 4 — Beta Operations & Commercial Foundations
 - **Status:** In Progress
 - **Started:** 2026-04-01
-- **Plan:** `docs/planning/P4-004_plan.md`
+- **Plan:** `docs/planning/P4-005_plan.md`
 
 ---
 
@@ -84,6 +84,16 @@ _These changes were applied directly without a formal workstream, after Phase 1 
 ---
 
 ## Completed
+
+### P4-004: Admin Console & User Profile Management
+- **Objective:** Add admin-only user management, backend RBAC, audited admin actions, self-service profile updates, verified email change, and account recovery.
+- **Phase:** Phase 4 — Beta Operations & Commercial Foundations
+- **Status:** Completed
+- **Started:** 2026-04-01
+- **Completed:** 2026-04-01
+- **Plan:** `docs/planning/P4-004_plan.md`
+- **Outcome:** Full RBAC + admin console + user profile self-service implemented across all steps. Alembic migration `b2c3d4e5f6a7` adds `role`, `phone`, `company`, `icon_url`, `disabled_at` to users plus new `admin_audit_log` and `pending_tokens` tables. `require_admin` dependency enforces admin-only routes. Admin routes: `GET /admin/users` (paginated, searchable), `GET /admin/users/{id}` (detail + quota_this_month), `PATCH /admin/users/{id}` (role/plan/limit/disable/email with audit entry per change), `GET /admin/audit-log`. Auth routes extended: `PATCH /me` self-service, expanded `GET /me` (role/phone/company/plan/limit), verified email-change flow (bcrypt-hashed PendingToken, 30-min expiry, dev_mode token return), password-reset flow (no enumeration, 2-hr expiry). Disabled user login returns HTTP 403 `account_disabled`. Email normalized to lowercase on register + login. Frontend: `ProfilePage.tsx` (edit profile, change email, change password), `AdminPage.tsx` (users tab with edit modal, audit log tab with pagination). App routes `/profile` and `/admin` added. Layout nav shows Profile link + conditional Admin link for role=admin users. AuthContext exposes `user.role`. 20 new tests (`test_admin.py` + `test_profile.py`); **135/135 total tests pass**. Commit: `cb3326c`.
+- **AWS deploy status:** Complete — migration ran on AWS postgres, dev user seeded as admin. All endpoints validated.
 
 ### P4-003: Source Registry & Source-Aware Media
 - **Objective:** Persist named sources, associate media with sources, add archive/restore behavior for deleted sources, and establish the connector abstraction for future online sources.

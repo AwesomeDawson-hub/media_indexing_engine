@@ -25,6 +25,7 @@ export default function Layout() {
             <GalleryNavLink />
             <Link to="/upload" className="nav-link">Upload</Link>
             <Link to="/sources" className="nav-link">Sources</Link>
+            <Link to="/billing" className="nav-link">Billing</Link>
             <Link to="/profile" className="nav-link">Profile</Link>
             {user?.role === 'admin' && (
               <Link to="/admin" className="nav-link">Admin</Link>

@@ -31,6 +31,9 @@ class User(Base):
     disabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     plan_name: Mapped[str] = mapped_column(String(50), nullable=False, default="basic")
     monthly_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=500)
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    billing_status: Mapped[str] = mapped_column(String(30), nullable=False, default="none")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
 
@@ -167,3 +170,16 @@ class QuotaEvent(Base):
     media_item_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("media_items.id"), nullable=True)
     period_month: Mapped[date] = mapped_column(Date, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+
+
+class StripeEvent(Base):
+    """Idempotency log for processed Stripe webhook events."""
+    __tablename__ = "stripe_events"
+    __table_args__ = (
+        Index("ix_stripe_events_stripe_event_id", "stripe_event_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    stripe_event_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)

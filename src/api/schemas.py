@@ -169,6 +169,8 @@ class UserProfile(BaseModel):
     disabled_at: datetime | None = None
     plan_name: str = "basic"
     monthly_limit: int = 500
+    billing_status: str = "none"
+    stripe_customer_id: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -242,6 +244,9 @@ class AdminUserSummary(BaseModel):
     icon_url: str | None = None
     plan_name: str
     monthly_limit: int
+    billing_status: str = "none"
+    stripe_customer_id: str | None = None
+    stripe_subscription_id: str | None = None
     disabled_at: datetime | None = None
     created_at: datetime
 
@@ -262,6 +267,7 @@ class AdminUpdateUserRequest(BaseModel):
     monthly_limit: int | None = Field(default=None, ge=0)
     role: str | None = None
     disabled: bool | None = None
+    billing_status: str | None = None
 
 
 class AuditLogEntry(BaseModel):
@@ -302,3 +308,27 @@ class PasswordResetRequest(BaseModel):
 class PasswordResetConfirmRequest(BaseModel):
     token: str
     new_password: str = Field(..., min_length=8)
+
+
+# Billing schemas
+
+class BillingStatusResponse(BaseModel):
+    billing_status: str
+    plan_name: str
+    monthly_limit: int
+    stripe_customer_id: str | None = None
+    stripe_subscription_id: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class CheckoutSessionRequest(BaseModel):
+    price_id: str
+
+
+class CheckoutSessionResponse(BaseModel):
+    checkout_url: str
+
+
+class PortalSessionResponse(BaseModel):
+    portal_url: str

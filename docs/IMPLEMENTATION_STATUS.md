@@ -31,6 +31,30 @@ Each completed workstream gets one entry in the log below, following this struct
 
 ## Completed Workstream Log
 
+### P4-004: Admin Console & User Profile Management
+- **Phase:** Phase 4 — Beta Operations & Commercial Foundations
+- **Completed:** 2026-04-01
+- **Objective:** Add admin-only user management, backend RBAC, audited admin actions, self-service profile updates, verified email change, and account recovery.
+- **Outcome:** Full implementation across all 9 steps. Alembic migration `b2c3d4e5f6a7` adds `role`, `phone`, `company`, `icon_url`, `disabled_at` to users + new `admin_audit_log` and `pending_tokens` tables. `get_current_user()` and `require_admin()` dependencies added. Admin routes: `GET/PATCH /admin/users`, `GET /admin/users/{id}`, `GET /admin/audit-log` — all write audit entries on change. Auth routes extended: `PATCH /me`, expanded `GET /me` (returns role/phone/company/plan/limit), verified email-change (bcrypt-hashed PendingToken, 30-min expiry), password-reset (no enumeration, 2-hr expiry), disabled-user 403, email normalization. Frontend: `ProfilePage.tsx` + `AdminPage.tsx` (users table + edit modal, audit log tab). `/profile` + `/admin` routes in App.tsx; Layout shows conditional Admin nav link for admins. 20 new tests; **135/135 total tests pass**. Commit: `cb3326c`.
+- **Key decisions:** PendingToken stores bcrypt hash (not plaintext) — plaintext only returned in `dev_mode` response for testability. Password-reset scans all non-expired tokens and bcrypt-verifies to avoid user enumeration at the request endpoint. `require_admin` also rejects `disabled_at is not None` so a disabled admin cannot use admin routes. Audit entries written within the same DB transaction as the change they record.
+- **Artifacts produced:**
+  - Created: `alembic/versions/b2c3d4e5f6a7_admin_profile.py`
+  - Created: `src/api/routes/admin.py`
+  - Created: `frontend/src/pages/ProfilePage.tsx`
+  - Created: `frontend/src/pages/AdminPage.tsx`
+  - Created: `tests/test_admin.py`, `tests/test_profile.py`
+  - Modified: `src/models.py` (User extended, AdminAuditLog + PendingToken models)
+  - Modified: `src/api/dependencies.py` (get_current_user, require_admin)
+  - Modified: `src/api/schemas.py` (UserProfile extended, 8 new schemas)
+  - Modified: `src/api/routes/auth.py` (PATCH /me, expanded GET /me, email-change, password-reset, disabled check, email normalization)
+  - Modified: `src/api/app.py` (admin router registered)
+  - Modified: `frontend/src/types/api.ts` (UserProfile extended, 5 new admin interfaces)
+  - Modified: `frontend/src/api/client.ts` (10 new functions)
+  - Modified: `frontend/src/App.tsx` (/profile + /admin routes)
+  - Modified: `frontend/src/components/Layout.tsx` (Profile + conditional Admin nav links)
+- **Validation performed:** 135/135 backend tests pass. AWS deployed and validated — `GET /api/v1/auth/me` returns extended profile; `GET /api/v1/admin/users` returns 403 for non-admin, 200 for admin. Dev user seeded as admin on AWS.
+- **AWS deploy status:** Complete — migration `b2c3d4e5f6a7` ran on AWS postgres. Commit `cb3326c`.
+
 ### P4-002: Plans, Quotas & Analysis Confirmation
 - **Phase:** Phase 4 — Beta Operations & Commercial Foundations
 - **Completed:** 2026-03-31

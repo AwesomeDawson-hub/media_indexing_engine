@@ -11,6 +11,7 @@ import MediaDetailPage from './pages/MediaDetailPage';
 import SourcesPage from './pages/SourcesPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage';
+import BillingPage from './pages/BillingPage';
 
 export default function App() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
             <Route path="/sources" element={<SourcesPage />} />
             <Route path="/media/:id" element={<MediaDetailPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/billing" element={<BillingPage />} />
             <Route path="/admin" element={<AdminPage />} />
           </Route>
         </Route>

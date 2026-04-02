@@ -15,6 +15,9 @@ import type {
   AdminUserDetail,
   AdminUsersListResponse,
   AuditLogListResponse,
+  BillingStatus,
+  CheckoutSessionResponse,
+  PortalSessionResponse,
 } from '../types/api';
 
 const BASE_URL = '';
@@ -422,6 +425,7 @@ export async function adminUpdateUser(
     monthly_limit?: number;
     role?: string;
     disabled?: boolean;
+    billing_status?: string;
   },
 ): Promise<AdminUserSummary> {
   return request<AdminUserSummary>(`/api/v1/admin/users/${userId}`, {
@@ -437,4 +441,23 @@ export async function adminGetAuditLog(
   const params = new URLSearchParams({ page: String(page) });
   if (targetUserId) params.set('target_user_id', targetUserId);
   return request<AuditLogListResponse>(`/api/v1/admin/audit-log?${params.toString()}`);
+}
+
+// Billing API
+
+export async function getBillingStatus(): Promise<BillingStatus> {
+  return request<BillingStatus>('/api/v1/billing/status');
+}
+
+export async function createCheckoutSession(priceId: string): Promise<CheckoutSessionResponse> {
+  return request<CheckoutSessionResponse>('/api/v1/billing/create-checkout-session', {
+    method: 'POST',
+    body: JSON.stringify({ price_id: priceId }),
+  });
+}
+
+export async function createPortalSession(): Promise<PortalSessionResponse> {
+  return request<PortalSessionResponse>('/api/v1/billing/create-portal-session', {
+    method: 'POST',
+  });
 }

@@ -24,6 +24,7 @@ dependencies = [
     "iptcinfo3>=2.1.0",
     "pillow-heif>=0.18.0",
     "alembic>=1.13.0",
+    "stripe>=10.0.0",
 ]
 
 [project.optional-dependencies]

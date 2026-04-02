@@ -9,6 +9,8 @@ export interface UserProfile {
   disabled_at?: string | null;
   plan_name: string;
   monthly_limit: number;
+  billing_status: string;
+  stripe_customer_id?: string | null;
 }
 
 export interface AuthResponse {
@@ -182,6 +184,9 @@ export interface AdminUserSummary {
   icon_url?: string | null;
   plan_name: string;
   monthly_limit: number;
+  billing_status: string;
+  stripe_customer_id?: string | null;
+  stripe_subscription_id?: string | null;
   disabled_at?: string | null;
   created_at: string;
 }
@@ -207,4 +212,20 @@ export interface AuditLogEntry {
 export interface AuditLogListResponse {
   entries: AuditLogEntry[];
   total: number;
+}
+
+export interface BillingStatus {
+  billing_status: string;
+  plan_name: string;
+  monthly_limit: number;
+  stripe_customer_id?: string | null;
+  stripe_subscription_id?: string | null;
+}
+
+export interface CheckoutSessionResponse {
+  checkout_url: string;
+}
+
+export interface PortalSessionResponse {
+  portal_url: string;
 }

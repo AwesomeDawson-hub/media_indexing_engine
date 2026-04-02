@@ -166,6 +166,13 @@ async def update_user(
             changes["disabled"] = {"from": True, "to": False}
             user.disabled_at = None
 
+    if body.billing_status is not None and body.billing_status != user.billing_status:
+        _VALID_BILLING_STATUSES = {"none", "active", "trialing", "past_due", "canceled", "unpaid"}
+        if body.billing_status not in _VALID_BILLING_STATUSES:
+            raise HTTPException(status_code=400, detail="Invalid billing_status")
+        changes["billing_status"] = {"from": user.billing_status, "to": body.billing_status}
+        user.billing_status = body.billing_status
+
     if changes:
         await _write_audit(db, admin.id, user_id, "update_user", changes)
 
