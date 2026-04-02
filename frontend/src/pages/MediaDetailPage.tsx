@@ -8,8 +8,6 @@ import StatusBadge from '../components/StatusBadge';
 import MetadataDisplay from '../components/MetadataDisplay';
 
 const NO_EMBED_TYPES = ['image/bmp', 'image/gif'];
-const SKIP_DELETE_CONFIRM = 'vyz_swipe_delete_confirmed';
-const VERT_THRESHOLD = 80;
 const HORIZ_THRESHOLD = 80;
 
 export default function MediaDetailPage() {
@@ -32,14 +30,9 @@ export default function MediaDetailPage() {
 
   // Swipe / gesture state
   const swipeWrapRef = useRef<HTMLDivElement>(null);
-  const gestureStateRef = useRef({ startX: 0, startY: 0, axis: null as 'h' | 'v' | null, active: false, tx: 0, ty: 0 });
+  const gestureStateRef = useRef({ startX: 0, startY: 0, axis: null as 'h' | null, active: false, tx: 0 });
   const [swipeTx, setSwipeTx] = useState(0);
-  const [swipeTy, setSwipeTy] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
-
-  // Delete confirmation modal
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [dontShowAgain, setDontShowAgain] = useState(false);
 
   // Neighbor navigation (ordered IDs list supplied via router state from the gallery)
   const currentIdx = ids.indexOf(id ?? '');
@@ -55,8 +48,6 @@ export default function MediaDetailPage() {
     goToId: (_id: string) => { /* updated each render */ },
     prevId: null as string | null,
     nextId: null as string | null,
-    handleDownload: async () => { /* updated each render */ },
-    handleSwipeDelete: () => { /* updated each render */ },
   });
 
   useEffect(() => {
@@ -132,14 +123,6 @@ export default function MediaDetailPage() {
     await executeDelete();
   }
 
-  function handleSwipeDelete() {
-    if (localStorage.getItem(SKIP_DELETE_CONFIRM)) {
-      executeDelete();
-    } else {
-      setShowDeleteModal(true);
-    }
-  }
-
   async function handleDownload() {
     if (!id) return;
     setDownloading(true);
@@ -166,7 +149,7 @@ export default function MediaDetailPage() {
   }
 
   // Keep actionsRef current on every render so gesture / keyboard closures see the latest values
-  actionsRef.current = { goToId, prevId, nextId, handleDownload, handleSwipeDelete };
+  actionsRef.current = { goToId, prevId, nextId };
 
   // Touch gesture handler — attached imperatively so touchmove can call e.preventDefault()
   useEffect(() => {
@@ -181,9 +164,7 @@ export default function MediaDetailPage() {
       g.startY = t.clientY;
       g.axis = null;
       g.tx = 0;
-      g.ty = 0;
       g.active = true;
-      setIsSwiping(true);
     }
 
     function onMove(e: TouchEvent) {
@@ -192,43 +173,36 @@ export default function MediaDetailPage() {
       const dx = t.clientX - g.startX;
       const dy = t.clientY - g.startY;
       if (!g.axis && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
-        g.axis = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
+        if (Math.abs(dx) > Math.abs(dy)) {
+          g.axis = 'h';
+        } else {
+          g.active = false; // vertical — let browser scroll
+          return;
+        }
       }
-      if (g.axis) {
+      if (g.axis === 'h') {
         e.preventDefault();
-        const tx = g.axis === 'h' ? dx : 0;
-        const ty = g.axis === 'v' ? dy : 0;
-        g.tx = tx;
-        g.ty = ty;
-        setSwipeTx(tx);
-        setSwipeTy(ty);
+        g.tx = dx;
+        setSwipeTx(dx);
+        setIsSwiping(true);
       }
     }
 
     function onEnd() {
       if (!g.active) return;
       g.active = false;
-      const axis = g.axis;
       const tx = g.tx;
-      const ty = g.ty;
       g.axis = null;
       g.tx = 0;
-      g.ty = 0;
 
-      const { prevId: pId, nextId: nId, goToId: go, handleDownload: dl, handleSwipeDelete: del } = actionsRef.current;
+      const { prevId: pId, nextId: nId, goToId: go } = actionsRef.current;
 
-      if (axis === 'h') {
-        if (tx < -HORIZ_THRESHOLD && nId) { setSwipeTx(0); setSwipeTy(0); go(nId); return; }
-        if (tx > HORIZ_THRESHOLD && pId) { setSwipeTx(0); setSwipeTy(0); go(pId); return; }
-      } else if (axis === 'v') {
-        if (ty < -VERT_THRESHOLD) { setIsSwiping(false); setSwipeTx(0); setSwipeTy(0); del(); return; }
-        if (ty > VERT_THRESHOLD) { setIsSwiping(false); setSwipeTx(0); setSwipeTy(0); dl(); return; }
-      }
+      if (tx < -HORIZ_THRESHOLD && nId) { setSwipeTx(0); setIsSwiping(false); go(nId); return; }
+      if (tx > HORIZ_THRESHOLD && pId) { setSwipeTx(0); setIsSwiping(false); go(pId); return; }
 
       // Snap back with CSS transition
       setIsSwiping(false);
       setSwipeTx(0);
-      setSwipeTy(0);
     }
 
     el.addEventListener('touchstart', onStart, { passive: true });
@@ -267,8 +241,6 @@ export default function MediaDetailPage() {
   const isImage = media.mime_type.startsWith('image/');
   const isAnalyzed = analysis?.status === 'completed';
   const isNoEmbedFormat = NO_EMBED_TYPES.includes(media.mime_type);
-  const upOpacity = swipeTy < 0 ? Math.min(1, Math.abs(swipeTy) / VERT_THRESHOLD) : 0;
-  const downOpacity = swipeTy > 0 ? Math.min(1, swipeTy / VERT_THRESHOLD) : 0;
 
   return (
     <div>
@@ -277,19 +249,11 @@ export default function MediaDetailPage() {
       <div className="media-detail">
         <div className="media-detail-preview">
           <div className="swipe-zone" ref={swipeWrapRef}>
-            {/* Vertical swipe action backings */}
-            <div className="swipe-backing swipe-backing-up" style={{ opacity: upOpacity }}>
-              <span className="swipe-backing-label">&#128465; Delete</span>
-            </div>
-            <div className="swipe-backing swipe-backing-down" style={{ opacity: downOpacity }}>
-              <span className="swipe-backing-label">&#11015; Download</span>
-            </div>
-
             {/* Image / placeholder — translates with the swipe gesture */}
             <div
               className="swipe-image-wrap"
               style={{
-                transform: `translate(${swipeTx}px, ${swipeTy}px)`,
+                transform: `translateX(${swipeTx}px)`,
                 transition: isSwiping ? 'none' : 'transform 0.25s ease',
               }}
             >
@@ -422,40 +386,6 @@ export default function MediaDetailPage() {
         </div>
       </div>
 
-      {/* Swipe-delete confirmation modal (shown once unless "don't show again" is checked) */}
-      {showDeleteModal && (
-        <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Delete this photo?</h2>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-              This cannot be undone.
-            </p>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.875rem', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={dontShowAgain}
-                onChange={(e) => setDontShowAgain(e.target.checked)}
-              />
-              Don't ask again for gesture deletes
-            </label>
-            <div className="modal-actions">
-              <button className="btn btn-outline" onClick={() => setShowDeleteModal(false)}>
-                Cancel
-              </button>
-              <button
-                className="btn btn-danger"
-                onClick={() => {
-                  if (dontShowAgain) localStorage.setItem(SKIP_DELETE_CONFIRM, '1');
-                  setShowDeleteModal(false);
-                  executeDelete();
-                }}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

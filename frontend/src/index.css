@@ -1163,31 +1163,6 @@ input:focus {
   touch-action: none;
 }
 
-.swipe-backing {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-
-.swipe-backing-up {
-  background: #dc2626;
-}
-
-.swipe-backing-down {
-  background: var(--success);
-}
-
-.swipe-backing-label {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #fff;
-  letter-spacing: 0.02em;
-}
-
 .swipe-image-wrap {
   position: relative;
   z-index: 1;
