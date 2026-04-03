@@ -8,11 +8,11 @@ _Update this document at the end of every session and at every workstream transi
 
 | Field | Value |
 |---|---|
-| **Current Phase** | Phase 4 — Beta Operations & Commercial Foundations (**in progress**) |
-| **Current Workstream** | None — awaiting P4-004 activation |
-| **Last Completed Work** | P4-003 — Source Registry & Source-Aware Media (2026-04-01): sources API, source_id on uploads/media, frontend selector+filter, 115/115 tests, AWS deploy |
-| **Next Task** | Activate P4-004 — Admin Console & User Profile Management |
-| **Next Step Requested** | Start P4-004 planning |
+| **Current Phase** | Phase 5 complete — awaiting Phase 6 planning |
+| **Current Workstream** | None — all Phase 5 workstreams complete |
+| **Last Completed Work** | P5-003 — Connector Sync Foundation & First Connector (2026-04-04) |
+| **Next Task** | Operator decides Phase 6 direction — options: AWS deploy of P5-003, Phase 6 planning, or connector expansion (Google Drive / Dropbox) |
+| **Next Step Requested** | Operator direction on next phase |
 
 ## Required Reading
 
@@ -93,6 +93,27 @@ When suggesting code changes:
 - Hardcoding credentials or configuration
 
 ## Recent Session Activity
+
+- **Bugfix: Concurrent upload race condition (2026-04-02):**
+  - `UploadService.process_upload()`: added `except IntegrityError` handler after the DB write. When two identical files race past the dedup check and the second INSERT hits `uq_user_content_hash`, the handler rolls back, deletes the stored file, and re-queries for the winner — returning `is_duplicate=True` instead of propagating a 500.
+  - `tests/test_upload.py`: added `test_concurrent_duplicate_handled_gracefully` (call-count side-effect patch simulates the race window). 209/209 tests pass. Commit: `fc2147a`. **AWS deploy needed.**
+
+- **P5-003 implementation (2026-04-04):**
+  - Full connector sync foundation implemented: encrypted credential storage, S3-compatible connector, sync-run state machine, idempotent per-object import tracking.
+  - Alembic migration `f6a7b8c9d0e1`: adds `connector_status`/`last_synced_at` to `sources`; creates `source_connectors`, `sync_runs`, `source_objects` tables.
+  - `ConnectorConfig` added to `config.py` — `credentials_key` from env `CONNECTOR_CREDENTIALS_KEY` (fail-closed when absent), `max_objects_per_sync=1000`.
+  - `src/connectors/` package: `secrets.py` (Fernet encryption), `base.py` (RemoteObject + ConnectorBase ABC), `s3_connector.py` (boto3 via `run_in_executor`), `sync_service.py` (full sync orchestrator with overlap prevention, idempotency, quota reservation, per-object error isolation).
+  - `src/models.py` extended: `SourceConnector`, `SyncRun`, `SourceObject` ORM models added; `Source` extended with `connector_status`, `last_synced_at`, `connector` relationship.
+  - `src/api/routes/connectors.py` created: `POST /{id}/connector/s3`, `GET /{id}/connector`, `POST /{id}/sync`, `GET /{id}/sync-runs`; registered in `app.py`.
+  - Schemas: `ConnectorS3ConfigRequest`, `ConnectorResponse` (no secrets), `SyncRunResponse`, `SyncRunsResponse`, `TriggerSyncResponse`; `SourceResponse` extended.
+  - Frontend: `SourcesPage.tsx` gains `ConnectorPanel` (S3 config form, sync trigger, sync run history table), connector status badge per row; `api.ts` + `client.ts` updated.
+  - 18 new tests in `tests/test_connectors.py`; **208/208 total pass**.
+  - **AWS deploy not yet done** — `CONNECTOR_CREDENTIALS_KEY` env var must be set before deploying; migration `f6a7b8c9d0e1` will run on startup.
+
+- **P5-001 + P5-002 implementation (2026-04-03):**
+  - P5-001: pHash 64-bit (imagehash library) added to upload pipeline and stored on `media_items`. `GET /api/v1/media/{id}/similar` endpoint. Gallery similar badge. Backfill script. 16 tests.
+  - P5-002: AI quality scoring for near-duplicate groups. `curation_scores` table. `POST /api/v1/media/{id}/score-group`. `GET /similar` extended with scores + best-pick flags. Frontend best-pick crown + quality badge. 16 tests.
+  - 190/190 total tests passed after P5-002.
 
 - **P4-003 implementation + AWS deploy (2026-04-01):**
   - Full Source Registry implemented across 8 steps.
@@ -217,8 +238,8 @@ When suggesting code changes:
 ## Open Questions / Blockers
 
 - No application blockers.
-- Operational limitation remains: public beta is live over temporary HTTP on the EC2 hostname, but full HTTPS beta access is blocked until a real domain is attached.
-- Phase 4 is in progress: P4-001, P4-002, and P4-003 are complete. Next workstream is P4-004 (Admin Console & User Profile Management).
+- Operational limitation remains: AWS SES production access is still pending for live password reset email sending, but this does not block Phase 5 planning.
+- Workflow gate: no Phase 5 workstream is active yet. `P5-001` is the next candidate and is awaiting final operator approval after Auditor-requested design locks.
 
 ## Document Ownership Note
 

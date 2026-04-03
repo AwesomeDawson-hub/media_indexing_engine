@@ -10,13 +10,15 @@ interface MediaCardProps {
   mimeType: string;
   fromPath?: string;
   ids?: string[];
+  hasSimilar?: boolean;
+  similarCount?: number;
 }
 
 function truncate(str: string, max: number): string {
   return str.length > max ? str.slice(0, max - 3) + '...' : str;
 }
 
-export default function MediaCard({ id, filename, status, mimeType, fromPath, ids }: MediaCardProps) {
+export default function MediaCard({ id, filename, status, mimeType, fromPath, ids, hasSimilar, similarCount }: MediaCardProps) {
   const isImage = mimeType.startsWith('image/');
   const imgSrc = useAuthImage(getMediaFileUrl(id));
 
@@ -27,6 +29,11 @@ export default function MediaCard({ id, filename, status, mimeType, fromPath, id
           <img src={imgSrc} alt={filename} loading="lazy" />
         ) : (
           <div className="media-card-placeholder">{isImage ? '...' : (mimeType.split('/')[1] || 'file')}</div>
+        )}
+        {hasSimilar && (
+          <span className="similar-badge" title={`${similarCount ?? 0} similar photo${(similarCount ?? 0) === 1 ? '' : 's'}`}>
+            {similarCount ?? 0} similar
+          </span>
         )}
       </div>
       <div className="media-card-info">

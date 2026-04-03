@@ -3,7 +3,7 @@
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import BigInteger, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, Index
+from sqlalchemy import BigInteger, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
@@ -81,11 +81,15 @@ class Source(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     source_type: Mapped[str] = mapped_column(String(50), nullable=False, default="manual")
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Connector summary fields (P5-003) — populated for connected sources only
+    connector_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
 
     user: Mapped["User"] = relationship(back_populates="sources")
     media_items: Mapped[list["MediaItem"]] = relationship(back_populates="source")
+    connector: Mapped["SourceConnector | None"] = relationship(back_populates="source", uselist=False)
 
 
 class MediaItem(Base):
@@ -106,6 +110,9 @@ class MediaItem(Base):
     width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)
     source_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("sources.id"), nullable=True)
+    perceptual_hash: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
+    phash_version: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    phash_computed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
 
@@ -113,6 +120,7 @@ class MediaItem(Base):
     source: Mapped["Source | None"] = relationship(back_populates="media_items")
     processing_jobs: Mapped[list["ProcessingJob"]] = relationship(back_populates="media_item")
     analysis_metadata: Mapped["MediaMetadata | None"] = relationship(back_populates="media_item", uselist=False)
+    curation_score: Mapped["CurationScore | None"] = relationship(back_populates="media_item", uselist=False)
 
 
 class ProcessingJob(Base):
@@ -184,3 +192,99 @@ class StripeEvent(Base):
     stripe_event_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     event_type: Mapped[str] = mapped_column(String(100), nullable=False)
     processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+
+
+class CurationScore(Base):
+    """AI quality score for a media item within a near-duplicate group (P5-002)."""
+    __tablename__ = "curation_scores"
+    __table_args__ = (
+        Index("ix_curation_scores_media_item_id", "media_item_id", unique=True),
+        Index("ix_curation_scores_user_id", "user_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    media_item_id: Mapped[str] = mapped_column(String(36), ForeignKey("media_items.id"), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    quality_score: Mapped[float] = mapped_column(Float, nullable=False)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    scoring_model: Mapped[str] = mapped_column(String(100), nullable=False)
+    scored_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+
+    media_item: Mapped["MediaItem"] = relationship(back_populates="curation_score")
+
+
+class SourceConnector(Base):
+    """One-to-one connector configuration for connected sources (P5-003)."""
+    __tablename__ = "source_connectors"
+    __table_args__ = (
+        Index("ix_source_connectors_source_id", "source_id", unique=True),
+        Index("ix_source_connectors_user_id", "user_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    source_id: Mapped[str] = mapped_column(String(36), ForeignKey("sources.id"), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    connector_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    bucket_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    prefix: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    region: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    endpoint_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    credentials_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    config_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_validation_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
+
+    source: Mapped["Source"] = relationship(back_populates="connector")
+
+
+class SyncRun(Base):
+    """One execution record per manual sync trigger (P5-003)."""
+    __tablename__ = "sync_runs"
+    __table_args__ = (
+        Index("ix_sync_runs_source_id", "source_id"),
+        Index("ix_sync_runs_user_id", "user_id"),
+        Index("ix_sync_runs_status", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    source_id: Mapped[str] = mapped_column(String(36), ForeignKey("sources.id"), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    connector_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    trigger_type: Mapped[str] = mapped_column(String(20), nullable=False, default="manual")
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    discovered_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    imported_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    duplicate_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    skipped_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
+
+
+class SourceObject(Base):
+    """Per-object sync memory — enables idempotent re-sync (P5-003)."""
+    __tablename__ = "source_objects"
+    __table_args__ = (
+        Index("ix_source_objects_source_key", "source_id", "external_object_key", unique=True),
+        Index("ix_source_objects_user_id", "user_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    source_id: Mapped[str] = mapped_column(String(36), ForeignKey("sources.id"), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    external_object_key: Mapped[str] = mapped_column(String(1024), nullable=False)
+    external_version: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    external_last_modified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    external_size: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    last_sync_run_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("sync_runs.id"), nullable=True)
+    last_imported_media_item_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("media_items.id"), nullable=True)
+    last_content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    state: Mapped[str] = mapped_column(String(30), nullable=False)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)

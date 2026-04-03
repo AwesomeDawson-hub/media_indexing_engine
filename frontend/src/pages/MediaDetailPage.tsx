@@ -3,9 +3,10 @@ import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import * as api from '../api/client';
 import { getMediaFileUrl } from '../api/client';
 import { useAuthImage, prefetchAuthImage } from '../api/useAuthImage';
-import type { MediaItemResponse, AnalysisResponse } from '../types/api';
+import type { MediaItemResponse, AnalysisResponse, SimilarItemsResponse } from '../types/api';
 import StatusBadge from '../components/StatusBadge';
 import MetadataDisplay from '../components/MetadataDisplay';
+import AuthImage from '../components/AuthImage';
 
 const NO_EMBED_TYPES = ['image/bmp', 'image/gif'];
 const HORIZ_THRESHOLD = 80;
@@ -19,6 +20,9 @@ export default function MediaDetailPage() {
   const ids = locationState?.ids ?? [];
   const [media, setMedia] = useState<MediaItemResponse | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
+  const [similar, setSimilar] = useState<SimilarItemsResponse | null>(null);
+  const [scoring, setScoring] = useState(false);
+  const [scoreError, setScoreError] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reanalyzing, setReanalyzing] = useState(false);
@@ -64,6 +68,10 @@ export default function MediaDetailPage() {
       .then(([m, a]) => {
         setMedia(m);
         setAnalysis(a);
+        // Fetch similar photos — feature gate enforced server-side; 404 = gate OFF
+        if (m.has_similar) {
+          api.getSimilarMedia(id).then(setSimilar).catch(() => null);
+        }
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -387,6 +395,89 @@ export default function MediaDetailPage() {
               </div>
             )}
           </div>
+
+          {similar && similar.similar.length > 0 && (
+            <div className="media-detail-similar">
+              <div className="similar-header">
+                <h2>Similar Photos ({similar.similar.length})</h2>
+                {/* Show Score button when AI scoring gate is on but group not yet scored */}
+                {similar.similar.every((s) => s.quality_score == null) && (
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    disabled={scoring}
+                    onClick={async () => {
+                      if (!id) return;
+                      setScoring(true);
+                      setScoreError('');
+                      try {
+                        await api.scoreGroup(id);
+                        // Refresh similar data to pick up new scores
+                        const refreshed = await api.getSimilarMedia(id);
+                        setSimilar(refreshed);
+                      } catch {
+                        setScoreError('Scoring failed. Check API key and try again.');
+                      } finally {
+                        setScoring(false);
+                      }
+                    }}
+                  >
+                    {scoring ? 'Scoring…' : 'Find best pick'}
+                  </button>
+                )}
+              </div>
+              {scoreError && <p className="score-error">{scoreError}</p>}
+              <div className="similar-strip">
+                {/* Anchor item (current page) */}
+                <div
+                  className={`similar-item similar-item--anchor${similar.anchor_is_best_pick ? ' similar-item--best-pick' : ''}`}
+                  title="Current photo"
+                >
+                  {similar.anchor_is_best_pick && <span className="best-pick-crown" title="Best pick">👑</span>}
+                  <AuthImage
+                    src={getMediaFileUrl(id!)}
+                    alt="Current photo"
+                    className="similar-item-thumb"
+                  />
+                  {similar.anchor_quality_score != null && (
+                    <span
+                      className="similar-item-score"
+                      title={similar.anchor_rationale ?? undefined}
+                    >
+                      {Math.round(similar.anchor_quality_score * 100)}%
+                    </span>
+                  )}
+                  <span className="similar-item-dist">this</span>
+                </div>
+                {similar.similar.map((s) => (
+                  <Link
+                    key={s.id}
+                    to={`/media/${s.id}`}
+                    state={{ from: backHref, ids }}
+                    className={`similar-item${s.is_best_pick ? ' similar-item--best-pick' : ''}`}
+                    title={`${s.hamming_distance} bit${s.hamming_distance === 1 ? '' : 's'} apart${
+                      s.rationale ? ` • ${s.rationale}` : ''
+                    }`}
+                  >
+                    {s.is_best_pick && <span className="best-pick-crown" title="Best pick">👑</span>}
+                    <AuthImage
+                      src={getMediaFileUrl(s.id)}
+                      alt={s.media_item.display_name || s.media_item.original_filename}
+                      className="similar-item-thumb"
+                    />
+                    {s.quality_score != null && (
+                      <span
+                        className="similar-item-score"
+                        title={s.rationale ?? undefined}
+                      >
+                        {Math.round(s.quality_score * 100)}%
+                      </span>
+                    )}
+                    <span className="similar-item-dist">{s.hamming_distance}b</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

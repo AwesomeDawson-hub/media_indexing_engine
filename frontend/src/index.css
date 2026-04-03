@@ -341,6 +341,121 @@ input:focus {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+}
+
+.similar-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(99, 102, 241, 0.88);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 10px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* Similar photos strip on Media Detail */
+
+.media-detail-similar {
+  margin-top: 24px;
+}
+
+.media-detail-similar h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+/* Header row: title + "Find best pick" button side-by-side */
+.similar-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.similar-header h2 {
+  margin-bottom: 0;
+}
+
+.score-error {
+  font-size: 0.8rem;
+  color: var(--danger, #ef4444);
+  margin-bottom: 8px;
+}
+
+.similar-strip {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.similar-item {
+  flex: 0 0 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+  position: relative;
+}
+
+/* Anchor (current photo) slot — not a link */
+.similar-item--anchor {
+  cursor: default;
+  opacity: 0.75;
+}
+
+/* Best-pick highlight */
+.similar-item--best-pick .similar-item-thumb {
+  border-color: #f59e0b !important;
+  box-shadow: 0 0 0 2px #f59e0b44;
+}
+
+.similar-item-thumb {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  transition: border-color 0.15s;
+}
+
+.similar-item:hover .similar-item-thumb {
+  border-color: var(--accent, #6366f1);
+}
+
+.similar-item-dist {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+/* Crown icon on best-pick item */
+.best-pick-crown {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1rem;
+  line-height: 1;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Quality score badge */
+.similar-item-score {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-card, rgba(0,0,0,0.04));
+  padding: 1px 5px;
+  border-radius: 8px;
+  white-space: nowrap;
 }
 
 .media-card-thumb img {

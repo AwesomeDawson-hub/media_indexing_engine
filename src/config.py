@@ -110,6 +110,28 @@ class EmailConfig:
 
 
 @dataclass
+class CurationConfig:
+    # When True: Gallery responses include has_similar / similar_count fields
+    # and the Media Detail page shows the similar photos panel.
+    # New uploads always receive a perceptual hash regardless of this flag.
+    enable_duplicate_detection: bool = False
+    # When True: AI quality scoring endpoints are active. Requires
+    # enable_duplicate_detection to also be True. Default OFF.
+    enable_ai_scoring: bool = False
+
+
+@dataclass
+class ConnectorConfig:
+    # Base64-url-safe Fernet key for encrypting connector credentials at rest.
+    # Must be set via CONNECTOR_CREDENTIALS_KEY env var in production.
+    # If absent, all connector create/update/sync paths refuse to run.
+    credentials_key: str = ""
+    # Maximum number of objects to enumerate from a remote source per sync run.
+    # Protects against runaway enumeration on large buckets.
+    max_objects_per_sync: int = 1000
+
+
+@dataclass
 class Settings:
     app: AppConfig = field(default_factory=AppConfig)
     storage: StorageConfig = field(default_factory=StorageConfig)
@@ -122,6 +144,8 @@ class Settings:
     download: DownloadConfig = field(default_factory=DownloadConfig)
     stripe: StripeConfig = field(default_factory=StripeConfig)
     email: EmailConfig = field(default_factory=EmailConfig)
+    curation: CurationConfig = field(default_factory=CurationConfig)
+    connector: ConnectorConfig = field(default_factory=ConnectorConfig)
 
 
 def load_settings(path: Path = DEFAULT_SETTINGS_PATH) -> Settings:
@@ -144,6 +168,8 @@ def load_settings(path: Path = DEFAULT_SETTINGS_PATH) -> Settings:
         download=DownloadConfig(**raw.get("download", {})),
         stripe=StripeConfig(**raw.get("stripe", {})),
         email=EmailConfig(**raw.get("email", {})),
+        curation=CurationConfig(**raw.get("curation", {})),
+        connector=ConnectorConfig(**raw.get("connector", {})),
     )
 
     # Override secret key from env var if set (production override)
@@ -193,6 +219,18 @@ def load_settings(path: Path = DEFAULT_SETTINGS_PATH) -> Settings:
     env_email_region = os.environ.get("EMAIL_AWS_REGION")
     if env_email_region:
         s.email.aws_region = env_email_region
+
+    env_dup_detection = os.environ.get("ENABLE_DUPLICATE_DETECTION")
+    if env_dup_detection is not None:
+        s.curation.enable_duplicate_detection = env_dup_detection.lower() in ("1", "true", "yes")
+
+    env_ai_scoring = os.environ.get("ENABLE_AI_SCORING")
+    if env_ai_scoring is not None:
+        s.curation.enable_ai_scoring = env_ai_scoring.lower() in ("1", "true", "yes")
+
+    env_connector_key = os.environ.get("CONNECTOR_CREDENTIALS_KEY")
+    if env_connector_key:
+        s.connector.credentials_key = env_connector_key
 
     return s
 

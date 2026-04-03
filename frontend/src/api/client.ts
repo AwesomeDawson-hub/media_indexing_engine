@@ -5,6 +5,8 @@ import type {
   BatchUploadResponse,
   PaginatedResponse,
   MediaItemResponse,
+  SimilarItemsResponse,
+  ScoreGroupResponse,
   AnalysisResponse,
   ReanalyzeResponse,
   SearchResponse,
@@ -18,6 +20,10 @@ import type {
   BillingStatus,
   CheckoutSessionResponse,
   PortalSessionResponse,
+  ConnectorS3ConfigRequest,
+  ConnectorResponse,
+  SyncRunsResponse,
+  TriggerSyncResponse,
 } from '../types/api';
 
 const BASE_URL = '';
@@ -391,6 +397,34 @@ export async function restoreSource(id: string): Promise<SourceResponse> {
   return request<SourceResponse>(`/api/v1/sources/${id}/restore`, { method: 'POST' });
 }
 
+export async function configureS3Connector(
+  sourceId: string,
+  config: ConnectorS3ConfigRequest,
+): Promise<ConnectorResponse> {
+  return request<ConnectorResponse>(`/api/v1/sources/${sourceId}/connector/s3`, {
+    method: 'POST',
+    body: JSON.stringify(config),
+  });
+}
+
+export async function getConnector(sourceId: string): Promise<ConnectorResponse> {
+  return request<ConnectorResponse>(`/api/v1/sources/${sourceId}/connector`);
+}
+
+export async function triggerSync(sourceId: string): Promise<TriggerSyncResponse> {
+  return request<TriggerSyncResponse>(`/api/v1/sources/${sourceId}/sync`, { method: 'POST' });
+}
+
+export async function listSyncRuns(
+  sourceId: string,
+  page = 1,
+  perPage = 20,
+): Promise<SyncRunsResponse> {
+  return request<SyncRunsResponse>(
+    `/api/v1/sources/${sourceId}/sync-runs?page=${page}&per_page=${perPage}`,
+  );
+}
+
 export async function getQuotaStatus(): Promise<QuotaStatus> {
   return request<QuotaStatus>('/api/v1/quota/status');
 }
@@ -498,6 +532,18 @@ export async function createCheckoutSession(priceId: string): Promise<CheckoutSe
 
 export async function createPortalSession(): Promise<PortalSessionResponse> {
   return request<PortalSessionResponse>('/api/v1/billing/create-portal-session', {
+    method: 'POST',
+  });
+}
+
+// Near-duplicate detection (P5-001) + AI scoring (P5-002)
+
+export async function getSimilarMedia(id: string): Promise<SimilarItemsResponse> {
+  return request<SimilarItemsResponse>(`/api/v1/media/${id}/similar`);
+}
+
+export async function scoreGroup(id: string): Promise<ScoreGroupResponse> {
+  return request<ScoreGroupResponse>(`/api/v1/media/${id}/score-group`, {
     method: 'POST',
   });
 }

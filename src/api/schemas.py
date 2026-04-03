@@ -17,6 +17,9 @@ class MediaItemResponse(BaseModel):
     source_id: str | None = None
     source_name: str | None = None
     created_at: datetime
+    # Duplicate-detection summary (populated when feature gate is ON)
+    has_similar: bool = False
+    similar_count: int = 0
 
     model_config = {"from_attributes": True}
 
@@ -128,23 +131,7 @@ class SearchResponse(BaseModel):
     results: list[SearchResultItemResponse]
 
 
-# Source schemas
-
-class SourceResponse(BaseModel):
-    id: str
-    name: str
-    source_type: str
-    archived_at: datetime | None = None
-    created_at: datetime
-    media_count: int = 0
-
-    model_config = {"from_attributes": True}
-
-
-class SourceCreateRequest(BaseModel):
-    name: str = Field(..., min_length=1, max_length=200)
-    source_type: str = Field(default="manual")
-
+# Source schemas are defined in the P5-003 connector section below.
 
 # Auth schemas
 
@@ -333,3 +320,117 @@ class CheckoutSessionResponse(BaseModel):
 
 class PortalSessionResponse(BaseModel):
     portal_url: str
+
+
+# Near-duplicate detection schemas (P5-001) + AI scoring (P5-002)
+
+class SimilarItemResponse(BaseModel):
+    id: str
+    hamming_distance: int
+    media_item: MediaItemResponse
+    # AI quality scoring — populated when enable_ai_scoring gate is ON and item
+    # has been scored. Null values mean "not yet scored"; they are not an error.
+    quality_score: float | None = None
+    rationale: str | None = None
+    is_best_pick: bool = False
+
+
+class SimilarItemsResponse(BaseModel):
+    anchor_id: str
+    similar: list[SimilarItemResponse]
+    # Anchor's own AI quality score (P5-002) — null when not yet scored
+    anchor_quality_score: float | None = None
+    anchor_rationale: str | None = None
+    anchor_is_best_pick: bool = False
+
+
+class ScoreGroupResponse(BaseModel):
+    """Response from POST /media/{id}/score-group (P5-002)."""
+    anchor_id: str
+    scored_count: int
+    failed_count: int
+    best_pick_id: str | None = None
+    message: str
+
+
+# ---------------------------------------------------------------------------
+# Source connector schemas (P5-003)
+# ---------------------------------------------------------------------------
+
+class SourceResponse(BaseModel):
+    id: str
+    name: str
+    source_type: str
+    archived_at: datetime | None = None
+    created_at: datetime
+    media_count: int = 0
+    # Connector summary (only meaningful for connected sources)
+    connector_status: str | None = None
+    last_synced_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class SourceCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    source_type: str = Field(default="manual")
+
+
+class ConnectorS3ConfigRequest(BaseModel):
+    """Request body for POST /sources/{id}/connector/s3."""
+    bucket_name: str = Field(..., min_length=1, max_length=255)
+    access_key_id: str = Field(..., min_length=1, max_length=256)
+    secret_access_key: str = Field(..., min_length=1, max_length=512)
+    region: str | None = Field(default=None, max_length=100)
+    endpoint_url: str | None = Field(default=None, max_length=500)
+    prefix: str | None = Field(default=None, max_length=500)
+
+
+class ConnectorResponse(BaseModel):
+    """Connector configuration response — never exposes secrets."""
+    id: str
+    source_id: str
+    connector_type: str
+    bucket_name: str
+    prefix: str | None = None
+    region: str | None = None
+    endpoint_url: str | None = None
+    config_validated_at: datetime | None = None
+    last_validation_error: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class SyncRunResponse(BaseModel):
+    """One sync run record."""
+    id: str
+    source_id: str
+    connector_type: str
+    trigger_type: str
+    status: str
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    discovered_count: int = 0
+    imported_count: int = 0
+    duplicate_count: int = 0
+    skipped_count: int = 0
+    failed_count: int = 0
+    error_summary: str | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class SyncRunsResponse(BaseModel):
+    """Paginated list of sync runs."""
+    runs: list[SyncRunResponse]
+    total: int
+
+
+class TriggerSyncResponse(BaseModel):
+    """Immediate response from POST /sources/{id}/sync."""
+    sync_run_id: str
+    status: str
+    message: str

@@ -71,6 +71,33 @@ export interface MediaItemResponse {
   source_id?: string;
   source_name?: string;
   created_at: string;
+  has_similar?: boolean;
+  similar_count?: number;
+}
+
+export interface SimilarItemResponse {
+  id: string;
+  hamming_distance: number;
+  media_item: MediaItemResponse;
+  quality_score?: number | null;
+  rationale?: string | null;
+  is_best_pick?: boolean;
+}
+
+export interface SimilarItemsResponse {
+  anchor_id: string;
+  similar: SimilarItemResponse[];
+  anchor_quality_score?: number | null;
+  anchor_rationale?: string | null;
+  anchor_is_best_pick?: boolean;
+}
+
+export interface ScoreGroupResponse {
+  anchor_id: string;
+  scored_count: number;
+  failed_count: number;
+  best_pick_id?: string | null;
+  message: string;
 }
 
 export interface PaginatedResponse {
@@ -164,6 +191,61 @@ export interface SourceResponse {
   archived_at?: string | null;
   created_at: string;
   media_count: number;
+  connector_status?: string | null;
+  last_synced_at?: string | null;
+}
+
+// P5-003 Connector / sync types
+
+export interface ConnectorS3ConfigRequest {
+  bucket_name: string;
+  access_key_id: string;
+  secret_access_key: string;
+  region?: string;
+  endpoint_url?: string;
+  prefix?: string;
+}
+
+export interface ConnectorResponse {
+  id: string;
+  source_id: string;
+  connector_type: string;
+  bucket_name: string;
+  prefix?: string | null;
+  region?: string | null;
+  endpoint_url?: string | null;
+  config_validated_at?: string | null;
+  last_validation_error?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SyncRunResponse {
+  id: string;
+  source_id: string;
+  connector_type: string;
+  trigger_type: string;
+  status: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+  discovered_count: number;
+  imported_count: number;
+  duplicate_count: number;
+  skipped_count: number;
+  failed_count: number;
+  error_summary?: string | null;
+  created_at: string;
+}
+
+export interface SyncRunsResponse {
+  runs: SyncRunResponse[];
+  total: number;
+}
+
+export interface TriggerSyncResponse {
+  sync_run_id: string;
+  status: string;
+  message: string;
 }
 
 export interface ApiError {

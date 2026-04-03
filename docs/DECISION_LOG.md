@@ -170,3 +170,23 @@ Each decision follows this structure:
 - **Reasoning:** Defense-in-depth is a core security principle. If ChromaDB's user filter were bypassed (by a ChromaDB bug, misconfiguration, or future refactor), the DB would silently return another user's records. Adding `user_id` at the DB level costs nothing (indexed column) and eliminates the entire vulnerability class.
 - **Alternatives considered:** Relying solely on ChromaDB filtering (rejected — single point of failure for a security-sensitive constraint), application-layer post-filtering (rejected — still exposes data in the DB result before filtering).
 - **Consequences:** Every new list or search endpoint added in future workstreams MUST include user_id scoping in its DB query. This is now an explicit inviolable rule (see `PROJECT_AI_CONTEXT.md` "What AI Must NOT Do"). Failure to include it is a security defect, not a code style issue.
+
+### ADR-014: Connector Configuration Uses Split Tables and Encrypted Per-Source Credentials
+- **Date:** 2026-04-02
+- **Workstream:** P5-003
+- **Status:** Accepted
+- **Context:** Phase 5 introduces the first connected-ingestion source. The existing `sources` table was designed as a lightweight source registry for manual uploads and currently owns user-facing source identity only (`name`, `source_type`, archive state). Connector-based ingestion adds provider configuration, operational state, and per-source credentials that should not be mixed into the generic source contract.
+- **Decision:** Keep `sources` as the stable user-facing registry and add a one-to-one `source_connectors` table for connector-specific configuration. Sensitive connector credentials are stored encrypted at rest in `source_connectors.credentials_encrypted` using an application-managed encryption key from environment configuration. Non-secret operational fields such as bucket, prefix, region, and endpoint URL may remain in plain columns.
+- **Reasoning:** Split tables keep manual sources simple, prevent `sources` from turning into a sparse connector blob, and isolate security-sensitive fields from normal source list/read paths. Application-managed encryption avoids plaintext database storage without requiring a new external secrets vendor.
+- **Alternatives considered:** Store connector config directly on `sources` (rejected: weak separation of concerns, spreads secret-bearing fields across a generic table), environment-only connector credentials (rejected: cannot support per-user or per-source credentials), plaintext DB storage (rejected: unacceptable security posture).
+- **Consequences:** Connector APIs must fail closed when the encryption key is absent. Secret material must never appear in API responses or logs. Future connector families can add provider-specific config while preserving the stable `sources` contract.
+
+### ADR-015: Manual-Triggered Sync Foundation Reuses Existing Ingestion Pipeline
+- **Date:** 2026-04-02
+- **Workstream:** P5-003
+- **Status:** Accepted
+- **Context:** Connector sync introduces automated import behavior, run history, and remote-object memory. Without an explicit boundary, implementation could drift into a second ingestion pipeline that bypasses the exact-dedup, quota, storage, and analysis rules already proven in earlier workstreams.
+- **Decision:** Phase 5 connector sync is manual-trigger only and must reuse the existing upload/ingestion pipeline for all imported files. Add dedicated `sync_runs` and `source_objects` tables for connector execution state and idempotent remote-object tracking, but do not overload `processing_jobs` and do not introduce a recurring scheduler in Phase 5.
+- **Reasoning:** Reusing the existing ingest path preserves one authoritative import contract and ensures connector imports inherit exact deduplication, quota enforcement, storage, and downstream analysis automatically. Manual trigger proves the connector foundation without forcing a scheduler, worker orchestration layer, or broad operational redesign into the final Phase 5 workstream.
+- **Alternatives considered:** Parallel connector-specific ingest path (rejected: duplicate logic and drift risk), overload `processing_jobs` for sync runs (rejected: media-item job model does not fit source-level execution), scheduled sync in Phase 5 (rejected: too much orchestration complexity for the current sprint).
+- **Consequences:** Connector code is responsible only for config validation, remote listing/download, and sync-state bookkeeping before handing files to the existing ingestion service. Scheduled sync, remote delete propagation, and broader orchestration remain deferred to a later phase or follow-up ADR.

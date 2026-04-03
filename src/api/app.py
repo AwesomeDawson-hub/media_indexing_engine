@@ -11,7 +11,7 @@ from src.config import settings
 from src.database import create_tables, run_migrations, async_session
 from src.models import User
 from src.api.dependencies import DEV_USER_ID
-from src.api.routes import upload, media, analysis, search, auth, download, health, quota, sources, admin, billing
+from src.api.routes import upload, media, analysis, search, auth, download, health, quota, sources, admin, billing, connectors
 from src.api.error_handlers import register_error_handlers
 from src.analysis.processor import analyze_media_item
 from src.ingestion.job_manager import get_pending_jobs
@@ -85,6 +85,7 @@ def create_app() -> FastAPI:
     app.include_router(download.router)
     app.include_router(quota.router)
     app.include_router(sources.router)
+    app.include_router(connectors.router)
     app.include_router(admin.router)
     app.include_router(billing.router)
     return app

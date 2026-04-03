@@ -25,30 +25,38 @@ This document tracks all work items for the Media Indexing Engine through their 
 
 ## Planned
 
-_Phase 4 — Beta Operations & Commercial Foundations. Full phase plan at `docs/planning/PHASE_4_beta_operations_plan.md`. Workstreams use `P4-XXX` prefix._
+_Phase 5 — Smart Curation & Connected Ingestion. Full phase plan at `docs/planning/PHASE_5_plan.md`. Workstreams use `P5-XXX` prefix._
 
+_No workstreams currently planned._
 
+---
 
+## Future
 
+### Future: Google Drive Connector
+- **Objective:** Add OAuth-based Google Drive ingestion on top of the connector foundation.
+- **Phase:** Later than Phase 5
+- **Status:** Deferred — OAuth and provider-specific API behavior would over-expand the focused sprint.
 
-### Future: Near-Duplicate Detection & AI Best-Photo Selection
-- **Objective:** Detect visually similar images (burst shots, near-duplicates) and group them together; optionally have AI recommend the best image in a group based on technical quality signals (eyes open, faces looking at camera, sharpness, exposure).
-- **Design notes:** Phase 1 — perceptual hashing (pHash or similar) on ingest; store hash in `media_metadata`; query for Hamming distance ≤ threshold to find near-duplicates. Surface groups in the Gallery with a "similar photos" indicator. Phase 2 — AI quality scoring pass using the vision model to evaluate face quality signals in grouped images and emit a `best_pick` recommendation flag. Backend: new `perceptual_hash` column + similarity query endpoint. Frontend: grouping UI in Gallery, best-pick badge on detail page. Exact-duplicate blocking (content hash) already exists from P1; this is additive.
-- **Source:** Beta tester feedback, 2026-04-02
-- **Phase:** Phase 5 or later — backend + AI scope; architect review recommended when scoping
-- **Status:** Backlog — needs scoping before workstream is created
+### Future: Dropbox Connector
+- **Objective:** Add Dropbox ingestion on top of the connector foundation.
+- **Phase:** Later than Phase 5
+- **Status:** Deferred — same connector/OAuth expansion risk as Google Drive.
 
-### Future: Ingestion Connectors (Source Sync)
-- **Objective:** Extend the Source Registry (P4-003) to support connected sources — cloud storage accounts (S3, Google Drive, Dropbox), local watched folders, etc. — so the system can automatically ingest media from those origins.
-- **Design notes:** Add a `config` JSONB column to `sources`, implement a sync/ingestion job system (poll or webhook), store credentials encrypted. Current `source_type` field already anticipates this (currently `"manual"`; future values: `"s3_bucket"`, `"google_drive"`, `"local_folder"`, etc.). No schema changes needed before this workstream starts.
-- **Phase:** Phase 5 or later
-- **Status:** Future idea — architect review recommended when scoping
+### Future: Local Watched Folder Connector
+- **Objective:** Support automatic ingestion from a user's local filesystem.
+- **Phase:** Later than Phase 5
+- **Status:** Deferred — requires an agent or bridge component not present in the current hosted architecture.
 
 ---
 
 ## In Progress
 
 _No workstreams currently in progress._
+
+---
+
+## Post-Phase 4 Improvements (Applied 2026-04-02)
 
 ---
 
@@ -89,6 +97,30 @@ _These changes were applied directly without a formal workstream, after Phase 1 
 ---
 
 ## Completed
+
+### P5-003: Connector Sync Foundation & First Connector
+- **Objective:** Extend Source Registry into a real connected-ingestion system with sync state, idempotent import behavior, and one production-ready S3-compatible connector.
+- **Phase:** Phase 5 — Smart Curation & Connected Ingestion
+- **Status:** Completed
+- **Started:** 2026-04-04
+- **Completed:** 2026-04-04
+- **Outcome:** Full connector sync foundation. Alembic migration `f6a7b8c9d0e1` adds `connector_status`/`last_synced_at` to `sources`; creates `source_connectors`, `sync_runs`, `source_objects` tables. `ConnectorConfig` with `credentials_key` + `max_objects_per_sync` in config.py (env `CONNECTOR_CREDENTIALS_KEY`). `src/connectors/` package: `secrets.py` (Fernet encrypt/decrypt, fail-closed guard), `base.py` (RemoteObject, ConnectorBase ABC), `s3_connector.py` (S3Connector + factory), `sync_service.py` (trigger_sync, _run_sync, idempotency, overlap prevention, quota reservation, per-object error isolation). 4 new connector API endpoints under `/api/v1/sources/{id}`. Frontend: connector status badge, S3 config form, sync trigger button, sync runs table. 18 new tests all passing. See `IMPLEMENTATION_STATUS.md` for full details.
+
+### P5-002: AI Best-Photo Selection
+- **Objective:** Score images inside near-duplicate groups and recommend the strongest candidate so users can curate burst shots faster.
+- **Phase:** Phase 5 — Smart Curation & Connected Ingestion
+- **Status:** Completed
+- **Started:** 2026-04-02
+- **Completed:** 2026-04-02
+- **Outcome:** AI quality scoring for near-duplicate groups. `curation_scores` table (Alembic migration `a1b2c3d4e5f6`). `CurationScore` ORM model + `curation_score` relationship on `MediaItem`. `CurationConfig.enable_ai_scoring` feature gate (default OFF, env `ENABLE_AI_SCORING`). `src/curation/scoring_service.py`: `score_group()`, `load_scores_for_items()`, `find_best_pick()`, `SCORING_SYSTEM_PROMPT`. `POST /api/v1/media/{id}/score-group` endpoint. `GET /api/v1/media/{id}/similar` extended with quality scores + best-pick flags. Frontend: "Find best pick" button, 👑 crown on best pick, quality score badges. 16 new tests. See `IMPLEMENTATION_STATUS.md` for full details.
+
+### P5-001: Near-Duplicate Detection Core
+- **Objective:** Detect visually similar images per user, generate near-duplicate groups, and surface those groups in the Gallery without changing the existing exact-dedup upload rules.
+- **Phase:** Phase 5 — Smart Curation & Connected Ingestion
+- **Status:** Completed
+- **Started:** 2026-04-03
+- **Completed:** 2026-04-03
+- **Outcome:** Perceptual hash (64-bit pHash, `imagehash` library) stored on `media_items`. Upload pipeline hashes new files post-commit (non-fatal). Gallery page shows "N similar" badge when gate ON. `GET /api/v1/media/{id}/similar` returns near-duplicate list. Backfill script for existing items. 16 new tests. Feature gated via `ENABLE_DUPLICATE_DETECTION` (default OFF). See `IMPLEMENTATION_STATUS.md` for full details.
 
 ### P4-006: OCR Search Enrichment
 - **Objective:** Extract text from images using Tesseract OCR, store alongside AI metadata, and incorporate into semantic search.

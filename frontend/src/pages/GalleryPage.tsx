@@ -604,6 +604,8 @@ export default function GalleryPage() {
                       mimeType={item.mime_type}
                       fromPath={location.pathname + location.search}
                       ids={currentIds}
+                      hasSimilar={item.has_similar}
+                      similarCount={item.similar_count}
                     />
                   ))}
                 </div>
