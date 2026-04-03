@@ -1,16 +1,21 @@
 """Upload service: orchestrates validate → hash → dedup → store → DB records."""
 
 import io
+import logging
 from dataclasses import dataclass
 
 from PIL import Image
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.curation.phash_service import compute_phash, PHASH_VERSION, phash_timestamp
 from src.ingestion.validation import validate_file, detect_mime_type
 from src.ingestion.hashing import compute_sha256
 from src.ingestion.dedup import check_duplicate
 from src.models import MediaItem, ProcessingJob
 from src.storage.file_store import FileStore
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -97,11 +102,37 @@ class UploadService:
             await db.flush()
             job_id = processing_job.id
             await db.commit()
+        except IntegrityError:
+            # Concurrent upload of identical content beat us to the commit.
+            # Roll back, clean up the stored file, then re-query for the winner.
+            await db.rollback()
+            await self._file_store.delete(storage_path)
+            existing = await check_duplicate(db, user_id, content_hash)
+            if existing is not None:
+                return UploadResult(success=True, is_duplicate=True, media_item=existing)
+            # Should not happen; re-raise if we still can't find the item.
+            raise
         except Exception:
             await db.rollback()
             # Clean up stored file on DB failure
             await self._file_store.delete(storage_path)
             raise
+
+        # 8. Compute perceptual hash — non-fatal; failure leaves phash columns NULL
+        try:
+            phash = compute_phash(file_bytes, mime_type)
+            if phash is not None:
+                media_item.perceptual_hash = phash
+                media_item.phash_version = PHASH_VERSION
+                media_item.phash_computed_at = phash_timestamp()
+                await db.commit()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "pHash computation failed for media_item=%s (mime=%s): %s",
+                media_item.id,
+                mime_type,
+                exc,
+            )
 
         return UploadResult(success=True, is_duplicate=False, media_item=media_item, processing_job_id=job_id)
 

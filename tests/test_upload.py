@@ -207,3 +207,39 @@ async def test_batch_upload_marks_over_limit_file_as_error(client, db_engine):
     async with factory() as db:
         items = (await db.execute(select(MediaItem))).scalars().all()
         assert len(items) == 1
+
+
+@pytest.mark.asyncio
+async def test_concurrent_duplicate_handled_gracefully(db_engine, db_session_factory, seed_users, tmp_path):
+    """When a concurrent upload slips past the dedup check (race), the resulting
+    IntegrityError is caught and returns a graceful duplicate result — not a 500."""
+    from unittest.mock import AsyncMock, patch
+    from src.ingestion.upload_service import UploadService
+    from src.storage.file_store import LocalFileStore
+
+    service = UploadService(LocalFileStore(str(tmp_path)))
+
+    # First upload: commits the item normally.
+    async with db_session_factory() as db1:
+        result1 = await service.process_upload(db1, "test-user-1", "photo.jpg", JPEG_BYTES)
+    assert result1.success is True
+    assert result1.is_duplicate is False
+
+    # Second upload: simulate the race by bypassing the dedup check so process_upload
+    # reaches the DB INSERT and hits the unique constraint.
+    from src.ingestion.dedup import check_duplicate as real_check_duplicate
+    call_count = 0
+
+    async def dedup_side_effect(db, user_id, content_hash):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return None  # Simulate race: initial check sees no conflict yet
+        return await real_check_duplicate(db, user_id, content_hash)
+
+    async with db_session_factory() as db2:
+        with patch("src.ingestion.upload_service.check_duplicate", side_effect=dedup_side_effect):
+            result2 = await service.process_upload(db2, "test-user-1", "photo - Copy.jpg", JPEG_BYTES)
+
+    assert result2.success is True, f"expected success, got error: {result2.error}"
+    assert result2.is_duplicate is True
