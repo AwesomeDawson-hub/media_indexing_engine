@@ -46,4 +46,4 @@ auth:
   secret_key: "dev-secret-change-in-production"
   algorithm: "HS256"
   access_token_expire_minutes: 60
-  dev_mode: true
+  dev_mode: false

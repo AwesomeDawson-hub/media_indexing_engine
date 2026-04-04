@@ -178,6 +178,11 @@ def load_settings(path: Path = DEFAULT_SETTINGS_PATH) -> Settings:
     if env_secret:
         s.auth.secret_key = env_secret
 
+    # Override dev_mode from env var — set AUTH_DEV_MODE=false in production
+    env_dev_mode = os.environ.get("AUTH_DEV_MODE")
+    if env_dev_mode is not None:
+        s.auth.dev_mode = env_dev_mode.lower() not in ("false", "0", "no")
+
     # Override database URL from env var (production / Docker override)
     env_db_url = os.environ.get("DATABASE_URL")
     if env_db_url:
