@@ -12,9 +12,8 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       # Storage: "local" (default) or "s3"
       - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
-      # S3 settings — required when STORAGE_PROVIDER=s3
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      # S3 settings — required when STORAGE_PROVIDER=s3 and no IAM instance role
+      # Leave unset to use EC2 instance profile (recommended)
       - S3_BUCKET=${S3_BUCKET:-}
       - S3_REGION=${S3_REGION:-us-east-1}
       # Email / SES — set EMAIL_FROM to enable password-reset emails
