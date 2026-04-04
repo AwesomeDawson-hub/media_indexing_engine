@@ -17,6 +17,9 @@ services:
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
       - S3_BUCKET=${S3_BUCKET:-}
       - S3_REGION=${S3_REGION:-us-east-1}
+      # Email / SES — set EMAIL_FROM to enable password-reset emails
+      - EMAIL_FROM=${EMAIL_FROM:-}
+      - EMAIL_AWS_REGION=${EMAIL_AWS_REGION:-us-east-1}
     volumes:
       # Local file storage (used when STORAGE_PROVIDER=local)
       - ./uploads:/app/uploads
