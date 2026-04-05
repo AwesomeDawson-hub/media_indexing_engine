@@ -546,6 +546,26 @@ export async function resendVerificationEmail(): Promise<{ message: string; toke
   });
 }
 
+export async function uploadAvatar(file: File): Promise<UserProfile> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const token = getToken();
+  const resp = await fetch('/api/v1/auth/me/avatar', {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.detail || `Upload failed: ${resp.status}`);
+  }
+  return resp.json();
+}
+
+export async function deleteAvatar(): Promise<void> {
+  await request<void>('/api/v1/auth/me/avatar', { method: 'DELETE' });
+}
+
 // Admin API
 
 export async function adminListUsers(

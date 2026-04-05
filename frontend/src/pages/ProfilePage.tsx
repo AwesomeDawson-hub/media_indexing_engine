@@ -1,8 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import * as api from '../api/client';
+import { useAuthImage, clearAuthImageCache } from '../api/useAuthImage';
 import type { UserProfile } from '../types/api';
 
-function Avatar({ name, imageUrl }: { name: string; imageUrl?: string | null }) {
+function Avatar({ name, iconUrl, onUpload, onRemove, uploading }: {
+  name: string;
+  iconUrl?: string | null;
+  onUpload: (file: File) => void;
+  onRemove: () => void;
+  uploading: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Use auth-gated fetch for internal storage paths; direct URL for external http links
+  const isInternal = !!iconUrl && !iconUrl.startsWith('http');
+  const avatarSrc = useAuthImage(isInternal ? '/api/v1/auth/me/avatar' : '');
+
   const initials = name
     .split(' ')
     .map((w) => w[0])
@@ -10,10 +22,50 @@ function Avatar({ name, imageUrl }: { name: string; imageUrl?: string | null }) 
     .slice(0, 2)
     .toUpperCase();
 
-  if (imageUrl) {
-    return <img className="profile-avatar" src={imageUrl} alt={name} />;
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) onUpload(file);
+    // Reset input so same file can be re-selected
+    e.target.value = '';
   }
-  return <div className="profile-avatar profile-avatar--initials">{initials}</div>;
+
+  return (
+    <div className="profile-avatar-wrapper">
+      <div
+        className={`profile-avatar-click ${uploading ? 'profile-avatar-click--uploading' : ''}`}
+        onClick={() => !uploading && inputRef.current?.click()}
+        title="Click to change avatar"
+      >
+        {isInternal && avatarSrc ? (
+          <img className="profile-avatar" src={avatarSrc} alt={name} />
+        ) : iconUrl && iconUrl.startsWith('http') ? (
+          <img className="profile-avatar" src={iconUrl} alt={name} />
+        ) : (
+          <div className="profile-avatar profile-avatar--initials">{initials}</div>
+        )}
+        <div className="profile-avatar-overlay">
+          {uploading ? '…' : '📷'}
+        </div>
+      </div>
+      {iconUrl && (
+        <button
+          className="profile-avatar-remove"
+          onClick={onRemove}
+          title="Remove avatar"
+          disabled={uploading}
+        >
+          ✕
+        </button>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+      />
+    </div>
+  );
 }
 
 export default function ProfilePage() {
@@ -21,6 +73,10 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saveMsg, setSaveMsg] = useState('');
   const [saveError, setSaveError] = useState('');
+
+  // Avatar
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarMsg, setAvatarMsg] = useState('');
 
   // Profile fields
   const [displayName, setDisplayName] = useState('');
@@ -53,8 +109,37 @@ export default function ProfilePage() {
     }).catch(() => setLoading(false));
   }, []);
 
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleAvatarUpload(file: File) {
+    setAvatarUploading(true);
+    setAvatarMsg('');
+    try {
+      const updated = await api.uploadAvatar(file);
+      clearAuthImageCache();  // Bust so the new avatar is fetched
+      setProfile(updated);
+      setAvatarMsg('Avatar updated.');
+    } catch (err: unknown) {
+      setAvatarMsg(err instanceof Error ? err.message : 'Upload failed.');
+    } finally {
+      setAvatarUploading(false);
+    }
+  }
+
+  async function handleAvatarRemove() {
+    setAvatarUploading(true);
+    setAvatarMsg('');
+    try {
+      await api.deleteAvatar();
+      clearAuthImageCache();
+      setProfile((p) => p ? { ...p, icon_url: null } : p);
+      setAvatarMsg('Avatar removed.');
+    } catch {
+      setAvatarMsg('Failed to remove avatar.');
+    } finally {
+      setAvatarUploading(false);
+    }
+  }
+
+  async function handleSave(e: React.FormEvent) {    e.preventDefault();
     setSaveMsg('');
     setSaveError('');
     try {
@@ -137,7 +222,20 @@ export default function ProfilePage() {
     <div className="profile-page">
       {/* Header */}
       <div className="profile-header">
-        <Avatar name={profile.display_name} imageUrl={profile.icon_url} />
+        <div>
+          <Avatar
+            name={profile.display_name}
+            iconUrl={profile.icon_url}
+            onUpload={handleAvatarUpload}
+            onRemove={handleAvatarRemove}
+            uploading={avatarUploading}
+          />
+          {avatarMsg && (
+            <div className={`avatar-msg ${avatarMsg.includes('fail') || avatarMsg.includes('failed') ? 'avatar-msg--error' : 'avatar-msg--ok'}`}>
+              {avatarMsg}
+            </div>
+          )}
+        </div>
         <div className="profile-header-info">
           <h1 className="profile-header-name">{profile.display_name}</h1>
           <p className="profile-header-email">{profile.email}</p>

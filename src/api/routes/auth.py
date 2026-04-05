@@ -4,7 +4,7 @@ import re
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,6 +27,13 @@ from src.auth.tokens import create_access_token
 from src.config import settings
 from src.email_service import send_email_verification, send_password_reset
 from src.models import PendingToken, User
+from src.storage.file_store import get_file_store
+
+_file_store = get_file_store(settings.storage)
+
+_AVATAR_ALLOWED_MIME = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+_AVATAR_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
+_AVATAR_EXT = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif"}
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -374,3 +381,69 @@ async def resend_verification_email(
         return {"token": plaintext, "message": "Verification email sent."}
 
     return {"message": "Verification email sent. Check your inbox."}
+
+
+# --- Avatar upload/serve ---
+
+@router.post("/me/avatar")
+async def upload_avatar(
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UserProfile:
+    """Upload a profile avatar image. Replaces any existing avatar."""
+    if user.disabled_at is not None:
+        raise HTTPException(status_code=403, detail="Account disabled")
+
+    content_type = (file.content_type or "").split(";")[0].strip().lower()
+    if content_type not in _AVATAR_ALLOWED_MIME:
+        raise HTTPException(status_code=400, detail="File must be JPEG, PNG, WebP, or GIF")
+
+    file_bytes = await file.read()
+    if len(file_bytes) > _AVATAR_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="Avatar must be 5 MB or smaller")
+
+    ext = _AVATAR_EXT[content_type]
+    storage_path = await _file_store.save(
+        user_id="avatars",
+        content_hash=user.id,
+        original_filename=f"avatar{ext}",
+        file_bytes=file_bytes,
+    )
+
+    user.icon_url = storage_path
+    await db.commit()
+    await db.refresh(user)
+    return UserProfile.model_validate(user)
+
+
+@router.delete("/me/avatar", status_code=204)
+async def delete_avatar(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Remove the current user's avatar."""
+    if user.icon_url and not user.icon_url.startswith("http"):
+        try:
+            await _file_store.delete(user.icon_url)
+        except Exception:
+            pass  # Storage delete failure is non-fatal
+
+    user.icon_url = None
+    await db.commit()
+
+
+@router.get("/me/avatar")
+async def get_avatar(
+    user: User = Depends(get_current_user),
+) -> Response:
+    """Serve the current user's avatar image."""
+    if not user.icon_url or user.icon_url.startswith("http"):
+        raise HTTPException(status_code=404, detail="No avatar uploaded")
+
+    file_bytes = await _file_store.read(user.icon_url)
+    ext = user.icon_url.rsplit(".", 1)[-1].lower() if "." in user.icon_url else "jpg"
+    mime_map = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+                "webp": "image/webp", "gif": "image/gif"}
+    mime = mime_map.get(ext, "image/jpeg")
+    return Response(content=file_bytes, media_type=mime)

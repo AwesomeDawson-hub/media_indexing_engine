@@ -2394,3 +2394,81 @@ input:focus {
   background: #fee2e2;
   color: #dc2626;
 }
+
+/* === Avatar Upload === */
+.profile-avatar-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.profile-avatar-click {
+  position: relative;
+  cursor: pointer;
+  border-radius: 50%;
+  overflow: hidden;
+  display: inline-block;
+}
+
+.profile-avatar-click--uploading {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.profile-avatar-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  opacity: 0;
+  transition: opacity 0.15s;
+  border-radius: 50%;
+}
+
+.profile-avatar-click:hover .profile-avatar-overlay {
+  opacity: 1;
+}
+
+.profile-avatar-remove {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 20px;
+  height: 20px;
+  background: #ef4444;
+  color: #fff;
+  border: 2px solid var(--bg, #0f0f1a);
+  border-radius: 50%;
+  font-size: 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.profile-avatar-remove:hover:not(:disabled) {
+  background: #dc2626;
+}
+
+.profile-avatar-remove:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.avatar-msg {
+  font-size: 0.8rem;
+  margin-top: 6px;
+  text-align: center;
+}
+
+.avatar-msg--ok {
+  color: #34d399;
+}
+
+.avatar-msg--error {
+  color: #f87171;
+}
