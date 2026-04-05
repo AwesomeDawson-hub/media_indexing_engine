@@ -606,6 +606,8 @@ export default function GalleryPage() {
                       ids={currentIds}
                       hasSimilar={item.has_similar}
                       similarCount={item.similar_count}
+                      selected={selected.has(item.id)}
+                      onSelect={handleSelect}
                     />
                   ))}
                 </div>
@@ -683,12 +685,25 @@ export default function GalleryPage() {
               {view === 'grid' ? (
                 <div className="search-results">
                   {searchResults.map((r) => (
-                    <Link
+                    <div
                       key={r.media_item.id}
-                      to={`/media/${r.media_item.id}`}
-                      state={{ from: location.pathname + location.search, ids: currentIds }}
-                      className="search-result-card card"
+                      className={`search-result-card-wrapper${selected.has(r.media_item.id) ? ' media-card-wrapper--selected' : ''}`}
                     >
+                      <label
+                        className="media-card-checkbox"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selected.has(r.media_item.id)}
+                          onChange={(e) => handleSelect(r.media_item.id, e.target.checked)}
+                        />
+                      </label>
+                      <Link
+                        to={`/media/${r.media_item.id}`}
+                        state={{ from: location.pathname + location.search, ids: currentIds }}
+                        className="search-result-card card"
+                      >
                       <div className="search-result-thumb">
                         {r.media_item.mime_type.startsWith('image/') ? (
                           <AuthImage
@@ -719,6 +734,7 @@ export default function GalleryPage() {
                         )}
                       </div>
                     </Link>
+                    </div>
                   ))}
                 </div>
               ) : (

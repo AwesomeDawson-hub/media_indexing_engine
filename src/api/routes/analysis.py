@@ -7,7 +7,7 @@ from sqlalchemy import delete as sql_delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_db, get_current_user_id
-from src.api.schemas import AnalysisResponse, MetadataFields, JobInfo, ReanalyzeRequest, ReanalyzeResponse, MetadataUpdateRequest, BatchOperationRequest, BatchReanalyzeResponse, BatchDeleteResponse
+from src.api.schemas import AnalysisResponse, MetadataFields, JobInfo, ReanalyzeRequest, ReanalyzeResponse, MetadataUpdateRequest, BatchOperationRequest, BatchReanalyzeResponse, BatchDeleteResponse, BatchTagRequest, BatchTagResponse
 from src.api.routes.upload import _vision_provider, _file_store, _indexing_service
 from src.analysis.processor import analyze_media_item
 from src.analysis.schemas import MediaMetadataResult
@@ -313,7 +313,84 @@ async def delete_batch(
     return BatchDeleteResponse(deleted=len(deleted_ids), message=f"{len(deleted_ids)} item(s) deleted")
 
 
-@router.patch("/media/{media_id}/analysis", status_code=200)
+@router.post("/media/tag-batch", status_code=200)
+async def tag_batch(
+    request: BatchTagRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+) -> BatchTagResponse:
+    """Append tags to multiple media items (max 50). Tags are merged with existing ones."""
+    result = await db.execute(
+        select(MediaMetadata)
+        .join(MediaItem, MediaMetadata.media_item_id == MediaItem.id)
+        .where(
+            MediaItem.id.in_(request.media_ids),
+            MediaItem.user_id == user_id,
+        )
+    )
+    metas = result.scalars().all()
+
+    new_tags = [t.lower() for t in request.tags]
+    updated_ids: list[str] = []
+
+    for meta in metas:
+        existing: list[str] = []
+        if meta.tags:
+            try:
+                existing = json.loads(meta.tags)
+            except Exception:
+                existing = []
+        merged = list(dict.fromkeys(existing + [t for t in new_tags if t not in existing]))
+        meta.tags = json.dumps(merged)
+        updated_ids.append(meta.media_item_id)
+
+    await db.commit()
+
+    # Re-index updated items (best-effort)
+    if updated_ids and _indexing_service is not None:
+        for meta in metas:
+            try:
+                def _parse(val: str | None) -> list:
+                    if not val:
+                        return []
+                    try:
+                        return json.loads(val)
+                    except Exception:
+                        return []
+
+                item_result = await db.execute(
+                    select(MediaItem).where(MediaItem.id == meta.media_item_id)
+                )
+                item = item_result.scalar_one_or_none()
+                if item is None:
+                    continue
+
+                metadata_result = MediaMetadataResult(
+                    title=meta.title,
+                    description=meta.description,
+                    tags=_parse(meta.tags) or ["untagged"],
+                    objects=_parse(meta.objects) or ["unknown"],
+                    scenes=_parse(meta.scenes) or ["unknown"],
+                    context=meta.context,
+                    mood=meta.mood,
+                    people=_parse(meta.people),
+                    people_count=meta.people_count,
+                    orientation=meta.orientation if meta.orientation in ("landscape", "portrait", "square") else "landscape",
+                    colors=_parse(meta.colors) or ["unknown"],
+                    location_hint=meta.location_hint,
+                    quality_notes=meta.quality_notes,
+                )
+                _indexing_service.index_media_item(
+                    meta.media_item_id,
+                    user_id,
+                    item.original_filename,
+                    metadata_result,
+                    ocr_text=meta.ocr_text or "",
+                )
+            except Exception:
+                pass  # best-effort
+
+    return BatchTagResponse(updated=len(updated_ids), message=f"{len(updated_ids)} item(s) updated")
 async def update_analysis(
     media_id: str,
     body: MetadataUpdateRequest,

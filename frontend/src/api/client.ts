@@ -300,6 +300,18 @@ export async function deleteBatch(ids: string[]): Promise<BatchDeleteResponse> {
   });
 }
 
+export interface BatchTagResponse {
+  updated: number;
+  message: string;
+}
+
+export async function tagBatch(ids: string[], tags: string[]): Promise<BatchTagResponse> {
+  return request<BatchTagResponse>('/api/v1/media/tag-batch', {
+    method: 'POST',
+    body: JSON.stringify({ media_ids: ids, tags }),
+  });
+}
+
 // Download functions
 
 export async function downloadFile(id: string): Promise<void> {

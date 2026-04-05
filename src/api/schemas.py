@@ -228,7 +228,31 @@ class BatchDeleteResponse(BaseModel):
     message: str
 
 
-class QuotaStatusResponse(BaseModel):
+class BatchTagRequest(BaseModel):
+    media_ids: list[str] = Field(..., min_length=1, max_length=50)
+    tags: list[str] = Field(..., min_length=1, max_length=20)
+
+    @field_validator("media_ids")
+    @classmethod
+    def no_empty_ids(cls, v: list[str]) -> list[str]:
+        if any(not item.strip() for item in v):
+            raise ValueError("media_ids must not contain empty strings")
+        return v
+
+    @field_validator("tags")
+    @classmethod
+    def no_empty_tags(cls, v: list[str]) -> list[str]:
+        cleaned = [t.strip() for t in v if t.strip()]
+        if not cleaned:
+            raise ValueError("tags must not be all empty strings")
+        return cleaned
+
+
+class BatchTagResponse(BaseModel):
+    updated: int
+    message: str
+
+
     plan_name: str
     monthly_limit: int
     consumed: int
