@@ -27,6 +27,7 @@ export default function MediaDetailPage() {
   const [error, setError] = useState('');
   const [reanalyzing, setReanalyzing] = useState(false);
   const [confirmReanalyze, setConfirmReanalyze] = useState(false);
+  const [reanalyzeHint, setReanalyzeHint] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [converting, setConverting] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -113,13 +114,13 @@ export default function MediaDetailPage() {
     };
   }, [id, analysis?.status, media?.status, reanalyzing]);
 
-  async function handleReanalyze() {
+  async function handleReanalyze(hint?: string) {
     if (!id) return;
     setReanalyzing(true);
     // Don't fetch analysis here — backend may still return old 'completed' status
     // (race condition). The poll effect starts because reanalyzing=true.
     try {
-      await api.reanalyze(id);
+      await api.reanalyze(id, hint || undefined);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Re-analyze failed');
       setReanalyzing(false);
@@ -382,21 +383,31 @@ export default function MediaDetailPage() {
                 </button>
               )}
               {confirmReanalyze && (
-                <span className="reanalyze-confirm">
-                  <span className="reanalyze-confirm-label">Uses 1 credit —</span>
-                  <button
-                    className="btn btn-sm btn-primary"
-                    onClick={() => { setConfirmReanalyze(false); handleReanalyze(); }}
-                  >
-                    Confirm
-                  </button>
-                  <button
-                    className="btn btn-sm btn-outline"
-                    onClick={() => setConfirmReanalyze(false)}
-                  >
-                    Cancel
-                  </button>
-                </span>
+                <div className="reanalyze-confirm">
+                  <textarea
+                    className="reanalyze-hint-input"
+                    placeholder="Optional: add guidance for the AI (e.g. 'focus on the background', 'this is a wedding photo')"
+                    value={reanalyzeHint}
+                    onChange={(e) => setReanalyzeHint(e.target.value)}
+                    maxLength={500}
+                    rows={2}
+                  />
+                  <div className="reanalyze-confirm-row">
+                    <span className="reanalyze-confirm-label">Uses 1 credit —</span>
+                    <button
+                      className="btn btn-sm btn-primary"
+                      onClick={() => { setConfirmReanalyze(false); handleReanalyze(reanalyzeHint); setReanalyzeHint(''); }}
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      className="btn btn-sm btn-outline"
+                      onClick={() => { setConfirmReanalyze(false); setReanalyzeHint(''); }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
               )}
               {reanalyzing && (
                 <span className="reanalyze-confirm-label">Analyzing...</span>
@@ -413,7 +424,14 @@ export default function MediaDetailPage() {
             )}
 
             {!reanalyzing && analysis && analysis.status === 'completed' && analysis.metadata && (
-              <MetadataDisplay metadata={analysis.metadata} />
+              <MetadataDisplay
+                metadata={analysis.metadata}
+                onSave={async (updated) => {
+                  if (!id) return;
+                  const result = await api.updateMetadata(id, updated);
+                  setAnalysis(result);
+                }}
+              />
             )}
 
             {analysis && analysis.status === 'error' && (

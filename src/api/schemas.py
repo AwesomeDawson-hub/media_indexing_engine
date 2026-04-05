@@ -94,10 +94,30 @@ class AnalysisResponse(BaseModel):
     job: JobInfo | None = None
 
 
+class ReanalyzeRequest(BaseModel):
+    hint: str | None = Field(default=None, max_length=500)
+
+
 class ReanalyzeResponse(BaseModel):
     media_item_id: str
     job_id: str
     message: str
+
+
+class MetadataUpdateRequest(BaseModel):
+    title: str | None = Field(default=None, max_length=200)
+    description: str | None = None
+    tags: list[str] | None = None
+    objects: list[str] | None = None
+    scenes: list[str] | None = None
+    context: str | None = None
+    mood: str | None = Field(default=None, max_length=100)
+    people: list[str] | None = None
+    people_count: int | None = Field(default=None, ge=0)
+    orientation: str | None = Field(default=None, max_length=20)
+    colors: list[str] | None = None
+    location_hint: str | None = Field(default=None, max_length=200)
+    quality_notes: str | None = None
 
 
 class SearchMediaItem(BaseModel):

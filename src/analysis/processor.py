@@ -97,6 +97,7 @@ async def analyze_media_item(
     file_store: FileStore,
     indexing_service: IndexingService | None = None,
     reservation_id: str | None = None,
+    hint: str | None = None,
 ) -> None:
     """Background task: run AI analysis for a processing job.
 
@@ -144,7 +145,7 @@ async def analyze_media_item(
                 image_base64, media_type = prepare_image(file_bytes, media_item.mime_type)
 
                 async with _analysis_semaphore:
-                    metadata_result = await vision_provider.analyze_image(image_base64, media_type)
+                    metadata_result = await vision_provider.analyze_image(image_base64, media_type, hint=hint)
 
                 ocr_text = ocr_extract_text(file_bytes, media_item.mime_type)
                 if ocr_text:

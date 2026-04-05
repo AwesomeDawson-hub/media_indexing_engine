@@ -62,9 +62,12 @@ class AnthropicVisionProvider:
         self._timeout = timeout or settings.analysis.timeout_seconds
 
     async def analyze_image(
-        self, image_base64: str, media_type: str
+        self, image_base64: str, media_type: str, hint: str | None = None
     ) -> MediaMetadataResult:
         """Send image to Claude and return validated structured metadata."""
+        user_text = "Analyze this image and return the JSON metadata."
+        if hint:
+            user_text += f"\n\nAdditional guidance: {hint}"
         try:
             response = await self._client.messages.create(
                 model=self._model,
@@ -84,7 +87,7 @@ class AnthropicVisionProvider:
                             },
                             {
                                 "type": "text",
-                                "text": "Analyze this image and return the JSON metadata.",
+                                "text": user_text,
                             },
                         ],
                     }

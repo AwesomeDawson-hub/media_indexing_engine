@@ -255,10 +255,19 @@ export async function getAnalysis(id: string): Promise<AnalysisResponse> {
   return data;
 }
 
-export async function reanalyze(id: string): Promise<ReanalyzeResponse> {
+export async function reanalyze(id: string, hint?: string): Promise<ReanalyzeResponse> {
   invalidateMediaCache(id);
   return request<ReanalyzeResponse>(`/api/v1/media/${id}/reanalyze`, {
     method: 'POST',
+    body: hint ? JSON.stringify({ hint }) : undefined,
+  });
+}
+
+export async function updateMetadata(id: string, data: Partial<import('../types/api').MetadataFields>): Promise<AnalysisResponse> {
+  invalidateMediaCache(id);
+  return request<AnalysisResponse>(`/api/v1/media/${id}/analysis`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
   });
 }
 

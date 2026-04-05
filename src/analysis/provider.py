@@ -13,13 +13,14 @@ class VisionProvider(Protocol):
     """
 
     async def analyze_image(
-        self, image_base64: str, media_type: str
+        self, image_base64: str, media_type: str, hint: str | None = None
     ) -> MediaMetadataResult:
         """Analyze an image and return structured metadata.
 
         Args:
             image_base64: Base64-encoded image data (already resized).
             media_type: MIME type of the encoded image (e.g., "image/jpeg").
+            hint: Optional user-provided guidance for the analysis.
 
         Returns:
             Validated MediaMetadataResult with all 13 fields.

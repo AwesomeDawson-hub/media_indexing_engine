@@ -2,14 +2,15 @@
 
 import json
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException
 from sqlalchemy import delete as sql_delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_db, get_current_user_id
-from src.api.schemas import AnalysisResponse, MetadataFields, JobInfo, ReanalyzeResponse, BatchOperationRequest, BatchReanalyzeResponse, BatchDeleteResponse
+from src.api.schemas import AnalysisResponse, MetadataFields, JobInfo, ReanalyzeRequest, ReanalyzeResponse, MetadataUpdateRequest, BatchOperationRequest, BatchReanalyzeResponse, BatchDeleteResponse
 from src.api.routes.upload import _vision_provider, _file_store, _indexing_service
 from src.analysis.processor import analyze_media_item
+from src.analysis.schemas import MediaMetadataResult
 from src.models import MediaItem, MediaMetadata, ProcessingJob, QuotaEvent
 from src.quota.quota_service import QuotaExceededError, QuotaService, build_quota_exceeded_detail
 
@@ -103,6 +104,7 @@ async def reanalyze(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
+    body: ReanalyzeRequest = Body(default=ReanalyzeRequest()),
 ) -> ReanalyzeResponse:
     """Trigger re-analysis for a media item."""
     # Load media item
@@ -158,6 +160,7 @@ async def reanalyze(
             _file_store,
             _indexing_service,
             reservation_id,
+            body.hint,
         )
 
     return ReanalyzeResponse(
@@ -293,3 +296,99 @@ async def delete_batch(
             logger.warning("Failed to remove vector embeddings for %d items", len(deleted_ids), exc_info=True)
 
     return BatchDeleteResponse(deleted=len(deleted_ids), message=f"{len(deleted_ids)} item(s) deleted")
+
+
+@router.patch("/media/{media_id}/analysis", status_code=200)
+async def update_analysis(
+    media_id: str,
+    body: MetadataUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+) -> AnalysisResponse:
+    """Manually update analysis metadata fields for a media item."""
+    # Verify ownership
+    result = await db.execute(
+        select(MediaItem).where(MediaItem.id == media_id, MediaItem.user_id == user_id)
+    )
+    item = result.scalar_one_or_none()
+    if item is None:
+        raise HTTPException(status_code=404, detail="Media item not found")
+
+    meta_result = await db.execute(
+        select(MediaMetadata).where(MediaMetadata.media_item_id == media_id)
+    )
+    meta = meta_result.scalar_one_or_none()
+    if meta is None:
+        raise HTTPException(status_code=404, detail="No analysis found for this media item")
+
+    update_data = body.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        if isinstance(value, list):
+            setattr(meta, key, json.dumps(value))
+        else:
+            setattr(meta, key, value)
+
+    await db.commit()
+    await db.refresh(meta)
+
+    def _parse(val: str | None) -> list:
+        if not val:
+            return []
+        try:
+            return json.loads(val)
+        except Exception:
+            return []
+
+    # Re-index with updated metadata (best-effort)
+    if _indexing_service is not None:
+        try:
+            metadata_result = MediaMetadataResult(
+                title=meta.title,
+                description=meta.description,
+                tags=_parse(meta.tags) or ["untagged"],
+                objects=_parse(meta.objects) or ["unknown"],
+                scenes=_parse(meta.scenes) or ["unknown"],
+                context=meta.context,
+                mood=meta.mood,
+                people=_parse(meta.people),
+                people_count=meta.people_count,
+                orientation=meta.orientation if meta.orientation in ("landscape", "portrait", "square") else "landscape",
+                colors=_parse(meta.colors) or ["unknown"],
+                location_hint=meta.location_hint,
+                quality_notes=meta.quality_notes,
+            )
+            _indexing_service.index_media_item(
+                media_id,
+                user_id,
+                item.original_filename,
+                metadata_result,
+                ocr_text=meta.ocr_text or "",
+            )
+        except Exception:
+            pass  # best-effort; don't fail the user's save
+
+    metadata_fields = MetadataFields(
+        title=meta.title,
+        description=meta.description,
+        tags=_parse(meta.tags),
+        objects=_parse(meta.objects),
+        scenes=_parse(meta.scenes),
+        context=meta.context,
+        mood=meta.mood,
+        people=_parse(meta.people),
+        people_count=meta.people_count,
+        orientation=meta.orientation,
+        colors=_parse(meta.colors),
+        location_hint=meta.location_hint,
+        quality_notes=meta.quality_notes,
+        ocr_text=meta.ocr_text,
+    )
+
+    return AnalysisResponse(
+        media_item_id=media_id,
+        status="completed",
+        metadata=metadata_fields,
+        ai_provider=meta.ai_provider,
+        ai_model=meta.ai_model,
+        analyzed_at=meta.analyzed_at,
+    )
