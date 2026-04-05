@@ -263,6 +263,7 @@ function ConnectorPanel({
   const [syncPending, setSyncPending] = useState(false);
   const [savePending, setSavePending] = useState(false);
   const [drivePending, setDrivePending] = useState(false);
+  const [showS3Form, setShowS3Form] = useState(false);
   const [panelError, setPanelError] = useState('');
   const [panelInfo, setPanelInfo] = useState('');
 
@@ -384,6 +385,7 @@ function ConnectorPanel({
       {activeTab === 'config' && (
         <>
           {connector?.connector_type === 'google_drive' ? (
+            // ── Google Drive connected ──────────────────────────────────────
             <div className="connector-drive-section">
               <p>
                 <strong>Google Drive</strong> — My Drive
@@ -402,16 +404,15 @@ function ConnectorPanel({
                 {drivePending ? '...' : 'Disconnect Google Drive'}
               </button>
             </div>
-          ) : (
+          ) : connector?.connector_type === 's3_compatible' ? (
+            // ── S3 connected — show form to reconfigure ────────────────────
             <form onSubmit={handleSave} className="connector-form">
-              {connector && (
-                <p className="text-muted connector-existing-note">
-                  Connector configured: <strong>{connector.remote_container_id}</strong>
-                  {connector.prefix ? `/${connector.prefix}` : ''}
-                  {connector.region ? ` (${connector.region})` : ''}
-                  . Enter new credentials to replace.
-                </p>
-              )}
+              <p className="text-muted connector-existing-note">
+                Connected: <strong>{connector.remote_container_id}</strong>
+                {connector.prefix ? `/${connector.prefix}` : ''}
+                {connector.region ? ` (${connector.region})` : ''}
+                . Enter new credentials to replace.
+              </p>
               <label className="form-label">Bucket name *</label>
               <input
                 className="form-input"
@@ -461,17 +462,88 @@ function ConnectorPanel({
                 {savePending ? 'Saving…' : 'Save connector'}
               </button>
             </form>
-          )}
-          {!connector && (
-            <div className="connector-drive-section">
-              <p className="text-muted">Or connect a Google Drive account:</p>
+          ) : showS3Form ? (
+            // ── S3 setup form ──────────────────────────────────────────────
+            <form onSubmit={handleSave} className="connector-form">
               <button
-                className="btn btn-outline"
-                onClick={handleDriveConnect}
-                disabled={drivePending}
+                type="button"
+                className="btn btn-sm btn-outline connector-back-btn"
+                onClick={() => setShowS3Form(false)}
               >
-                {drivePending ? 'Redirecting…' : 'Connect Google Drive — My Drive'}
+                ← Back
               </button>
+              <label className="form-label">Bucket name *</label>
+              <input
+                className="form-input"
+                required
+                value={formData.bucket_name}
+                onChange={(e) => setFormData((p) => ({ ...p, bucket_name: e.target.value }))}
+              />
+              <label className="form-label">Access key ID *</label>
+              <input
+                className="form-input"
+                required
+                autoComplete="off"
+                value={formData.access_key_id}
+                onChange={(e) => setFormData((p) => ({ ...p, access_key_id: e.target.value }))}
+              />
+              <label className="form-label">Secret access key *</label>
+              <input
+                className="form-input"
+                type="password"
+                required
+                autoComplete="new-password"
+                value={formData.secret_access_key}
+                onChange={(e) => setFormData((p) => ({ ...p, secret_access_key: e.target.value }))}
+              />
+              <label className="form-label">Region</label>
+              <input
+                className="form-input"
+                placeholder="us-east-1"
+                value={formData.region ?? ''}
+                onChange={(e) => setFormData((p) => ({ ...p, region: e.target.value }))}
+              />
+              <label className="form-label">Endpoint URL (S3-compatible)</label>
+              <input
+                className="form-input"
+                placeholder="https://s3.example.com"
+                value={formData.endpoint_url ?? ''}
+                onChange={(e) => setFormData((p) => ({ ...p, endpoint_url: e.target.value }))}
+              />
+              <label className="form-label">Prefix (folder path)</label>
+              <input
+                className="form-input"
+                placeholder="images/"
+                value={formData.prefix ?? ''}
+                onChange={(e) => setFormData((p) => ({ ...p, prefix: e.target.value }))}
+              />
+              <button className="btn btn-primary" type="submit" disabled={savePending}>
+                {savePending ? 'Saving…' : 'Save connector'}
+              </button>
+            </form>
+          ) : (
+            // ── No connector — pick one ────────────────────────────────────
+            <div className="connector-picker">
+              <p className="text-muted">Choose how to connect this source:</p>
+              <div className="connector-picker-options">
+                <button
+                  className="btn btn-outline connector-picker-btn"
+                  onClick={() => setShowS3Form(true)}
+                >
+                  <span className="connector-picker-icon">🪣</span>
+                  <span className="connector-picker-label">S3 / S3-compatible</span>
+                  <span className="connector-picker-sub">AWS S3, MinIO, Backblaze B2</span>
+                </button>
+                <button
+                  className="btn btn-outline connector-picker-btn"
+                  onClick={handleDriveConnect}
+                  disabled={drivePending}
+                >
+                  <span className="connector-picker-icon">📁</span>
+                  <span className="connector-picker-label">{drivePending ? 'Redirecting…' : 'Google Drive'}</span>
+                  <span className="connector-picker-sub">Connect My Drive</span>
+                </button>
+              </div>
             </div>
           )}
         </>

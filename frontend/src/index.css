@@ -2525,3 +2525,52 @@ input:focus {
 .avatar-msg--error {
   color: #f87171;
 }
+
+/* ── Connector picker ─────────────────────────────────────────────────────── */
+.connector-picker {
+  padding: 8px 0;
+}
+
+.connector-picker > .text-muted {
+  margin-bottom: 12px;
+}
+
+.connector-picker-options {
+  display: flex;
+  gap: 12px;
+}
+
+.connector-picker-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 16px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.connector-picker-btn:hover:not(:disabled) {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.connector-picker-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.connector-picker-label {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.connector-picker-sub {
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+.connector-back-btn {
+  margin-bottom: 12px;
+}
