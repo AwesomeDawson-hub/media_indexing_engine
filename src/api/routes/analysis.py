@@ -50,6 +50,21 @@ async def get_analysis(
     job = job_result.scalar_one_or_none()
 
     if meta is not None:
+        # If there's an active job, report its status instead of the stale completed metadata
+        if job is not None and job.status in ("pending", "running"):
+            job_info = JobInfo(
+                id=job.id,
+                status=job.status,
+                attempts=job.attempts,
+                error_message=job.error_message,
+                created_at=job.created_at,
+            )
+            return AnalysisResponse(
+                media_item_id=media_id,
+                status="processing",
+                job=job_info,
+            )
+
         return AnalysisResponse(
             media_item_id=media_id,
             status="completed",
