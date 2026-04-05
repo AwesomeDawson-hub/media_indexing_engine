@@ -26,7 +26,7 @@ def upgrade() -> None:
         sa.Column('provider_user_id', sa.String(255), nullable=False),
         sa.Column('provider_email', sa.String(255), nullable=True),
         sa.Column('provider_email_verified', sa.Boolean(), nullable=False,
-                  server_default=sa.text('0')),
+                  server_default=sa.false()),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
         sa.Column('last_login_at', sa.DateTime(timezone=True), nullable=True),
