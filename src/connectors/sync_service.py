@@ -26,8 +26,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.connectors.base import ConnectorBase
+from src.connectors.factory import build_connector
 from src.connectors.secrets import decrypt_credentials
-from src.connectors.s3_connector import build_s3_connector
 from src.models import Source, SourceConnector, SourceObject, SyncRun
 from src.ingestion.upload_service import UploadService
 from src.storage.file_store import FileStore
@@ -168,13 +168,7 @@ async def _run_sync(
         raise ValueError(f"Failed to decrypt connector credentials: {exc}") from exc
 
     # Build connector instance
-    connector: ConnectorBase = build_s3_connector(
-        bucket_name=connector_row.bucket_name,
-        credentials=credentials,
-        region=connector_row.region,
-        endpoint_url=connector_row.endpoint_url,
-        prefix=connector_row.prefix,
-    )
+    connector: ConnectorBase = build_connector(connector_row, credentials)
 
     # List remote objects
     try:
@@ -231,8 +225,9 @@ async def _run_sync(
                 sync_run.skipped_count = result.skipped_count
                 continue
 
-        # Derive a filename from the object key
-        filename = os.path.basename(remote_obj.key) or remote_obj.key
+        # Use display_name for the upload filename (P7-002: do not derive from key
+        # for non-path-based connectors such as Google Drive)
+        filename = remote_obj.display_name or os.path.basename(remote_obj.key) or remote_obj.key
 
         # Download
         try:

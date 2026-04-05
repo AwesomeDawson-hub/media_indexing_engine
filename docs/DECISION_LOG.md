@@ -240,3 +240,53 @@ Each decision follows this structure:
 - **Reasoning:** A normalized identity-link table keeps `users` provider-neutral, supports future providers cleanly, and avoids schema sprawl on the primary account table.
 - **Alternatives considered:** Add `google_sub` directly to `users` (rejected: provider-specific coupling and poor extensibility).
 - **Consequences:** Google-created accounts remain ordinary `users` rows, while provider identities are linked through `oauth_accounts`. Future SSO providers can reuse the same table and API/service patterns.
+
+### ADR-021: Delegated Connector OAuth Tokens Live in Encrypted Connector Storage, Not `oauth_accounts`
+- **Date:** 2026-04-05
+- **Workstream:** P7-002
+- **Status:** Accepted
+- **Context:** The first Google Drive connector needs a persistent refresh token. The project already has two related but distinct storage patterns: `oauth_accounts` for login identity linkage from Google SSO, and `source_connectors.credentials_encrypted` for per-source connector secrets. Storing Drive tokens in the wrong place would blur the boundary between app authentication and delegated external access.
+- **Decision:** Store Google Drive refresh tokens only in encrypted per-source connector-secret storage (`source_connectors.credentials_encrypted`). Do not store delegated connector tokens in `oauth_accounts`.
+- **Reasoning:** Drive connector tokens are source-scoped operational secrets, not user-login identity records. Keeping them in encrypted connector storage preserves the separation already established by ADR-014 and ADR-020 and avoids coupling login identity management to connector authorization state.
+- **Alternatives considered:** Store Drive tokens in `oauth_accounts` (rejected: mixes login identity and connector authorization concerns), add a separate provider-token table now (rejected: unnecessary extra subsystem for the first OAuth-backed connector).
+- **Consequences:** The Drive connector must own its own secret lifecycle. Future OAuth-backed connectors may reuse the same encrypted connector-secret pattern until there is enough evidence to justify a dedicated provider-token subsystem.
+
+### ADR-022: Connector OAuth Initiation Uses Authenticated SPA Start and Signed Browser-Bound Callback State
+- **Date:** 2026-04-05
+- **Workstream:** P7-002
+- **Status:** Accepted
+- **Context:** The application is bearer-token based. A plain browser link to a protected connector OAuth start endpoint would create a fragile initiation boundary because top-level navigation is not the app’s normal authenticated API path. The callback also needs request binding and replay protection even though it is not an OpenID login flow.
+- **Decision:** Connector OAuth initiation starts from an authenticated SPA API request that returns an authorization URL. The callback uses short-lived signed browser-bound state carrying `user_id`, `source_id`, issued-at timestamp, and one-time random context. No OIDC nonce is required because this is a delegated connector authorization flow, not a login identity flow.
+- **Reasoning:** This preserves the existing bearer-token auth model, lets the backend validate source ownership before authorization begins, and provides strong callback request binding without introducing a session subsystem.
+- **Alternatives considered:** Plain browser navigation to a protected backend start route (rejected: weak fit for bearer auth), server-side session storage for connector state (rejected: unnecessary new subsystem for this workstream).
+- **Consequences:** The frontend must initiate the flow through the API client and then redirect the browser explicitly. The backend callback must treat missing, invalid, expired, or replayed state as a hard failure.
+
+### ADR-023: `source_connectors` Uses Provider-Neutral Remote Container Semantics
+- **Date:** 2026-04-05
+- **Workstream:** P7-002
+- **Status:** Accepted
+- **Context:** The existing connector foundation stores S3-specific `bucket_name` in `source_connectors`. The first non-S3 connector, Google Drive, does not have buckets, and reusing `bucket_name` as a Drive folder/container identifier would immediately create misleading schema debt.
+- **Decision:** Evolve `source_connectors` to use provider-neutral remote container semantics by renaming `bucket_name` to `remote_container_id` and adding nullable `remote_container_label`.
+- **Reasoning:** This is the smallest schema change that removes S3-only naming while preserving the existing connector table structure and keeping future connectors reversible.
+- **Alternatives considered:** Continue overloading `bucket_name` (rejected: misleading semantics and long-term debt), redesign the entire connector table now (rejected: unnecessary scope expansion for the first OAuth-backed connector).
+- **Consequences:** Existing S3-compatible connector code and schemas must be migrated and regression-tested. Future connectors gain a clearer storage contract without forcing a full provider-specific config table split.
+
+### ADR-024: First Google Drive Connector Slice Is Root-Only and Uses `drive.readonly`
+- **Date:** 2026-04-05
+- **Workstream:** P7-002
+- **Status:** Accepted
+- **Context:** Google Drive introduces provider-specific choices around folder picking, scope breadth, native document handling, and file eligibility. Without an explicit limit, the first Drive connector could quickly sprawl beyond the existing connector foundation’s intended expansion path.
+- **Decision:** The first Google Drive connector slice is limited to `My Drive` root only and requests `drive.readonly` only. It excludes trashed files, shortcuts, and Google-native Docs/Sheets/Slides.
+- **Reasoning:** Root-only plus `drive.readonly` is the smallest useful scope that proves delegated Drive ingestion without adding folder-selection UX, export logic for native document types, or broader permission requests.
+- **Alternatives considered:** Folder-picker support in the first slice (rejected: extra provider-specific UI and API complexity), broader Drive scopes (rejected: unnecessary permission creep), Google-native docs support (rejected: not compatible with the current file-ingestion pipeline).
+- **Consequences:** The first Drive connector delivers a narrower but cleaner capability. Folder targeting and additional Drive object types remain explicit future follow-up work rather than implicit scope creep.
+
+### ADR-025: Connector Construction Uses a Registry/Factory and Dedicated Token Manager Without Introducing `OAuthConnectorBase`
+- **Date:** 2026-04-05
+- **Workstream:** P7-002
+- **Status:** Accepted
+- **Context:** The existing `sync_service` builds the S3 connector inline. Adding Google Drive would introduce provider branching and refresh-token behavior, but one OAuth-backed connector is not enough evidence to justify a new inheritance hierarchy such as `OAuthConnectorBase`.
+- **Decision:** Keep `ConnectorBase` as the base abstraction. Add a connector registry/factory for provider construction and a dedicated Drive token manager for OAuth token lifecycle. Do not introduce `OAuthConnectorBase` in this workstream.
+- **Reasoning:** The real architectural need now is separation of connector construction and token lifecycle concerns from sync orchestration, not a new class hierarchy. A small factory and token-manager boundary solve that with less complexity and remain reversible.
+- **Alternatives considered:** Branch provider construction inside `sync_service` (rejected: orchestration drift), introduce `OAuthConnectorBase` immediately (rejected: speculative abstraction based on one OAuth-backed connector).
+- **Consequences:** `sync_service` stays focused on orchestration. Future OAuth-backed connectors can either reuse the same pattern or, if several accumulate enough shared behavior, motivate a later ADR that introduces a broader OAuth connector abstraction.

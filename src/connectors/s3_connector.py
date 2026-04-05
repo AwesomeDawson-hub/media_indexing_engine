@@ -103,6 +103,7 @@ class S3Connector(ConnectorBase):
                     last_mod = last_mod.replace(tzinfo=timezone.utc)
                 results.append(RemoteObject(
                     key=key,
+                    display_name=os.path.basename(key) or key,
                     version=obj.get("ETag", "").strip('"') or None,
                     last_modified_at=last_mod,
                     size=obj.get("Size"),

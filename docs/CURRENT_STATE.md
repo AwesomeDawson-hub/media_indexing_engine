@@ -6,10 +6,10 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 
 | Field | Value |
 |---|---|
-| **Current Phase** | Phase 6 — Identity & Access |
+| **Current Phase** | Phase 7 — Post-Phase 6 User-Value Features |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | None — post-P6-001 beta feedback applied |
-| **Last Updated** | 2026-04-05 (session 4) |
+| **Active Workstream** | None — P7-002 complete |
+| **Last Updated** | 2026-04-05 |
 | **Updated By** | AI — Engineer |
 
 ## System Health
@@ -18,41 +18,25 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | Docs aligned | Yes |
 | Drift detected | No |
-| All docs in sync | Yes — updated 2026-04-05 session 4 |
+| All docs in sync | Yes — updated 2026-04-05 for the P7-002 approval gate |
 | Registry complete | Yes |
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
-| Test status | 229/229 pass (209 existing + 20 new Google SSO tests) |
-| Active workstream | None |
-| Last governance audit | 2026-04-05 session 4 — Email verification (P8-001) shipped |
+| Test status | 254/254 pass (229 existing + 25 new Google Drive tests) |
+| Active workstream | None — P7-002 complete |
+| Last governance audit | 2026-04-05 — P7-002 implemented and closed out; governance docs updated |
 
 ## Recent Activity
 
-- **2026-04-05 (session 4):** Email verification on registration (P8-001) shipped. Alembic migration `b6c7d8e9f0a1` adds `email_verified` boolean column to `users` (existing rows backfilled to `TRUE`, new rows default `FALSE`). `send_email_verification()` added to `email_service.py` (SES via boto3, no-op in dev). `register` endpoint now generates a `PendingToken` (type `email_verification`, 24h TTL) and sends verification email on signup; `dev_mode` returns `verification_token` in response body. Two new auth endpoints: `POST /api/v1/auth/verify-email` (consumes token, sets `email_verified=True`) and `POST /api/v1/auth/verify-email/resend` (regenerates token, resends email). `VerifyEmailRequest` schema, `email_verified` field on `UserProfile`, `verification_token` on `AuthResponse`. Frontend: `email_verified` on `UserProfile` type, `verifyEmail()` + `resendVerificationEmail()` in `client.ts`, `VerifyEmailPage.tsx` (auto-verifies from `?token=` on mount, success/error states), `VerificationBanner` in `Layout.tsx` (shown when `!user.email_verified`, resend button). `AuthContext.refreshUser()` added to re-fetch profile. `/verify-email` route added as standalone (no auth guard). Commit: `ab000cb`. AWS deployed — migration ran on startup. Alembic migration `c0d1e2f3a4b5` creates `collections` (id, user_id, name, description, UNIQUE user+name) and `collection_items` (id, collection_id, media_item_id, added_at, UNIQUE col+item) tables. `Collection` + `CollectionItem` ORM models with cascade deletes. 7 API endpoints: create, list, get (with items), PATCH, DELETE, POST add-items, DELETE remove-items — all user-scoped, 100 collection / 500 item limits. `CollectionsPage` (grid of collection cards with cover thumbnail from first item, item count badge, delete button), `CollectionDetailPage` (full gallery grid + inline edit/delete + per-item remove button). "Add to Collection" picker dropdown in `SelectionBar` (bulk add from gallery) and `MediaDetailPage` (single item). Collections nav link added. `CollectionResponse`, `CollectionDetailResponse`, `CollectionListResponse`, `CollectionItemsRequest`, `CollectionItemsModifiedResponse` schemas. All types + 8 API functions added to frontend. CSS for cards grid, dropdown picker, detail page. Commit: `93bf467`. AWS deployed — migration ran on startup.
+- **2026-04-05:** P7-002 (Google Drive Connector, root-only) **completed**. Full OAuth 2.0 Drive connector implemented: DB schema made provider-neutral (`remote_container_id`/`remote_container_label` + account snapshot columns), HMAC-signed browser-bound callback state, Fernet-encrypted token storage, `DriveTokenManager` with access-token caching and refresh rotation, `build_connector()` factory replaces hardcoded S3 build in sync service, three new API routes, full frontend connect/disconnect/callback-banner flow. 25 new tests + 18 S3 regressions all pass. `IMPLEMENTATION_STATUS.md` updated; `WORKSTREAMS.md` P7-002 moved to Completed.
 
-- **2026-04-05 (session 2):** Post-beta UX polish continued. Details:
-  - **Profile page redesign:** `ProfilePage.tsx` fully rewritten. Card-based layout (max-width 680px). Avatar circle with initials fallback at top. Account info displayed as a 2-column info-grid with labelled items. Edit Profile form uses proper `form-group` pattern. Email/Password sections each in their own expandable card with sub-card form and token confirm step. `icon_url` removed from edit form (stored in DB but no upload UI yet). All profile CSS added to `index.css` (`profile-page`, `profile-card`, `profile-avatar`, `profile-badge`, `profile-info-grid`, etc.). `alert-success` / `alert-error` CSS variants added globally. Commit: `0f487d6`. AWS deployed.
-  - **Bulk operations:** Grid view checkboxes on `MediaCard` (overlay top-left, blue ring when selected). `SelectionBar` updated with "Add Tags" button + inline comma-separated input (Enter to apply, Escape to close). `POST /api/v1/media/tag-batch` backend endpoint (up to 50 items, merges tags, best-effort re-index). `BatchTagRequest` / `BatchTagResponse` schemas. `tagBatch()` in `client.ts`. Commit: `8b8540c`. AWS deployed.
-  - **Google SSO schema regression fix:** When `BatchTagResponse` was inserted into `schemas.py`, the `class QuotaStatusResponse(BaseModel):` declaration was accidentally dropped (fields remained as floating code) → startup `ImportError: cannot import name 'QuotaStatusResponse'` → Google SSO button disappeared from login page. Fix: restored the missing class declaration. Commit: `4f2f0e7`. AWS deployed. Verified `{"google_sso_enabled":true}`.
+- **2026-04-05:** P7-002 (Google Drive Connector, root-only) moved to **In Progress**. `WORKSTREAMS.md` now shows P7-002 as the active Phase 7 workstream, and the project governance docs were updated so Engineer can begin implementation against the approved `docs/planning/P7-002_plan.md` architecture without reopening the design.
 
-- **2026-04-05 (session 1):** Beta feedback polish + new features shipped. Details:
-  - **Upload status labels:** `Uploading…` → `Processing…`, `Created` → `Completed` (`FileQueue.tsx`)
-  - **Clear Completed button removed** from `UploadPage.tsx`
-  - **Active nav highlight:** switched to React Router `NavLink` + `.nav-link.active` CSS
-  - **Billing page redesign:** 3-column horizontal plan cards with "Active Plan" banner and border highlight
-  - **Auth divider centering:** `.auth-divider` CSS with flexbox + pseudo-element rules
-  - **MediaDetailPage polling fix:** auto-refresh when processing/pending even if analysis is null
-  - **Re-analyze race condition fix:** poll starts on `reanalyzing=true`; no post-trigger getAnalysis fetch
-  - **Re-analyze with AI hint:** optional guidance textarea always shown in the Analysis panel. Hint is sent as authoritative context to Claude (`"ground truth — overrides conflicting visual impressions"`). Hint persists in textarea after re-analyze for easy refinement. Backend: `ReanalyzeRequest(hint)` schema, `analyze_image(hint=)` param on `AnthropicVisionProvider` and `VisionProvider` protocol, hint threaded through `analyze_media_item`.
-  - **Manual metadata editing:** `Edit` button on the Analysis panel opens inline form for all 13 editable fields. `PATCH /api/v1/media/{id}/analysis` endpoint updates DB and best-effort re-indexes. `MetadataUpdateRequest` schema added. `MetadataDisplay` component now supports edit/view toggle.
-  - **`get_analysis` re-analyze polling fix:** backend now checks for an active pending/running job before returning cached completed metadata — previously returned stale `completed` on first poll tick, stopping the poller immediately.
-  - **`getMedia` cache fix:** `getMedia` only caches terminal statuses (same pattern as `getAnalysis`) — was caching unconditionally, causing stale `processing` badge after re-analyze.
+- **2026-04-05:** P7-002 (Google Drive Connector, root-only) plan revised before approval. `docs/planning/P7-002_plan.md` now explicitly locks the non-secret authorized Google account snapshot, same-account vs different-account reconnect handling for `source_objects` and `sync_runs`, the exact callback-state guarantees actually provided in this workstream, and the backend success/failure redirect contract used by the Sources page. `PROJECT_HANDOFF.md` was reconciled so the project state cleanly shows Phase 7 planning active and P7-002 as the current approval gate.
+
+- **2026-04-05:** P7-002 (Google Drive Connector, root-only) planned. `docs/planning/P7-002_plan.md` created to lock the authenticated SPA OAuth start boundary, signed browser-bound callback state, encrypted connector-secret token storage, dedicated Drive token-manager boundary, provider-neutral `remote_container_id` / `remote_container_label` schema evolution, root-only `My Drive` scope, `drive.readonly`, Drive object exclusions, file ID + version idempotency, connector factory/registry adoption, and `RemoteObject.display_name` for non-path-based connectors. `WORKSTREAMS.md` updated so P7-002 is the current planned workstream, and `DECISION_LOG.md` now includes ADR-021 through ADR-025.
 
 - **2026-04-04:** P6-001 (Google SSO) **completed**. Alembic migration `a3b4c5d6e7f8` adds `oauth_accounts` and `google_completion_records` tables. `GoogleAuthConfig` added to `config.py` with `ENABLE_GOOGLE_SSO` gate and four supporting env vars. `src/auth/google_oauth.py` provides HMAC-SHA256 signed state, nonce, Authlib OIDC token exchange. Three SSO endpoints added (`/google/start`, `/google/callback`, `/google/exchange`) plus `/auth/config` feature-flag endpoint. Account resolution: provider-link-first → email fallback → create new user. Frontend: `GoogleAuthCallbackPage.tsx`, Google buttons in Login/Register, `loginWithGoogle` in `AuthContext`, standalone `/auth/google/callback` route in `App.tsx`. 20 new tests, all passing. See `IMPLEMENTATION_STATUS.md` for full details.
-
-- **2026-04-03:** P6-001 (Google SSO) plan revised after audit. `docs/planning/P6-001_plan.md` now explicitly locks the backend-to-frontend completion handoff as a short-lived DB-backed one-time record plus HTTP-only completion cookie and non-secret `flow_id`, requires OIDC nonce validation in addition to signed state-cookie comparison, enforces provider-link-first account resolution with disabled-account failure behavior, adds `UNIQUE (user_id, provider)` for one Google identity per local user in Phase 6, and makes `ENABLE_GOOGLE_SSO` a mandatory rollout gate. `WORKSTREAMS.md` and `PROJECT_HANDOFF.md` reconciled so the approval state is clean and current.
-
-- **2026-04-02:** P6-001 (Google SSO) plan created. `docs/planning/P6-001_plan.md` locks Authlib as the OAuth client library, backend-managed callback handling, signed-cookie anti-CSRF state validation, automatic verified-email account linking, and a provider-neutral `oauth_accounts` table. `WORKSTREAMS.md`, `PROJECT_HANDOFF.md`, and `DECISION_LOG.md` updated for the Phase 6 approval gate and ADRs `ADR-016` through `ADR-020`.
 
 - **2026-04-02:** Bugfix — concurrent upload race condition. When two identical files were uploaded simultaneously both could pass the dedup check before either committed, causing the second INSERT to violate `uq_user_content_hash` and return a 500 / "Request failed" in the UI. Fix: `except IntegrityError` handler added to `UploadService.process_upload()` — rolls back, deletes the stored file, re-queries for the winner, and returns `is_duplicate=True`. New test `test_concurrent_duplicate_handled_gracefully` added. 209/209 pass. Commit: `fc2147a`. AWS deploy needed.
 
@@ -139,13 +123,12 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 
 ## Notes for Next Session
 
-- **Phase 6 planning is active.** No workstream is in progress yet; `P6-001` is awaiting operator approval after Architect review.
+- **P7-002 is active.** Engineer should implement `docs/planning/P7-002_plan.md` exactly as approved, preserving the locked OAuth boundary, provider-neutral schema evolution, reconnect rules, redirect contract, and connector factory/token-manager architecture.
 - **SES activation (when AWS approves):** `ssh -i "C:\Code\AWS\media-indexing-key.pem" ubuntu@vyzindex.com "echo 'EMAIL_FROM=noreply@vyzindex.com' >> ~/media_indexing_engine/.env && docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build backend"`
-- **Most recent commits (newest first):** `04333ce` (gallery empty-state bug fix); `f6ea7dc` (password reset frontend); `977fafa` (perf caching); `3c3ace3` (email case-insensitive); `35757a5` (swipe nav polish).
+- **Immediate implementation target:** start with the provider-neutral connector schema migration, then add the Drive OAuth/token modules, connector factory, Drive connector, callback flow, frontend integration, and tests in the step order defined by `docs/planning/P7-002_plan.md`.
 - **AWS deploy command:** `ssh -i "C:\Code\AWS\media-indexing-key.pem" ubuntu@vyzindex.com "cd ~/media_indexing_engine && git pull && docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build"`
 - **HTTPS is live:** `https://vyzindex.com` — Caddy handles TLS automatically. compose files: `docker-compose.yml` + `docker-compose.beta.yml`. SSH key: `C:\Code\AWS\media-indexing-key.pem`, user `ubuntu`.
 - **Stripe note:** All billing runs in dev/test mode. To enable: set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_ADVANCED`, `STRIPE_PRICE_ID_PREMIUM` on the server.
 - **Before inviting broader beta users:** rotate the `ANTHROPIC_API_KEY`, `POSTGRES_PASSWORD`, and `AUTH_SECRET_KEY`.
-- **Next implementation gate:** approve `docs/planning/P6-001_plan.md`, then mark `P6-001` active in `docs/WORKSTREAMS.md` before Engineer starts.
 - **Schema changes** require `alembic revision --autogenerate` + review + `alembic upgrade head`. Back up AWS DB before any migration deploy.
-- **Test status:** 209/209 pass. Tests run from `c:\AI Engineering\Projects\media_indexing_engine` with `.venv\Scripts\python.exe -m pytest tests/ -q --tb=short`.
+- **Test status:** 229/229 pass. Tests run from `c:\AI Engineering\Projects\media_indexing_engine` with `.venv\Scripts\python.exe -m pytest tests/ -q --tb=short`.

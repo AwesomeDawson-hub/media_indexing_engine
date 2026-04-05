@@ -11,7 +11,7 @@ from src.config import settings
 from src.database import create_tables, run_migrations, async_session
 from src.models import User
 from src.api.dependencies import DEV_USER_ID
-from src.api.routes import upload, media, analysis, search, auth, download, health, quota, sources, admin, billing, connectors, google_auth, collections
+from src.api.routes import upload, media, analysis, search, auth, download, health, quota, sources, admin, billing, connectors, google_auth, collections, google_drive_connector
 from src.api.error_handlers import register_error_handlers
 from src.analysis.processor import analyze_media_item
 from src.ingestion.job_manager import get_pending_jobs
@@ -90,6 +90,7 @@ def create_app() -> FastAPI:
     app.include_router(billing.router)
     app.include_router(google_auth.router)
     app.include_router(collections.router)
+    app.include_router(google_drive_connector.router)
     return app
 
 

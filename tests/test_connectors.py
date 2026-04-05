@@ -279,7 +279,7 @@ async def test_configure_connector_response_excludes_secrets(client_with_key):
     assert "AKIATEST" not in response_text
     assert "credentials_encrypted" not in response_text
     # Should include non-secret fields
-    assert body["bucket_name"] == "my-bucket"
+    assert body["remote_container_id"] == "my-bucket"
     assert body["connector_type"] == "s3_compatible"
 
 
@@ -324,7 +324,7 @@ async def test_get_connector_returns_configured_data(client_with_key):
     resp = await client_with_key.get(f"/api/v1/sources/{source['id']}/connector")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["bucket_name"] == "my-bucket"
+    assert body["remote_container_id"] == "my-bucket"
     assert body["connector_type"] == "s3_compatible"
     assert "secret_access_key" not in str(body)
 
@@ -476,8 +476,10 @@ async def test_sync_run_history_user_scoped(
 def _make_remote_obj(key: str = "images/photo.jpg", version: str = "etag-v1", size: int = 1024):
     from src.connectors.base import RemoteObject
     from datetime import datetime, timezone
+    import os
     return RemoteObject(
         key=key,
+        display_name=os.path.basename(key) or key,
         version=version,
         last_modified_at=datetime.now(timezone.utc),
         size=size,
@@ -507,7 +509,7 @@ async def test_trigger_sync_idempotent_skip(db_session_factory, seed_users, tmp_
             source_id=source.id,
             user_id=DEV_USER_1,
             connector_type="s3_compatible",
-            bucket_name="my-bucket",
+            remote_container_id="my-bucket",
             region="us-east-1",
             credentials_encrypted=encrypt_credentials({"access_key_id": "K", "secret_access_key": "S"}),
         )
@@ -575,7 +577,7 @@ async def test_trigger_sync_imports_new_object(db_session_factory, seed_users, t
             source_id=source.id,
             user_id=DEV_USER_1,
             connector_type="s3_compatible",
-            bucket_name="my-bucket",
+            remote_container_id="my-bucket",
             region="us-east-1",
             credentials_encrypted=encrypt_credentials({"access_key_id": "K", "secret_access_key": "S"}),
         )
@@ -627,7 +629,7 @@ async def test_trigger_sync_duplicate_object(db_session_factory, seed_users, tmp
             source_id=source.id,
             user_id=DEV_USER_1,
             connector_type="s3_compatible",
-            bucket_name="my-bucket",
+            remote_container_id="my-bucket",
             region="us-east-1",
             credentials_encrypted=encrypt_credentials({"access_key_id": "K", "secret_access_key": "S"}),
         )
@@ -690,7 +692,7 @@ async def test_trigger_sync_failed_object_does_not_abort_run(
             source_id=source.id,
             user_id=DEV_USER_1,
             connector_type="s3_compatible",
-            bucket_name="my-bucket",
+            remote_container_id="my-bucket",
             region="us-east-1",
             credentials_encrypted=encrypt_credentials({"access_key_id": "K", "secret_access_key": "S"}),
         )
@@ -751,7 +753,7 @@ async def test_archived_source_sync_rejected(db_session_factory, seed_users, tmp
             source_id=source.id,
             user_id=DEV_USER_1,
             connector_type="s3_compatible",
-            bucket_name="bucket",
+            remote_container_id="bucket",
             region="us-east-1",
             credentials_encrypted=encrypt_credentials({"access_key_id": "K", "secret_access_key": "S"}),
         )

@@ -25,16 +25,13 @@ This document tracks all work items for the Media Indexing Engine through their 
 
 ## Planned
 
-_No planned workstreams currently. Phase 6 workstream P6-001 (Google SSO) has been completed._
+_Post-Phase 6 workstreams are being planned incrementally as the beta product expands beyond identity and the initial connector foundation._
+
+_No planned workstreams currently queued._
 
 ---
 
 ## Future
-
-### Future: Google Drive Connector
-- **Objective:** Add OAuth-based Google Drive ingestion on top of the connector foundation.
-- **Phase:** Later than Phase 5
-- **Status:** Deferred — OAuth and provider-specific API behavior would over-expand the focused sprint.
 
 ### Future: Dropbox Connector
 - **Objective:** Add Dropbox ingestion on top of the connector foundation.
@@ -51,6 +48,19 @@ _No planned workstreams currently. Phase 6 workstream P6-001 (Google SSO) has be
 ## In Progress
 
 _No workstreams currently in progress._
+
+---
+
+## Completed (Phase 7)
+
+### P7-002: Google Drive Connector (Root-Only)
+- **Objective:** Add the first OAuth-backed connector on top of the existing connector foundation so users can connect `My Drive` and manually sync supported image files through the current ingestion pipeline.
+- **Phase:** Phase 7 — Post-Phase 6 User-Value Features
+- **Status:** Completed — 2026-04-05
+- **Size:** Large
+- **Architect review:** Complete — approved for implementation
+- **Plan:** `docs/planning/P7-002_plan.md`
+- **Summary:** `IMPLEMENTATION_STATUS.md` — P7-002 entry
 
 ---
 

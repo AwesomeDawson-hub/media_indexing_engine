@@ -8,11 +8,11 @@ _Update this document at the end of every session and at every workstream transi
 
 | Field | Value |
 |---|---|
-| **Current Phase** | Phase 6 — Identity & Access |
-| **Current Workstream** | None — beta feedback polish complete |
+| **Current Phase** | Phase 7 — Post-Phase 6 User-Value Features |
+| **Current Workstream** | `P7-002` — Google Drive Connector (Root-Only) |
 | **Last Completed Work** | P6-001 (Google SSO) + beta feedback polish + re-analyze hint + metadata edit (2026-04-05) |
-| **Next Task** | Plan next Phase 6 workstream or continue beta feedback as needed |
-| **Next Step Requested** | Operator decides next priority |
+| **Next Task** | Implement `P7-002 — Google Drive Connector (Root-Only)` exactly per `docs/planning/P7-002_plan.md` |
+| **Next Step Requested** | Engineer begins implementation of P7-002 without changing the approved architecture |
 
 ## Required Reading
 
@@ -26,6 +26,7 @@ Before making any changes, read these documents in order:
 If implementation is underway, also read:
 5. **`docs/PROJECT_MAP.md`** — codebase structure
 6. **`docs/PROJECT_PLAYBOOK.md`** — safety practices and common tasks
+7. **`docs/planning/P7-002_plan.md`** — locked implementation contract for the active workstream
 
 ## System Summary
 
@@ -93,6 +94,18 @@ When suggesting code changes:
 - Hardcoding credentials or configuration
 
 ## Recent Session Activity
+
+- **P7-002 plan revision before approval (2026-04-05):**
+  - `docs/planning/P7-002_plan.md` updated to explicitly require a non-secret authorized Google account snapshot and define same-account vs different-account reconnect handling.
+  - Callback-state wording narrowed to the exact guarantees in this workstream: signed browser-bound state plus provider single-use auth-code enforcement, without claiming a separate DB-backed one-time state store.
+  - Backend callback redirect behavior is now locked to a fixed success/failure query contract so the Sources page can show deterministic banners.
+  - `CURRENT_STATE.md` reconciled so Phase 7 planning remains active and `P7-002` is the clean approval gate.
+
+- **P7-002 planning (2026-04-05):**
+  - `docs/planning/P7-002_plan.md` created to formalize the first Google Drive connector on top of the existing connector foundation.
+  - Locked decisions include: authenticated SPA OAuth start returning `authorization_url`, signed browser-bound callback state, Drive refresh tokens in encrypted connector-secret storage, dedicated token manager for exchange/refresh/rotation persistence, provider-neutral connector container semantics (`remote_container_id`, `remote_container_label`), root-only `My Drive`, `drive.readonly`, exclusion of trashed files/shortcuts/Google-native docs, file ID + Drive `version` idempotency, connector factory/registry adoption, and `RemoteObject.display_name` for non-path-based connectors.
+  - `docs/DECISION_LOG.md` updated with `ADR-021` through `ADR-025`.
+  - `docs/WORKSTREAMS.md` updated so `P7-002` is the planned approval gate.
 
 - **P6-001 plan revision after audit (2026-04-03):**
   - `docs/planning/P6-001_plan.md` updated to lock the backend-to-frontend completion handoff as a short-lived DB-backed one-time record plus HTTP-only completion cookie and non-secret `flow_id` correlation.

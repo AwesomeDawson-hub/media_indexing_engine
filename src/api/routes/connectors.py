@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_db, get_current_user_id
 from src.api.schemas import (
+    ConnectorDriveStartResponse,
     ConnectorResponse,
     ConnectorS3ConfigRequest,
     SyncRunResponse,
@@ -114,7 +115,8 @@ async def upsert_s3_connector(
             source_id=source_id,
             user_id=user_id,
             connector_type="s3_compatible",
-            bucket_name=body.bucket_name,
+            remote_container_id=body.bucket_name,
+            remote_container_label=body.bucket_name,
             prefix=body.prefix,
             region=body.region,
             endpoint_url=body.endpoint_url,
@@ -124,7 +126,8 @@ async def upsert_s3_connector(
         )
         db.add(connector)
     else:
-        connector.bucket_name = body.bucket_name
+        connector.remote_container_id = body.bucket_name
+        connector.remote_container_label = body.bucket_name
         connector.prefix = body.prefix
         connector.region = body.region
         connector.endpoint_url = body.endpoint_url

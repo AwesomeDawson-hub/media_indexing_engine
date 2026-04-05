@@ -52,6 +52,36 @@ Each completed workstream gets one entry in the log below, following this struct
 
 ---
 
+### P7-002: Google Drive Connector (Root-Only)
+- **Phase:** Phase 7 — Post-Phase 6 User-Value Features
+- **Completed:** 2026-04-05
+- **Objective:** Add the first OAuth-backed connector so users can authorise their Google Drive, connect `My Drive` as the root sync container, and pull supported image files through the existing ingestion pipeline — without widening scope to sub-folder selection, batch delete, or multi-account support.
+- **Outcome:** Full end-to-end Google Drive connector implemented and tested. DB schema is now provider-neutral (`remote_container_id` / `remote_container_label` + four account-snapshot columns). An HMAC-signed, browser-bound OAuth state guards the callback. Encrypted Fernet token storage holds the refresh token alongside scopes and issuance timestamp. The sync pipeline now routes by connector type through a factory rather than hardcoding S3. A dedicated `DriveTokenManager` handles token refresh and in-memory access-token caching with rotation persistence. The UI gains a Drive connect / disconnect flow with an account-connected info panel and a callback result banner. 25 new tests pass; all 18 existing S3 regression tests pass.
+- **Key decisions:** State signing uses the same HMAC-SHA256 pattern as Google SSO (`{user_id}|{source_id}|{nonce}.{ts}.{hmac_hex}`), with the nonce stored in a `gdrive_connector_state` HTTP-only cookie (max-age 600s) and consumed once on callback to prevent replay. `prompt=consent` and `access_type=offline` are always sent so a fresh refresh token is issued even if the user previously granted access — this ensures the refresh token is always present after authorisation. Drive query filter excludes shortcuts, all native Google Docs MIME types, and non-image files: `trashed=false and mimeType!='application/vnd.google-apps.shortcut' and not mimeType contains 'application/vnd.google-apps.' and mimeType contains 'image/'`. Reconnect logic: if the new authorised account's `provider_id` matches the existing connector, `source_objects` and `sync_runs` are preserved (same Drive, reuse state); if the `provider_id` differs, `source_objects` are deleted so the sync engine re-discovers objects under the new account from scratch. Logical disconnect (DELETE endpoint) clears `credentials_encrypted` to an empty dict but preserves the account snapshot columns so the UI can show "was connected to …" context. `RemoteObject` gained a `display_name` field so file names (not just Drive file IDs) flow through to the database. `build_connector()` factory dispatches on `connector_type` — S3 routes to the existing builder, `google_drive` routes to `GoogleDriveConnector` wrapping a `DriveTokenManager`. `sync_service.py` now calls `build_connector(connector_row, credentials)` instead of `build_s3_connector(...)`. ADRs 021–025 (pre-written by Architect) cover all five locked decisions.
+- **Artifacts produced:**
+  - `alembic/versions/d1e2f3a4b5c6_google_drive_connector.py` — renames `bucket_name` → `remote_container_id`; adds `remote_container_label`, `authorized_account_provider_id`, `authorized_account_email`, `authorized_account_display_name`; backfills `remote_container_label` from `remote_container_id` for existing S3 rows
+  - `src/models.py` — `SourceConnector.bucket_name` → `remote_container_id`; four new nullable account columns
+  - `src/api/schemas.py` — `ConnectorResponse` updated (provider-neutral field names + account snapshot fields); `ConnectorDriveStartResponse` added
+  - `src/api/routes/connectors.py` — S3 upsert writes both `remote_container_id` and `remote_container_label`
+  - `src/connectors/base.py` — `RemoteObject.display_name: str` added
+  - `src/connectors/s3_connector.py` — `RemoteObject` construction sets `display_name = os.path.basename(key) or key`
+  - `src/connectors/sync_service.py` — imports `build_connector` from factory; filename derivation uses `remote_obj.display_name` with fallback
+  - `src/config.py` — `GoogleDriveConfig` dataclass + `Settings.google_drive` field + 5 env-var overrides
+  - `src/auth/google_drive_oauth.py` (new) — `generate_nonce`, `sign_state`, `verify_state`, `build_auth_url`; `DRIVE_STATE_COOKIE`, `DRIVE_STATE_MAX_AGE`, `DRIVE_SCOPE` constants
+  - `src/connectors/google_drive_tokens.py` (new) — `DriveTokenError`; `exchange_code`; `fetch_account_snapshot`; `DriveTokenManager` (in-memory access token cache + `_refresh_access_token` with rotation persistence)
+  - `src/connectors/factory.py` (new) — `build_connector(connector_row, credentials) → ConnectorBase`
+  - `src/connectors/google_drive_connector.py` (new) — `GoogleDriveConnector(ConnectorBase)` with `list_objects`, `download_object`, `validate`
+  - `src/api/routes/google_drive_connector.py` (new) — `POST /sources/{id}/connector/google-drive/start`; `GET /connectors/google-drive/callback`; `DELETE /sources/{id}/connector/google-drive`
+  - `src/api/app.py` — `google_drive_connector` router registered
+  - `frontend/src/types/api.ts` — `ConnectorResponse` updated; `ConnectorDriveStartResponse` added
+  - `frontend/src/api/client.ts` — `startGoogleDriveConnector`, `disconnectGoogleDriveConnector`
+  - `frontend/src/pages/SourcesPage.tsx` — callback banner, Drive connect/disconnect flow, connected-account info panel, `remote_container_id` usage
+  - `tests/test_google_drive_connector.py` (new) — 25 tests covering state crypto, OAuth URL, token exchange + rotation, factory dispatch, Drive query, start/callback/disconnect/reconnect routes
+  - `tests/test_connectors.py` — updated for schema rename (`bucket_name` → `remote_container_id`) and `display_name` in `_make_remote_obj`
+- **Lessons learned:** When patching async helper functions in route module tests, always patch the name at its **import location** in the route module (e.g. `src.api.routes.google_drive_connector.exchange_code`), not at the definition module — otherwise the route function resolves the original reference and the mock is never seen. In-process `authlib` dependency was already in `requirements.txt` but absent from the test environment; `pip install authlib` resolved 14 test errors immediately at the first pytest run. Using `prompt=consent` unconditionally on the Drive auth URL is the right default because Google only issues a refresh token on the first consent grant — without it, reconnects after a token expiry silently return no refresh token and silently break syncs.
+
+---
+
 ### P6-001: Google SSO (Sign in with Google)
 - **Phase:** Phase 6 — Identity & Access
 - **Completed:** 2026-04-04

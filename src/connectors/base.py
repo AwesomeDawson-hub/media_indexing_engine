@@ -23,7 +23,8 @@ logger = logging.getLogger(__name__)
 class RemoteObject:
     """Describes one remote object discovered during a sync listing."""
 
-    key: str                                # remote path / object key
+    key: str                                # remote path / object key (stable identity)
+    display_name: str                       # user-facing filename or label (P7-002)
     version: str | None                     # ETag or version marker; None if not available
     last_modified_at: datetime | None       # remote last-modified timestamp
     size: int | None                        # byte size; None if not available

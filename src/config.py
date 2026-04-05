@@ -155,6 +155,27 @@ class GoogleAuthConfig:
 
 
 @dataclass
+class GoogleDriveConfig:
+    """Google Drive connector OAuth2 configuration (P7-002).
+
+    Uses a dedicated OAuth client separate from Google SSO (P6-001).
+    All connector routes are blocked when ``is_ready`` is False.
+    """
+    enabled: bool = False
+    client_id: str = ""
+    client_secret: str = ""
+    # Full backend callback URL. Must be set in production behind a reverse proxy.
+    redirect_uri: str = ""
+    # Frontend base URL for redirecting after callback. Falls back to email.app_url.
+    frontend_url: str = ""
+
+    @property
+    def is_ready(self) -> bool:
+        """True only when the gate is ON and both credentials are present."""
+        return self.enabled and bool(self.client_id) and bool(self.client_secret)
+
+
+@dataclass
 class Settings:
     app: AppConfig = field(default_factory=AppConfig)
     storage: StorageConfig = field(default_factory=StorageConfig)
@@ -170,6 +191,7 @@ class Settings:
     curation: CurationConfig = field(default_factory=CurationConfig)
     connector: ConnectorConfig = field(default_factory=ConnectorConfig)
     google: GoogleAuthConfig = field(default_factory=GoogleAuthConfig)
+    google_drive: GoogleDriveConfig = field(default_factory=GoogleDriveConfig)
 
 
 def load_settings(path: Path = DEFAULT_SETTINGS_PATH) -> Settings:
@@ -283,6 +305,26 @@ def load_settings(path: Path = DEFAULT_SETTINGS_PATH) -> Settings:
     env_google_frontend_url = os.environ.get("GOOGLE_FRONTEND_URL")
     if env_google_frontend_url:
         s.google.frontend_url = env_google_frontend_url
+
+    env_gdrive_enabled = os.environ.get("ENABLE_GOOGLE_DRIVE_CONNECTOR")
+    if env_gdrive_enabled is not None:
+        s.google_drive.enabled = env_gdrive_enabled.lower() in ("1", "true", "yes")
+
+    env_gdrive_client_id = os.environ.get("GOOGLE_DRIVE_CLIENT_ID")
+    if env_gdrive_client_id:
+        s.google_drive.client_id = env_gdrive_client_id
+
+    env_gdrive_client_secret = os.environ.get("GOOGLE_DRIVE_CLIENT_SECRET")
+    if env_gdrive_client_secret:
+        s.google_drive.client_secret = env_gdrive_client_secret
+
+    env_gdrive_redirect_uri = os.environ.get("GOOGLE_DRIVE_REDIRECT_URI")
+    if env_gdrive_redirect_uri:
+        s.google_drive.redirect_uri = env_gdrive_redirect_uri
+
+    env_gdrive_frontend_url = os.environ.get("GOOGLE_DRIVE_FRONTEND_URL")
+    if env_gdrive_frontend_url:
+        s.google_drive.frontend_url = env_gdrive_frontend_url
 
     return s
 

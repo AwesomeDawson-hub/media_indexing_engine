@@ -247,7 +247,10 @@ export interface ConnectorResponse {
   id: string;
   source_id: string;
   connector_type: string;
-  bucket_name: string;
+  remote_container_id: string;
+  remote_container_label: string | null;
+  authorized_account_email: string | null;
+  authorized_account_display_name: string | null;
   prefix?: string | null;
   region?: string | null;
   endpoint_url?: string | null;
@@ -255,6 +258,10 @@ export interface ConnectorResponse {
   last_validation_error?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ConnectorDriveStartResponse {
+  authorization_url: string;
 }
 
 export interface SyncRunResponse {

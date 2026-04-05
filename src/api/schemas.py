@@ -460,6 +460,7 @@ class SourceCreateRequest(BaseModel):
 
 class ConnectorS3ConfigRequest(BaseModel):
     """Request body for POST /sources/{id}/connector/s3."""
+    # bucket_name is the S3-specific UI label; stored as remote_container_id in DB
     bucket_name: str = Field(..., min_length=1, max_length=255)
     access_key_id: str = Field(..., min_length=1, max_length=256)
     secret_access_key: str = Field(..., min_length=1, max_length=512)
@@ -473,7 +474,12 @@ class ConnectorResponse(BaseModel):
     id: str
     source_id: str
     connector_type: str
-    bucket_name: str
+    # Provider-neutral container fields (P7-002)
+    remote_container_id: str
+    remote_container_label: str | None = None
+    authorized_account_provider_id: str | None = None
+    authorized_account_email: str | None = None
+    authorized_account_display_name: str | None = None
     prefix: str | None = None
     region: str | None = None
     endpoint_url: str | None = None
@@ -483,6 +489,11 @@ class ConnectorResponse(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ConnectorDriveStartResponse(BaseModel):
+    """Response from POST /sources/{id}/connector/google-drive/start."""
+    authorization_url: str
 
 
 class SyncRunResponse(BaseModel):

@@ -23,6 +23,7 @@ import type {
   PortalSessionResponse,
   ConnectorS3ConfigRequest,
   ConnectorResponse,
+  ConnectorDriveStartResponse,
   SyncRunsResponse,
   TriggerSyncResponse,
   QuotaHistoryResponse,
@@ -464,6 +465,19 @@ export async function configureS3Connector(
 
 export async function getConnector(sourceId: string): Promise<ConnectorResponse> {
   return request<ConnectorResponse>(`/api/v1/sources/${sourceId}/connector`);
+}
+
+export async function startGoogleDriveConnector(
+  sourceId: string,
+): Promise<ConnectorDriveStartResponse> {
+  return request<ConnectorDriveStartResponse>(
+    `/api/v1/sources/${sourceId}/connector/google-drive/start`,
+    { method: 'POST' },
+  );
+}
+
+export async function disconnectGoogleDriveConnector(sourceId: string): Promise<void> {
+  await request<void>(`/api/v1/sources/${sourceId}/connector/google-drive`, { method: 'DELETE' });
 }
 
 export async function triggerSync(sourceId: string): Promise<TriggerSyncResponse> {

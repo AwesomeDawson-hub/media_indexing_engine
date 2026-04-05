@@ -16,6 +16,7 @@ export default function SourcesPage() {
   const [actionPending, setActionPending] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [expandedConnector, setExpandedConnector] = useState<string | null>(null);
+  const [callbackBanner, setCallbackBanner] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   async function load(includeArchived: boolean) {
     setLoading(true);
@@ -32,6 +33,22 @@ export default function SourcesPage() {
   useEffect(() => {
     load(showArchived);
   }, [showArchived]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const connector = params.get('connector');
+    const result = params.get('connector_result');
+    if (connector === 'google_drive' && result) {
+      if (result === 'connected') {
+        setCallbackBanner({ type: 'success', message: 'Google Drive connected successfully.' });
+        load(false);
+      } else if (result === 'error') {
+        const code = params.get('error_code') || 'unknown_error';
+        setCallbackBanner({ type: 'error', message: `Google Drive connection failed: ${code.replace(/_/g, ' ')}` });
+      }
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleArchive(id: string) {
     setActionPending(id);
@@ -75,6 +92,13 @@ export default function SourcesPage() {
           </label>
         </div>
       </div>
+
+      {callbackBanner && (
+        <div className={`alert alert-${callbackBanner.type === 'success' ? 'info' : 'danger'}`}>
+          {callbackBanner.message}
+          <button className="btn btn-sm btn-outline" style={{ marginLeft: '1rem' }} onClick={() => setCallbackBanner(null)}>Dismiss</button>
+        </div>
+      )}
 
       {error && <div className="alert alert-danger">{error}</div>}
 
@@ -180,9 +204,9 @@ function SourceRow({
           <button
             className="btn btn-sm btn-outline"
             onClick={onToggleConnector}
-            title={hasConnector ? 'Connector settings' : 'Connect S3 source'}
+            title={hasConnector ? 'Connector settings' : 'Connect source'}
           >
-            {connectorExpanded ? 'Close' : hasConnector ? 'Connector' : 'Connect S3'}
+            {connectorExpanded ? 'Close' : hasConnector ? 'Connector' : 'Connect'}
           </button>
         )}
         {isArchived ? (
@@ -238,6 +262,7 @@ function ConnectorPanel({
   const [runsTotal, setRunsTotal] = useState(0);
   const [syncPending, setSyncPending] = useState(false);
   const [savePending, setSavePending] = useState(false);
+  const [drivePending, setDrivePending] = useState(false);
   const [panelError, setPanelError] = useState('');
   const [panelInfo, setPanelInfo] = useState('');
 
@@ -296,6 +321,37 @@ function ConnectorPanel({
     }
   }
 
+  async function handleDriveConnect() {
+    setPanelError('');
+    setDrivePending(true);
+    try {
+      const resp = await api.startGoogleDriveConnector(source.id);
+      window.location.href = resp.authorization_url;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setPanelError(`Could not start Google Drive connection: ${msg}`);
+      setDrivePending(false);
+    }
+  }
+
+  async function handleDriveDisconnect() {
+    setPanelError('');
+    setDrivePending(true);
+    try {
+      await api.disconnectGoogleDriveConnector(source.id);
+      setConnector(null);
+      if (onSourceUpdate) {
+        onSourceUpdate({ ...source, connector_status: 'disconnected', source_type: 'google_drive' });
+      }
+      setPanelInfo('Google Drive disconnected.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setPanelError(`Disconnect failed: ${msg}`);
+    } finally {
+      setDrivePending(false);
+    }
+  }
+
   return (
     <div className="connector-panel">
       <div className="connector-tabs">
@@ -326,64 +382,99 @@ function ConnectorPanel({
       {panelInfo && <div className="alert alert-info connector-alert">{panelInfo}</div>}
 
       {activeTab === 'config' && (
-        <form onSubmit={handleSave} className="connector-form">
-          {connector && (
-            <p className="text-muted connector-existing-note">
-              Connector configured: <strong>{connector.bucket_name}</strong>
-              {connector.prefix ? `/${connector.prefix}` : ''}
-              {connector.region ? ` (${connector.region})` : ''}
-              . Enter new credentials to replace.
-            </p>
+        <>
+          {connector?.connector_type === 'google_drive' ? (
+            <div className="connector-drive-section">
+              <p>
+                <strong>Google Drive</strong> — My Drive
+                {connector.authorized_account_email && (
+                  <span className="text-muted"> ({connector.authorized_account_email})</span>
+                )}
+                {connector.authorized_account_display_name && (
+                  <span className="text-muted"> · {connector.authorized_account_display_name}</span>
+                )}
+              </p>
+              <button
+                className="btn btn-sm btn-outline"
+                onClick={handleDriveDisconnect}
+                disabled={drivePending}
+              >
+                {drivePending ? '...' : 'Disconnect Google Drive'}
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleSave} className="connector-form">
+              {connector && (
+                <p className="text-muted connector-existing-note">
+                  Connector configured: <strong>{connector.remote_container_id}</strong>
+                  {connector.prefix ? `/${connector.prefix}` : ''}
+                  {connector.region ? ` (${connector.region})` : ''}
+                  . Enter new credentials to replace.
+                </p>
+              )}
+              <label className="form-label">Bucket name *</label>
+              <input
+                className="form-input"
+                required
+                value={formData.bucket_name}
+                onChange={(e) => setFormData((p) => ({ ...p, bucket_name: e.target.value }))}
+              />
+              <label className="form-label">Access key ID *</label>
+              <input
+                className="form-input"
+                required
+                autoComplete="off"
+                value={formData.access_key_id}
+                onChange={(e) => setFormData((p) => ({ ...p, access_key_id: e.target.value }))}
+              />
+              <label className="form-label">Secret access key *</label>
+              <input
+                className="form-input"
+                type="password"
+                required
+                autoComplete="new-password"
+                value={formData.secret_access_key}
+                onChange={(e) => setFormData((p) => ({ ...p, secret_access_key: e.target.value }))}
+              />
+              <label className="form-label">Region</label>
+              <input
+                className="form-input"
+                placeholder="us-east-1"
+                value={formData.region ?? ''}
+                onChange={(e) => setFormData((p) => ({ ...p, region: e.target.value }))}
+              />
+              <label className="form-label">Endpoint URL (S3-compatible)</label>
+              <input
+                className="form-input"
+                placeholder="https://s3.example.com"
+                value={formData.endpoint_url ?? ''}
+                onChange={(e) => setFormData((p) => ({ ...p, endpoint_url: e.target.value }))}
+              />
+              <label className="form-label">Prefix (folder path)</label>
+              <input
+                className="form-input"
+                placeholder="images/"
+                value={formData.prefix ?? ''}
+                onChange={(e) => setFormData((p) => ({ ...p, prefix: e.target.value }))}
+              />
+              <button className="btn btn-primary" type="submit" disabled={savePending}>
+                {savePending ? 'Saving…' : 'Save connector'}
+              </button>
+            </form>
           )}
-          <label className="form-label">Bucket name *</label>
-          <input
-            className="form-input"
-            required
-            value={formData.bucket_name}
-            onChange={(e) => setFormData((p) => ({ ...p, bucket_name: e.target.value }))}
-          />
-          <label className="form-label">Access key ID *</label>
-          <input
-            className="form-input"
-            required
-            autoComplete="off"
-            value={formData.access_key_id}
-            onChange={(e) => setFormData((p) => ({ ...p, access_key_id: e.target.value }))}
-          />
-          <label className="form-label">Secret access key *</label>
-          <input
-            className="form-input"
-            type="password"
-            required
-            autoComplete="new-password"
-            value={formData.secret_access_key}
-            onChange={(e) => setFormData((p) => ({ ...p, secret_access_key: e.target.value }))}
-          />
-          <label className="form-label">Region</label>
-          <input
-            className="form-input"
-            placeholder="us-east-1"
-            value={formData.region ?? ''}
-            onChange={(e) => setFormData((p) => ({ ...p, region: e.target.value }))}
-          />
-          <label className="form-label">Endpoint URL (S3-compatible)</label>
-          <input
-            className="form-input"
-            placeholder="https://s3.example.com"
-            value={formData.endpoint_url ?? ''}
-            onChange={(e) => setFormData((p) => ({ ...p, endpoint_url: e.target.value }))}
-          />
-          <label className="form-label">Prefix (folder path)</label>
-          <input
-            className="form-input"
-            placeholder="images/"
-            value={formData.prefix ?? ''}
-            onChange={(e) => setFormData((p) => ({ ...p, prefix: e.target.value }))}
-          />
-          <button className="btn btn-primary" type="submit" disabled={savePending}>
-            {savePending ? 'Saving…' : 'Save connector'}
-          </button>
-        </form>
+          {!connector && (
+            <div className="connector-drive-section">
+              <p className="text-muted">Or connect a Google Drive account:</p>
+              <button
+                className="btn btn-outline"
+                onClick={handleDriveConnect}
+                disabled={drivePending}
+              >
+                {drivePending ? 'Redirecting…' : 'Connect Google Drive — My Drive'}
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {activeTab === 'runs' && (
