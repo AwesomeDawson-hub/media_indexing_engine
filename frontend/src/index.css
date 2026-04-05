@@ -2499,6 +2499,10 @@ input:focus {
   opacity: 1;
 }
 
+.profile-avatar-wrapper:hover .profile-avatar-remove {
+  opacity: 1;
+}
+
 .profile-avatar-remove:hover:not(:disabled) {
   background: #dc2626;
 }
