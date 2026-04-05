@@ -432,17 +432,20 @@ function ConnectorPanel({
 
   async function handleDriveNavInto(folder: { id: string; name: string }) {
     setDriveNavStack((prev) => [...prev, folder]);
+    setSelectedFolder(folder); // navigation = selection
     await loadDriveFolders(folder.id);
   }
 
   async function handleDriveNavTo(idx: number) {
     const newStack = driveNavStack.slice(0, idx + 1);
     setDriveNavStack(newStack);
+    setSelectedFolder({ id: newStack[newStack.length - 1].id, name: newStack[newStack.length - 1].name });
     await loadDriveFolders(newStack[newStack.length - 1].id);
   }
 
   async function handleDriveNavRoot() {
     setDriveNavStack([]);
+    setSelectedFolder(null); // root
     await loadDriveFolders('root');
   }
 
@@ -505,138 +508,94 @@ function ConnectorPanel({
             // ── Google Drive connected ──────────────────────────────────────
             <div className="connector-drive-section">
               {!showDriveConfigure ? (
+                // ── Summary view ─────────────────────────────────────────
                 <>
-                  <p>
-                    <strong>Google Drive</strong>
-                    {connector.authorized_account_email && (
-                      <span className="text-muted"> · {connector.authorized_account_email}</span>
-                    )}
-                  </p>
-                  <div className="connector-drive-scope">
-                    <span className="connector-drive-scope-label">Sync folder:</span>
-                    <span className="connector-drive-scope-value">
-                      {connector.target_folder_label ?? 'My Drive (root)'}
-                    </span>
-                    <button
-                      className="btn btn-sm btn-outline connector-drive-change-btn"
-                      onClick={handleDriveConfigOpen}
-                    >
-                      Change
+                  <div className="connector-drive-header">
+                    <div>
+                      <strong>Google Drive</strong>
+                      {connector.authorized_account_email && (
+                        <span className="connector-drive-account"> · {connector.authorized_account_email}</span>
+                      )}
+                    </div>
+                    <button className="btn btn-sm btn-outline" onClick={handleDriveDisconnect} disabled={drivePending}>
+                      {drivePending ? '...' : 'Disconnect'}
                     </button>
                   </div>
-                  {connector.target_collection_id && (
-                    <div className="connector-drive-scope">
-                      <span className="connector-drive-scope-label">Auto-collection:</span>
-                      <span className="connector-drive-scope-value">
-                        {collections.find((c) => c.id === connector.target_collection_id)?.name ?? connector.target_collection_id}
+                  <div className="connector-drive-meta">
+                    <div className="connector-drive-meta-row">
+                      <span className="connector-drive-meta-label">Sync folder</span>
+                      <span className="connector-drive-meta-value">
+                        {connector.target_folder_label ?? 'My Drive (root)'}
                       </span>
+                      <button className="btn btn-sm btn-outline connector-drive-change-btn" onClick={handleDriveConfigOpen}>
+                        Change
+                      </button>
                     </div>
-                  )}
-                  <button
-                    className="btn btn-sm btn-outline"
-                    onClick={handleDriveDisconnect}
-                    disabled={drivePending}
-                    style={{ marginTop: '0.5rem' }}
-                  >
-                    {drivePending ? '...' : 'Disconnect Google Drive'}
-                  </button>
+                    {connector.target_collection_id && (
+                      <div className="connector-drive-meta-row">
+                        <span className="connector-drive-meta-label">Collection</span>
+                        <span className="connector-drive-meta-value">
+                          {collections.find((c) => c.id === connector.target_collection_id)?.name ?? connector.target_collection_id}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </>
               ) : (
-                // ── Drive folder + collection picker ───────────────────────
+                // ── Folder + collection configure ─────────────────────────
                 <div className="drive-configure-panel">
-                  <div className="drive-configure-header">
+                  <p className="drive-configure-title">Choose sync folder</p>
+
+                  {/* Breadcrumb — clicking any level navigates + selects it */}
+                  <div className="drive-breadcrumb">
                     <button
                       type="button"
-                      className="btn btn-sm btn-outline"
-                      onClick={() => setShowDriveConfigure(false)}
+                      className={`drive-breadcrumb-item${driveNavStack.length === 0 ? ' drive-breadcrumb-item--current' : ''}`}
+                      onClick={handleDriveNavRoot}
                     >
-                      ← Back
+                      My Drive
                     </button>
-                    <strong>Configure sync scope</strong>
+                    {driveNavStack.map((seg, idx) => (
+                      <span key={seg.id}>
+                        <span className="drive-breadcrumb-sep">›</span>
+                        <button
+                          type="button"
+                          className={`drive-breadcrumb-item${idx === driveNavStack.length - 1 ? ' drive-breadcrumb-item--current' : ''}`}
+                          onClick={() => handleDriveNavTo(idx)}
+                        >
+                          {seg.name}
+                        </button>
+                      </span>
+                    ))}
                   </div>
 
-                  <div className="drive-folder-picker">
-                    <p className="form-label">Folder to sync from</p>
-
-                    {/* Breadcrumb */}
-                    <div className="drive-breadcrumb">
-                      <button
-                        type="button"
-                        className="drive-breadcrumb-item"
-                        onClick={handleDriveNavRoot}
-                      >
-                        My Drive
-                      </button>
-                      {driveNavStack.map((seg, idx) => (
-                        <span key={seg.id}>
-                          <span className="drive-breadcrumb-sep">›</span>
-                          <button
-                            type="button"
-                            className="drive-breadcrumb-item"
-                            onClick={() => handleDriveNavTo(idx)}
-                          >
-                            {seg.name}
-                          </button>
-                        </span>
+                  {/* Sub-folder list — clicking a row navigates into it */}
+                  {folderLoading ? (
+                    <div className="drive-folder-loading"><div className="spinner spinner-sm" /></div>
+                  ) : driveFolders.length === 0 ? (
+                    <p className="drive-folder-empty">No sub-folders — will sync this folder's files</p>
+                  ) : (
+                    <div className="drive-folder-list">
+                      {driveFolders.map((f) => (
+                        <button
+                          key={f.id}
+                          type="button"
+                          className="drive-folder-item"
+                          onClick={() => handleDriveNavInto(f)}
+                        >
+                          <span>📁</span>
+                          <span className="drive-folder-item-name">{f.name}</span>
+                          <span className="drive-folder-item-chevron">›</span>
+                        </button>
                       ))}
                     </div>
-
-                    {/* Use this level button */}
-                    <button
-                      type="button"
-                      className={`drive-folder-select-btn${
-                        (driveNavStack.length === 0 && selectedFolder === null) ||
-                        (driveNavStack.length > 0 && selectedFolder?.id === driveNavStack[driveNavStack.length - 1].id)
-                          ? ' drive-folder-select-btn--active'
-                          : ''
-                      }`}
-                      onClick={() =>
-                        setSelectedFolder(
-                          driveNavStack.length === 0
-                            ? null
-                            : { id: driveNavStack[driveNavStack.length - 1].id, name: driveNavStack[driveNavStack.length - 1].name },
-                        )
-                      }
-                    >
-                      {driveNavStack.length === 0
-                        ? (selectedFolder === null ? '✓ Syncing: My Drive (root)' : 'Use My Drive (root)')
-                        : (selectedFolder?.id === driveNavStack[driveNavStack.length - 1].id
-                          ? `✓ Syncing: ${driveNavStack[driveNavStack.length - 1].name}`
-                          : `Use "${driveNavStack[driveNavStack.length - 1].name}"`)}
-                    </button>
-
-                    {/* Sub-folder list */}
-                    {folderLoading ? (
-                      <div className="drive-folder-loading"><div className="spinner spinner-sm" /></div>
-                    ) : driveFolders.length === 0 ? (
-                      <p className="text-muted drive-folder-empty">No sub-folders</p>
-                    ) : (
-                      <ul className="drive-folder-list">
-                        {driveFolders.map((f) => (
-                          <li key={f.id} className="drive-folder-row">
-                            <span className="drive-folder-icon">📁</span>
-                            <span className="drive-folder-name">{f.name}</span>
-                            {f.has_children && (
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-outline drive-folder-drill"
-                                onClick={() => handleDriveNavInto(f)}
-                              >
-                                Open ›
-                              </button>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
+                  )}
 
                   {/* Collection picker */}
                   {collections.length > 0 && (
                     <div className="drive-collection-picker">
                       <label className="form-label">
-                        Auto-add synced images to collection
-                        <span className="text-muted"> (optional)</span>
+                        Auto-add to collection <span className="text-muted">(optional)</span>
                       </label>
                       <select
                         className="form-input"
@@ -658,7 +617,7 @@ function ConnectorPanel({
                       onClick={handleDriveConfigureSave}
                       disabled={configurePending}
                     >
-                      {configurePending ? 'Saving…' : 'Save settings'}
+                      {configurePending ? 'Saving…' : 'Save'}
                     </button>
                     <button
                       type="button"

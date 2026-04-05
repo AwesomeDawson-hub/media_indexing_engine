@@ -901,10 +901,10 @@ input:focus {
 
 .source-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   padding: 12px 16px;
-  gap: 12px;
+  gap: 0 12px;
 }
 
 .source-row--archived {
@@ -912,6 +912,7 @@ input:focus {
 }
 
 .source-row-info {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -933,6 +934,64 @@ input:focus {
 
 .source-row-actions {
   flex-shrink: 0;
+}
+
+/* ── Connector panel (full-width row below source header) ─────────────── */
+.connector-panel {
+  flex: 0 0 100%;
+  border-top: 1px solid var(--border);
+  margin-top: 10px;
+  padding-top: 14px;
+  padding-bottom: 4px;
+}
+
+.connector-tabs {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+  gap: 0;
+}
+
+.connector-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 5px 14px;
+  margin-bottom: -1px;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.connector-tab:hover {
+  color: var(--text);
+}
+.connector-tab--active {
+  color: var(--text);
+  border-bottom-color: #6366f1;
+  font-weight: 500;
+}
+.connector-sync-btn {
+  margin-left: auto;
+  margin-bottom: 4px;
+}
+.connector-alert {
+  margin-bottom: 12px;
+  font-size: 0.85rem;
+}
+.connector-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 480px;
+}
+.connector-existing-note {
+  font-size: 0.8125rem;
+  margin-bottom: 4px;
+}
+.connector-drive-section {
+  padding-bottom: 4px;
 }
 
 .sources-section-heading {
@@ -2571,142 +2630,139 @@ input:focus {
   color: #9ca3af;
 }
 
-.connector-back-btn {
-  margin-bottom: 12px;
-}
-
-/* ── Drive scope display ─────────────────────────────────────────────────── */
-.connector-drive-scope {
+/* ── Drive scope display (connected state) ──────────────────────────────── */
+.connector-drive-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
+  justify-content: space-between;
+  margin-bottom: 10px;
 }
-.connector-drive-scope-label {
-  font-size: 0.8rem;
-  color: #9ca3af;
-  min-width: 90px;
+.connector-drive-account {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
 }
-.connector-drive-scope-value {
-  font-size: 0.85rem;
+.connector-drive-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+.connector-drive-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8125rem;
+}
+.connector-drive-meta-label {
+  color: var(--text-muted);
+  min-width: 80px;
+}
+.connector-drive-meta-value {
   font-weight: 500;
-}
-.connector-drive-change-btn {
-  font-size: 0.75rem;
-  padding: 1px 8px;
 }
 
 /* ── Drive configure panel ───────────────────────────────────────────────── */
 .drive-configure-panel {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
+  max-width: 560px;
 }
-.drive-configure-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.drive-configure-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin: 0 0 2px;
 }
-.drive-folder-picker {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
+
+/* Breadcrumb */
 .drive-breadcrumb {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 0;
   font-size: 0.8rem;
-  margin-bottom: 4px;
   flex-wrap: wrap;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
 }
 .drive-breadcrumb-item {
   background: none;
   border: none;
   cursor: pointer;
-  color: #6366f1;
-  padding: 2px 4px;
-  border-radius: 4px;
+  color: var(--text-muted);
+  padding: 0 3px;
+  border-radius: 3px;
   font-size: 0.8rem;
+  line-height: 1.4;
+  transition: color 0.1s;
 }
 .drive-breadcrumb-item:hover {
-  background: rgba(99, 102, 241, 0.1);
+  color: var(--text);
+}
+.drive-breadcrumb-item--current {
+  color: var(--text);
+  font-weight: 500;
+  cursor: default;
 }
 .drive-breadcrumb-sep {
-  color: #9ca3af;
-  margin: 0 1px;
+  color: var(--border);
+  margin: 0 2px;
+  user-select: none;
 }
 
-/* "Use this folder" toggle button */
-.drive-folder-select-btn {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 12px;
-  border-radius: 6px;
-  border: 1px solid #374151;
-  background: transparent;
-  color: #e5e7eb;
-  cursor: pointer;
-  font-size: 0.8rem;
-  margin-bottom: 6px;
-  transition: background 0.15s, border-color 0.15s;
-}
-.drive-folder-select-btn:hover {
-  background: rgba(99, 102, 241, 0.12);
-  border-color: #6366f1;
-}
-.drive-folder-select-btn--active {
-  background: rgba(99, 102, 241, 0.2);
-  border-color: #818cf8;
-  color: #a5b4fc;
-}
-
+/* Folder list */
 .drive-folder-loading {
-  padding: 8px 0;
+  padding: 10px 0;
 }
 .spinner-sm {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   border-width: 2px;
 }
 .drive-folder-empty {
   font-size: 0.8rem;
-  margin: 4px 0;
+  margin: 6px 0;
+  color: var(--text-muted);
 }
-
 .drive-folder-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  border: 1px solid #374151;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  max-height: 220px;
+  overflow: hidden;
+  max-height: 240px;
   overflow-y: auto;
 }
-.drive-folder-row {
+.drive-folder-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-bottom: 1px solid #1f2937;
-  font-size: 0.85rem;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 0.875rem;
+  gap: 10px;
+  transition: background 0.1s;
 }
-.drive-folder-row:last-child {
+.drive-folder-item:last-child {
   border-bottom: none;
 }
-.drive-folder-icon {
-  font-size: 0.9rem;
+.drive-folder-item:hover {
+  background: rgba(255, 255, 255, 0.04);
 }
-.drive-folder-name {
+.drive-folder-item-name {
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.drive-folder-drill {
-  font-size: 0.7rem;
-  padding: 1px 8px;
+.drive-folder-item-chevron {
+  color: var(--text-muted);
+  font-size: 0.9rem;
   flex-shrink: 0;
 }
 
@@ -2714,12 +2770,12 @@ input:focus {
 .drive-collection-picker {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 }
 
 .drive-configure-actions {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding-top: 4px;
+  padding-top: 2px;
 }
