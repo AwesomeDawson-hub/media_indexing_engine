@@ -10,8 +10,8 @@ interface FileQueueProps {
 
 const statusLabels: Record<string, string> = {
   queued: 'Queued',
-  uploading: 'Uploading...',
-  created: 'Created',
+  uploading: 'Processing...',
+  created: 'Completed',
   duplicate: 'Duplicate',
   error: 'Error',
 };

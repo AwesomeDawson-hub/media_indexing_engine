@@ -102,6 +102,11 @@ img {
   text-decoration: none;
 }
 
+.nav-link.active {
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+
 .search-bar {
   flex: 1;
   max-width: 320px;

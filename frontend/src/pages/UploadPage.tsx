@@ -29,7 +29,6 @@ export default function UploadPage() {
   const [creatingSource, setCreatingSource] = useState(false);
   const [createError, setCreateError] = useState<{ message: string; archivedSourceId?: string } | null>(null);
   const queuedCount = queue.filter((q) => q.status === 'queued').length;
-  const hasCompleted = queue.some((q) => q.status !== 'queued' && q.status !== 'uploading');
   const exceedsQuota = quotaStatus !== null && queuedCount > quotaStatus.remaining;
   const quotaDepleted = quotaStatus !== null && quotaStatus.remaining === 0;
 
@@ -172,10 +171,6 @@ export default function UploadPage() {
     await handleUpload();
   }
 
-  function clearCompleted() {
-    setQueue((prev) => prev.filter((q) => q.status === 'queued' || q.status === 'uploading'));
-  }
-
   return (
     <div>
       <div className="page-header">
@@ -190,11 +185,7 @@ export default function UploadPage() {
               {quotaLoading ? 'Checking quota...' : uploading ? 'Processing...' : `Process ${queuedCount} file${queuedCount > 1 ? 's' : ''}`}
             </button>
           )}
-          {hasCompleted && (
-            <button className="btn btn-outline" onClick={clearCompleted}>
-              Clear Completed
-            </button>
-          )}
+
         </div>
       </div>
       <div className="upload-source-section card">

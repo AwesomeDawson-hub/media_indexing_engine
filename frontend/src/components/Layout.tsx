@@ -1,4 +1,4 @@
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import UserMenu from './UserMenu';
 import { useAuth } from '../context/AuthContext';
 
@@ -9,7 +9,8 @@ function GalleryNavLink() {
   const href = isOnGallery
     ? location.pathname + location.search
     : (sessionStorage.getItem('gallery_last_url') || '/');
-  return <Link to={href} className="nav-link">Gallery</Link>;
+  const isActive = location.pathname === '/' || location.pathname.startsWith('/media/');
+  return <Link to={href} className={`nav-link${isActive ? ' active' : ''}`}>Gallery</Link>;
 }
 
 export default function Layout() {
@@ -23,12 +24,12 @@ export default function Layout() {
           </Link>
           <nav className="app-nav">
             <GalleryNavLink />
-            <Link to="/upload" className="nav-link">Upload</Link>
-            <Link to="/sources" className="nav-link">Sources</Link>
-            <Link to="/billing" className="nav-link">Billing</Link>
-            <Link to="/profile" className="nav-link">Profile</Link>
+            <NavLink to="/upload" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Upload</NavLink>
+            <NavLink to="/sources" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Sources</NavLink>
+            <NavLink to="/billing" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Billing</NavLink>
+            <NavLink to="/profile" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Profile</NavLink>
             {user?.role === 'admin' && (
-              <Link to="/admin" className="nav-link">Admin</Link>
+              <NavLink to="/admin" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Admin</NavLink>
             )}
           </nav>
           <UserMenu />
