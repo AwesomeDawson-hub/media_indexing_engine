@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import * as api from '../api/client';
+import type { CollectionResponse } from '../types/api';
 
 interface SelectionBarProps {
   count: number;
@@ -16,6 +17,21 @@ export default function SelectionBar({ count, selectedIds, onClear, onDeleteSucc
   const [showTagInput, setShowTagInput] = useState(false);
   const [tagInput, setTagInput] = useState('');
   const [lastMessage, setLastMessage] = useState<string | null>(null);
+
+  // Add to collection
+  const [showCollectionPicker, setShowCollectionPicker] = useState(false);
+  const [collections, setCollections] = useState<CollectionResponse[]>([]);
+  const [collectionsLoading, setCollectionsLoading] = useState(false);
+  const [addingToCollection, setAddingToCollection] = useState(false);
+
+  useEffect(() => {
+    if (showCollectionPicker && collections.length === 0) {
+      setCollectionsLoading(true);
+      api.listCollections().then((res) => {
+        setCollections(res.collections);
+      }).catch(() => {}).finally(() => setCollectionsLoading(false));
+    }
+  }, [showCollectionPicker]);
 
   const busy = downloading || reanalyzing || deleting || tagging;
 
@@ -78,6 +94,20 @@ export default function SelectionBar({ count, selectedIds, onClear, onDeleteSucc
     }
   }
 
+  async function handleAddToCollection(collectionId: string, collectionName: string) {
+    setAddingToCollection(true);
+    setLastMessage(null);
+    try {
+      const res = await api.addItemsToCollection(collectionId, selectedIds);
+      setLastMessage(`Added ${res.added} item${res.added !== 1 ? 's' : ''} to "${collectionName}".`);
+      setShowCollectionPicker(false);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to add to collection');
+    } finally {
+      setAddingToCollection(false);
+    }
+  }
+
   if (count === 0) return null;
 
   return (
@@ -105,6 +135,36 @@ export default function SelectionBar({ count, selectedIds, onClear, onDeleteSucc
       >
         Add Tags
       </button>
+      <div className="selection-collection-wrapper">
+        <button
+          className="btn btn-secondary btn-sm"
+          onClick={() => { setShowCollectionPicker((v) => !v); setLastMessage(null); }}
+          disabled={busy || addingToCollection}
+        >
+          Add to Collection
+        </button>
+        {showCollectionPicker && (
+          <div className="selection-collection-dropdown">
+            {collectionsLoading ? (
+              <div className="selection-collection-item selection-collection-loading">Loading…</div>
+            ) : collections.length === 0 ? (
+              <div className="selection-collection-item selection-collection-empty">No collections yet</div>
+            ) : (
+              collections.map((c) => (
+                <button
+                  key={c.id}
+                  className="selection-collection-item"
+                  onClick={() => handleAddToCollection(c.id, c.name)}
+                  disabled={addingToCollection}
+                >
+                  {c.name}
+                  <span className="selection-collection-count">{c.item_count}</span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
       <button
         className="btn btn-danger btn-sm"
         onClick={handleDelete}

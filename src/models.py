@@ -339,3 +339,39 @@ class GoogleCompletionRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class Collection(Base):
+    """User-owned named group of media items (P7-001)."""
+    __tablename__ = "collections"
+    __table_args__ = (
+        UniqueConstraint("user_id", "name", name="uq_collection_user_name"),
+        Index("ix_collections_user_id", "user_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
+
+    items: Mapped[list["CollectionItem"]] = relationship(back_populates="collection", cascade="all, delete-orphan")
+
+
+class CollectionItem(Base):
+    """Join record linking a media item to a collection (P7-001)."""
+    __tablename__ = "collection_items"
+    __table_args__ = (
+        UniqueConstraint("collection_id", "media_item_id", name="uq_collection_item"),
+        Index("ix_collection_items_collection_id", "collection_id"),
+        Index("ix_collection_items_media_item_id", "media_item_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    collection_id: Mapped[str] = mapped_column(String(36), ForeignKey("collections.id", ondelete="CASCADE"), nullable=False)
+    media_item_id: Mapped[str] = mapped_column(String(36), ForeignKey("media_items.id", ondelete="CASCADE"), nullable=False)
+    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+
+    collection: Mapped["Collection"] = relationship(back_populates="items")
+    media_item: Mapped["MediaItem"] = relationship()

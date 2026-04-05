@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import * as api from '../api/client';
 import { getMediaFileUrl } from '../api/client';
 import { useAuthImage, prefetchAuthImage } from '../api/useAuthImage';
-import type { MediaItemResponse, AnalysisResponse, SimilarItemsResponse } from '../types/api';
+import type { MediaItemResponse, AnalysisResponse, SimilarItemsResponse, CollectionResponse } from '../types/api';
 import StatusBadge from '../components/StatusBadge';
 import MetadataDisplay from '../components/MetadataDisplay';
 import AuthImage from '../components/AuthImage';
@@ -32,6 +32,13 @@ export default function MediaDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval>>();
   const imgSrc = useAuthImage(id ? getMediaFileUrl(id) : '');
+
+  // Add to Collection
+  const [showCollectionPicker, setShowCollectionPicker] = useState(false);
+  const [collections, setCollections] = useState<CollectionResponse[]>([]);
+  const [collectionsLoaded, setCollectionsLoaded] = useState(false);
+  const [addingToCollection, setAddingToCollection] = useState(false);
+  const [collectionMsg, setCollectionMsg] = useState('');
 
   // Swipe / gesture state
   const swipeWrapRef = useRef<HTMLDivElement>(null);
@@ -143,8 +150,32 @@ export default function MediaDetailPage() {
     await executeDelete();
   }
 
-  async function handleDownload() {
+  async function handleOpenCollectionPicker() {
+    setShowCollectionPicker((v) => !v);
+    setCollectionMsg('');
+    if (!collectionsLoaded) {
+      try {
+        const res = await api.listCollections();
+        setCollections(res.collections);
+        setCollectionsLoaded(true);
+      } catch { /* silent */ }
+    }
+  }
+
+  async function handleAddToCollection(collectionId: string, collectionName: string) {
     if (!id) return;
+    setAddingToCollection(true);
+    try {
+      const res = await api.addItemsToCollection(collectionId, [id]);
+      setCollectionMsg(`Added to "${collectionName}".`);
+      if (res.skipped > 0) setCollectionMsg(`Already in "${collectionName}".`);
+      setShowCollectionPicker(false);
+    } catch { /* silent */ } finally {
+      setAddingToCollection(false);
+    }
+  }
+
+  async function handleDownload() {    if (!id) return;
     setDownloading(true);
     try {
       await api.downloadFile(id);
@@ -308,6 +339,7 @@ export default function MediaDetailPage() {
           {/* Action buttons below the swipe zone */}
           {isAnalyzed && (
             <div className="media-detail-actions">
+              {collectionMsg && <span className="collection-feedback-msg">{collectionMsg}</span>}
               {isNoEmbedFormat ? (
                 <>
                   <button
@@ -324,6 +356,34 @@ export default function MediaDetailPage() {
                   >
                     {converting ? 'Converting...' : 'Convert to PNG with metadata'}
                   </button>
+                  <div className="detail-collection-wrapper">
+                    <button
+                      className="btn btn-secondary"
+                      onClick={handleOpenCollectionPicker}
+                      disabled={addingToCollection}
+                    >
+                      + Collection
+                    </button>
+                    {showCollectionPicker && (
+                      <div className="selection-collection-dropdown">
+                        {collections.length === 0 ? (
+                          <div className="selection-collection-item selection-collection-empty">No collections yet</div>
+                        ) : (
+                          collections.map((c) => (
+                            <button
+                              key={c.id}
+                              className="selection-collection-item"
+                              onClick={() => handleAddToCollection(c.id, c.name)}
+                              disabled={addingToCollection}
+                            >
+                              {c.name}
+                              <span className="selection-collection-count">{c.item_count}</span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
                   <button
                     className="btn btn-danger"
                     onClick={handleDelete}
@@ -341,6 +401,34 @@ export default function MediaDetailPage() {
                   >
                     {downloading ? 'Downloading...' : 'Download (with metadata)'}
                   </button>
+                  <div className="detail-collection-wrapper">
+                    <button
+                      className="btn btn-secondary"
+                      onClick={handleOpenCollectionPicker}
+                      disabled={addingToCollection}
+                    >
+                      + Collection
+                    </button>
+                    {showCollectionPicker && (
+                      <div className="selection-collection-dropdown">
+                        {collections.length === 0 ? (
+                          <div className="selection-collection-item selection-collection-empty">No collections yet</div>
+                        ) : (
+                          collections.map((c) => (
+                            <button
+                              key={c.id}
+                              className="selection-collection-item"
+                              onClick={() => handleAddToCollection(c.id, c.name)}
+                              disabled={addingToCollection}
+                            >
+                              {c.name}
+                              <span className="selection-collection-count">{c.item_count}</span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
                   <button
                     className="btn btn-danger"
                     onClick={handleDelete}

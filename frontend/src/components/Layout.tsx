@@ -26,6 +26,7 @@ export default function Layout() {
             <GalleryNavLink />
             <NavLink to="/upload" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Upload</NavLink>
             <NavLink to="/sources" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Sources</NavLink>
+            <NavLink to="/collections" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Collections</NavLink>
             <NavLink to="/billing" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Billing</NavLink>
             <NavLink to="/profile" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Profile</NavLink>
             {user?.role === 'admin' && (

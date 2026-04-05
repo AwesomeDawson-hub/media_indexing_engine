@@ -500,3 +500,59 @@ class TriggerSyncResponse(BaseModel):
     sync_run_id: str
     status: str
     message: str
+
+
+# ---------------------------------------------------------------------------
+# Collections (P7-001)
+# ---------------------------------------------------------------------------
+
+class CollectionCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    description: str | None = Field(None, max_length=1000)
+
+
+class CollectionUpdateRequest(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=200)
+    description: str | None = Field(None, max_length=1000)
+
+
+class CollectionResponse(BaseModel):
+    id: str
+    name: str
+    description: str | None
+    item_count: int
+    cover_url: str | None  # thumbnail URL of the first item, or None
+    created_at: str
+    updated_at: str
+
+    class Config:
+        from_attributes = True
+
+
+class CollectionListResponse(BaseModel):
+    collections: list[CollectionResponse]
+    total: int
+
+
+class CollectionItemsRequest(BaseModel):
+    """Batch add or remove media item IDs."""
+    media_item_ids: list[str] = Field(..., min_length=1, max_length=500)
+
+
+class CollectionDetailResponse(BaseModel):
+    id: str
+    name: str
+    description: str | None
+    item_count: int
+    created_at: str
+    updated_at: str
+    items: list["MediaItemResponse"]
+
+    class Config:
+        from_attributes = True
+
+
+class CollectionItemsModifiedResponse(BaseModel):
+    added: int = 0
+    removed: int = 0
+    skipped: int = 0

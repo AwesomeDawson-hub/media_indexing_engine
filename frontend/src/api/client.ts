@@ -26,6 +26,10 @@ import type {
   SyncRunsResponse,
   TriggerSyncResponse,
   QuotaHistoryResponse,
+  CollectionListResponse,
+  CollectionDetailResponse,
+  CollectionResponse,
+  CollectionItemsModifiedResponse,
 } from '../types/api';
 
 const BASE_URL = '';
@@ -603,5 +607,60 @@ export async function getSimilarMedia(id: string): Promise<SimilarItemsResponse>
 export async function scoreGroup(id: string): Promise<ScoreGroupResponse> {
   return request<ScoreGroupResponse>(`/api/v1/media/${id}/score-group`, {
     method: 'POST',
+  });
+}
+
+// Collections (P7-001)
+
+export async function listCollections(): Promise<CollectionListResponse> {
+  return request<CollectionListResponse>('/api/v1/collections');
+}
+
+export async function createCollection(name: string, description?: string): Promise<CollectionResponse> {
+  return request<CollectionResponse>('/api/v1/collections', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, description: description || null }),
+  });
+}
+
+export async function getCollection(id: string): Promise<CollectionDetailResponse> {
+  return request<CollectionDetailResponse>(`/api/v1/collections/${id}`);
+}
+
+export async function updateCollection(
+  id: string,
+  data: { name?: string; description?: string | null }
+): Promise<CollectionResponse> {
+  return request<CollectionResponse>(`/api/v1/collections/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteCollection(id: string): Promise<void> {
+  await request<void>(`/api/v1/collections/${id}`, { method: 'DELETE' });
+}
+
+export async function addItemsToCollection(
+  collectionId: string,
+  mediaItemIds: string[]
+): Promise<CollectionItemsModifiedResponse> {
+  return request<CollectionItemsModifiedResponse>(`/api/v1/collections/${collectionId}/items`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ media_item_ids: mediaItemIds }),
+  });
+}
+
+export async function removeItemsFromCollection(
+  collectionId: string,
+  mediaItemIds: string[]
+): Promise<CollectionItemsModifiedResponse> {
+  return request<CollectionItemsModifiedResponse>(`/api/v1/collections/${collectionId}/items`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ media_item_ids: mediaItemIds }),
   });
 }

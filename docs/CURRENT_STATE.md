@@ -9,7 +9,7 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 | **Current Phase** | Phase 6 — Identity & Access |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
 | **Active Workstream** | None — post-P6-001 beta feedback applied |
-| **Last Updated** | 2026-04-05 |
+| **Last Updated** | 2026-04-05 (session 2) |
 | **Updated By** | AI — Engineer |
 
 ## System Health
@@ -18,17 +18,22 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | Docs aligned | Yes |
 | Drift detected | No |
-| All docs in sync | Yes — updated 2026-04-03 after P6-001 audit revision |
+| All docs in sync | Yes — updated 2026-04-05 session 2 |
 | Registry complete | Yes |
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
 | Test status | 229/229 pass (209 existing + 20 new Google SSO tests) |
 | Active workstream | None |
-| Last governance audit | 2026-04-05 — beta feedback polish + re-analyze hint + metadata edit features |
+| Last governance audit | 2026-04-05 session 2 — bulk ops, schema fix, profile redesign |
 
 ## Recent Activity
 
-- **2026-04-05:** Beta feedback polish + new features shipped. Details:
+- **2026-04-05 (session 2):** Post-beta UX polish continued. Details:
+  - **Profile page redesign:** `ProfilePage.tsx` fully rewritten. Card-based layout (max-width 680px). Avatar circle with initials fallback at top. Account info displayed as a 2-column info-grid with labelled items. Edit Profile form uses proper `form-group` pattern. Email/Password sections each in their own expandable card with sub-card form and token confirm step. `icon_url` removed from edit form (stored in DB but no upload UI yet). All profile CSS added to `index.css` (`profile-page`, `profile-card`, `profile-avatar`, `profile-badge`, `profile-info-grid`, etc.). `alert-success` / `alert-error` CSS variants added globally. Commit: `0f487d6`. AWS deployed.
+  - **Bulk operations:** Grid view checkboxes on `MediaCard` (overlay top-left, blue ring when selected). `SelectionBar` updated with "Add Tags" button + inline comma-separated input (Enter to apply, Escape to close). `POST /api/v1/media/tag-batch` backend endpoint (up to 50 items, merges tags, best-effort re-index). `BatchTagRequest` / `BatchTagResponse` schemas. `tagBatch()` in `client.ts`. Commit: `8b8540c`. AWS deployed.
+  - **Google SSO schema regression fix:** When `BatchTagResponse` was inserted into `schemas.py`, the `class QuotaStatusResponse(BaseModel):` declaration was accidentally dropped (fields remained as floating code) → startup `ImportError: cannot import name 'QuotaStatusResponse'` → Google SSO button disappeared from login page. Fix: restored the missing class declaration. Commit: `4f2f0e7`. AWS deployed. Verified `{"google_sso_enabled":true}`.
+
+- **2026-04-05 (session 1):** Beta feedback polish + new features shipped. Details:
   - **Upload status labels:** `Uploading…` → `Processing…`, `Created` → `Completed` (`FileQueue.tsx`)
   - **Clear Completed button removed** from `UploadPage.tsx`
   - **Active nav highlight:** switched to React Router `NavLink` + `.nav-link.active` CSS

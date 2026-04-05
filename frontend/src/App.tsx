@@ -15,6 +15,8 @@ import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage';
 import BillingPage from './pages/BillingPage';
 import GoogleAuthCallbackPage from './pages/GoogleAuthCallbackPage';
+import CollectionsPage from './pages/CollectionsPage';
+import CollectionDetailPage from './pages/CollectionDetailPage';
 
 export default function App() {
   return (
@@ -41,6 +43,8 @@ export default function App() {
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/billing" element={<BillingPage />} />
             <Route path="/admin" element={<AdminPage />} />
+            <Route path="/collections" element={<CollectionsPage />} />
+            <Route path="/collections/:id" element={<CollectionDetailPage />} />
           </Route>
         </Route>
       </Routes>

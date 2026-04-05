@@ -337,3 +337,35 @@ export interface CheckoutSessionResponse {
 export interface PortalSessionResponse {
   portal_url: string;
 }
+
+// Collections (P7-001)
+export interface CollectionResponse {
+  id: string;
+  name: string;
+  description: string | null;
+  item_count: number;
+  cover_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CollectionListResponse {
+  collections: CollectionResponse[];
+  total: number;
+}
+
+export interface CollectionDetailResponse {
+  id: string;
+  name: string;
+  description: string | null;
+  item_count: number;
+  created_at: string;
+  updated_at: string;
+  items: MediaItemResponse[];
+}
+
+export interface CollectionItemsModifiedResponse {
+  added: number;
+  removed: number;
+  skipped: number;
+}
