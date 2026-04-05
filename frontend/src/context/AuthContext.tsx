@@ -9,6 +9,7 @@ interface AuthContextValue {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, displayName: string) => Promise<void>;
+  loginWithGoogle: (flowId: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -64,8 +65,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
+  const loginWithGoogle = useCallback(async (flowId: string) => {
+    const res = await api.exchangeGoogleAuth(flowId);
+    setToken(res.access_token);
+    setUser(res.user);
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, register, loginWithGoogle, logout }}>
       {children}
     </AuthContext.Provider>
   );

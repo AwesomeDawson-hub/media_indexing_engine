@@ -1,5 +1,6 @@
 import type {
   AuthResponse,
+  AuthConfig,
   UserProfile,
   UploadResponse,
   BatchUploadResponse,
@@ -155,6 +156,26 @@ export async function login(
 
 export async function getProfile(): Promise<UserProfile> {
   return request<UserProfile>('/api/v1/auth/me');
+}
+
+export async function getAuthConfig(): Promise<AuthConfig> {
+  return request<AuthConfig>('/api/v1/auth/config');
+}
+
+export async function exchangeGoogleAuth(flowId: string): Promise<AuthResponse> {
+  const data = await fetch('/api/v1/auth/google/exchange', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include', // send HTTP-only completion cookie
+    body: JSON.stringify({ flow_id: flowId }),
+  });
+  if (!data.ok) {
+    const err = await data.json().catch((): ApiError => ({ detail: 'Exchange failed', error_code: 'unknown' }));
+    throw new ApiRequestError(data.status, err);
+  }
+  const result = await data.json() as AuthResponse;
+  setToken(result.access_token);
+  return result;
 }
 
 export async function uploadFile(file: File, sourceId?: string): Promise<UploadResponse> {

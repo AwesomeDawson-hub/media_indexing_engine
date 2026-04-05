@@ -30,6 +30,14 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface AuthConfig {
+  google_sso_enabled: boolean;
+}
+
+export interface GoogleExchangeRequest {
+  flow_id: string;
+}
+
 export interface UploadResponse {
   id: string;
   content_hash: string;

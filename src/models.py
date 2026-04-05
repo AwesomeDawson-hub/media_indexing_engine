@@ -3,7 +3,7 @@
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import BigInteger, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, Index
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
@@ -39,6 +39,7 @@ class User(Base):
 
     media_items: Mapped[list["MediaItem"]] = relationship(back_populates="user")
     sources: Mapped[list["Source"]] = relationship(back_populates="user")
+    oauth_accounts: Mapped[list["OAuthAccount"]] = relationship(back_populates="user")
 
 
 class AdminAuditLog(Base):
@@ -288,3 +289,53 @@ class SourceObject(Base):
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
+
+
+class OAuthAccount(Base):
+    """Provider-neutral external identity link for application users (P6-001).
+
+    Enforces:
+      - UNIQUE (provider, provider_user_id) — one local user per external identity
+      - UNIQUE (user_id, provider) — at most one Google identity per local user in Phase 6
+    """
+    __tablename__ = "oauth_accounts"
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_user_id", name="uq_oauth_provider_user"),
+        UniqueConstraint("user_id", "provider", name="uq_oauth_user_provider"),
+        Index("ix_oauth_accounts_user_id", "user_id"),
+        Index("ix_oauth_accounts_provider_email", "provider", "provider_email"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    provider: Mapped[str] = mapped_column(String(50), nullable=False)
+    provider_user_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    provider_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    provider_email_verified: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped["User"] = relationship(back_populates="oauth_accounts")
+
+
+class GoogleCompletionRecord(Base):
+    """Short-lived one-time record for backend-to-frontend SSO token handoff (P6-001).
+
+    The ``flow_id`` is public (embedded in the frontend redirect URL).
+    The ``completion_id_hash`` is derived from the secret completion ID that
+    is delivered only via an HTTP-only browser cookie — the exchange endpoint
+    validates both to prove browser ownership before issuing a JWT.
+    """
+    __tablename__ = "google_completion_records"
+    __table_args__ = (
+        Index("ix_completion_expires", "expires_at"),
+        Index("ix_completion_user_id", "user_id"),
+    )
+
+    flow_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    completion_id_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -6,10 +6,10 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 
 | Field | Value |
 |---|---|
-| **Current Phase** | Phase 5 — Smart Curation & Connected Ingestion |
+| **Current Phase** | Phase 6 — Identity & Access |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | None — P5-003 completed |
-| **Last Updated** | 2026-04-02 |
+| **Active Workstream** | None — P6-001 (Google SSO) completed |
+| **Last Updated** | 2026-04-04 |
 | **Updated By** | AI — Engineer |
 
 ## System Health
@@ -18,19 +18,25 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | Docs aligned | Yes |
 | Drift detected | No |
-| All docs in sync | Yes — updated 2026-04-02 after P5-003 planning |
+| All docs in sync | Yes — updated 2026-04-03 after P6-001 audit revision |
 | Registry complete | Yes |
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
-| Test status | 209/209 pass (208 existing + 1 new concurrent-upload race regression test) |
+| Test status | 229/229 pass (209 existing + 20 new Google SSO tests) |
 | Active workstream | None |
-| Last governance audit | 2026-03-31 — Pre-Phase-4 Auditor review (0 blocking findings) |
+| Last governance audit | 2026-04-04 — P6-001 (Google SSO) implemented and closed out |
 
 ## Recent Activity
 
+- **2026-04-04:** P6-001 (Google SSO) **completed**. Alembic migration `a3b4c5d6e7f8` adds `oauth_accounts` and `google_completion_records` tables. `GoogleAuthConfig` added to `config.py` with `ENABLE_GOOGLE_SSO` gate and four supporting env vars. `src/auth/google_oauth.py` provides HMAC-SHA256 signed state, nonce, Authlib OIDC token exchange. Three SSO endpoints added (`/google/start`, `/google/callback`, `/google/exchange`) plus `/auth/config` feature-flag endpoint. Account resolution: provider-link-first → email fallback → create new user. Frontend: `GoogleAuthCallbackPage.tsx`, Google buttons in Login/Register, `loginWithGoogle` in `AuthContext`, standalone `/auth/google/callback` route in `App.tsx`. 20 new tests, all passing. See `IMPLEMENTATION_STATUS.md` for full details.
+
+- **2026-04-03:** P6-001 (Google SSO) plan revised after audit. `docs/planning/P6-001_plan.md` now explicitly locks the backend-to-frontend completion handoff as a short-lived DB-backed one-time record plus HTTP-only completion cookie and non-secret `flow_id`, requires OIDC nonce validation in addition to signed state-cookie comparison, enforces provider-link-first account resolution with disabled-account failure behavior, adds `UNIQUE (user_id, provider)` for one Google identity per local user in Phase 6, and makes `ENABLE_GOOGLE_SSO` a mandatory rollout gate. `WORKSTREAMS.md` and `PROJECT_HANDOFF.md` reconciled so the approval state is clean and current.
+
+- **2026-04-02:** P6-001 (Google SSO) plan created. `docs/planning/P6-001_plan.md` locks Authlib as the OAuth client library, backend-managed callback handling, signed-cookie anti-CSRF state validation, automatic verified-email account linking, and a provider-neutral `oauth_accounts` table. `WORKSTREAMS.md`, `PROJECT_HANDOFF.md`, and `DECISION_LOG.md` updated for the Phase 6 approval gate and ADRs `ADR-016` through `ADR-020`.
+
 - **2026-04-02:** Bugfix — concurrent upload race condition. When two identical files were uploaded simultaneously both could pass the dedup check before either committed, causing the second INSERT to violate `uq_user_content_hash` and return a 500 / "Request failed" in the UI. Fix: `except IntegrityError` handler added to `UploadService.process_upload()` — rolls back, deletes the stored file, re-queries for the winner, and returns `is_duplicate=True`. New test `test_concurrent_duplicate_handled_gracefully` added. 209/209 pass. Commit: `fc2147a`. AWS deploy needed.
 
-- **2026-04-04:** P5-003 (Connector Sync Foundation & First Connector) **completed**. Alembic migration `f6a7b8c9d0e1` adds `connector_status`/`last_synced_at` to `sources`; creates `source_connectors`, `sync_runs`, `source_objects` tables with appropriate FKs and UNIQUE constraints. `ConnectorConfig` dataclass added to `config.py` with `credentials_key` (from env `CONNECTOR_CREDENTIALS_KEY`) and `max_objects_per_sync=1000`. `src/connectors/` package created: `secrets.py` (Fernet symmetric encryption, fail-closed when key absent), `base.py` (`RemoteObject` dataclass + `ConnectorBase` ABC + `ConnectorValidationError`), `s3_connector.py` (`S3Connector` using `run_in_executor` for boto3, `build_s3_connector()` factory, image-only key filtering, prefix pagination), `sync_service.py` (`trigger_sync()` public entry point, `_run_sync()` core orchestrator, overlap prevention, idempotency by key+version, quota reservation per imported item, per-object error isolation, `SyncRunResult` dataclass). `SourceConnector`, `SyncRun`, `SourceObject` ORM models added to `src/models.py`; `Source` extended with `connector_status`, `last_synced_at`, `connector` relationship. `src/api/routes/connectors.py` created with 4 endpoints: `POST /{id}/connector/s3`, `GET /{id}/connector`, `POST /{id}/sync`, `GET /{id}/sync-runs`. Connectors router registered in `app.py`. Schemas file extended with `ConnectorS3ConfigRequest`, `ConnectorResponse` (no secrets), `SyncRunResponse`, `SyncRunsResponse`, `TriggerSyncResponse`, `SourceResponse` extended with connector fields. Frontend: `api.ts` extended with connector/sync types; `client.ts` adds `configureS3Connector`, `getConnector`, `triggerSync`, `listSyncRuns`; `SourcesPage.tsx` gains `ConnectorPanel` with S3 config form, sync trigger, and sync-runs table; connector status badge shown on each row. 18 new tests in `tests/test_connectors.py`; **208/208 total pass**.
+- **2026-04-03:** P5-003 (Connector Sync Foundation & First Connector) **completed**. Alembic migration `f6a7b8c9d0e1` adds `connector_status`/`last_synced_at` to `sources`; creates `source_connectors`, `sync_runs`, `source_objects` tables with appropriate FKs and UNIQUE constraints. `ConnectorConfig` dataclass added to `config.py` with `credentials_key` (from env `CONNECTOR_CREDENTIALS_KEY`) and `max_objects_per_sync=1000`. `src/connectors/` package created: `secrets.py` (Fernet symmetric encryption, fail-closed when key absent), `base.py` (`RemoteObject` dataclass + `ConnectorBase` ABC + `ConnectorValidationError`), `s3_connector.py` (`S3Connector` using `run_in_executor` for boto3, `build_s3_connector()` factory, image-only key filtering, prefix pagination), `sync_service.py` (`trigger_sync()` public entry point, `_run_sync()` core orchestrator, overlap prevention, idempotency by key+version, quota reservation per imported item, per-object error isolation, `SyncRunResult` dataclass). `SourceConnector`, `SyncRun`, `SourceObject` ORM models added to `src/models.py`; `Source` extended with `connector_status`, `last_synced_at`, `connector` relationship. `src/api/routes/connectors.py` created with 4 endpoints: `POST /{id}/connector/s3`, `GET /{id}/connector`, `POST /{id}/sync`, `GET /{id}/sync-runs`. Connectors router registered in `app.py`. Schemas file extended with `ConnectorS3ConfigRequest`, `ConnectorResponse` (no secrets), `SyncRunResponse`, `SyncRunsResponse`, `TriggerSyncResponse`, `SourceResponse` extended with connector fields. Frontend: `api.ts` extended with connector/sync types; `client.ts` adds `configureS3Connector`, `getConnector`, `triggerSync`, `listSyncRuns`; `SourcesPage.tsx` gains `ConnectorPanel` with S3 config form, sync trigger, and sync-runs table; connector status badge shown on each row. 18 new tests in `tests/test_connectors.py`; the project test suite later advanced to 209/209 after the concurrent-upload regression fix.
 
 - **2026-04-02:** P5-002 (AI Best-Photo Selection) **completed**. `curation_scores` table added (Alembic migration `a1b2c3d4e5f6`). `CurationScore` ORM model with `curation_score` relationship on `MediaItem`. `CurationConfig.enable_ai_scoring` feature gate (env `ENABLE_AI_SCORING`, default OFF). `src/curation/scoring_service.py` created: `score_group()` finds group members via pHash, calls Anthropic vision AI for each image, upserts quality scores; `load_scores_for_items()` bulk loader; `find_best_pick()` pure-Python highest-score selector; `SCORING_SYSTEM_PROMPT` quality-focused prompt. `POST /api/v1/media/{id}/score-group` endpoint (dual gate-check, ownership-scoped). `GET /api/v1/media/{id}/similar` extended: includes `quality_score`, `rationale`, `is_best_pick` per item + anchor when gate ON. Frontend: “Find best pick” button, 👑 crown badge on best-pick item, quality score percentage badge, amber border highlight. `ScoreGroupResponse` schema added. 16 new tests; 190/190 pass. `IMPLEMENTATION_STATUS.md` + `PROJECT_MAP.md` updated.
 
@@ -113,13 +119,13 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 
 ## Notes for Next Session
 
-- **Phase 5 planning is active.** No workstream is in progress yet; `P5-003` is awaiting operator approval after Architect review.
+- **Phase 6 planning is active.** No workstream is in progress yet; `P6-001` is awaiting operator approval after Architect review.
 - **SES activation (when AWS approves):** `ssh -i "C:\Code\AWS\media-indexing-key.pem" ubuntu@vyzindex.com "echo 'EMAIL_FROM=noreply@vyzindex.com' >> ~/media_indexing_engine/.env && docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build backend"`
 - **Most recent commits (newest first):** `04333ce` (gallery empty-state bug fix); `f6ea7dc` (password reset frontend); `977fafa` (perf caching); `3c3ace3` (email case-insensitive); `35757a5` (swipe nav polish).
 - **AWS deploy command:** `ssh -i "C:\Code\AWS\media-indexing-key.pem" ubuntu@vyzindex.com "cd ~/media_indexing_engine && git pull && docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build"`
 - **HTTPS is live:** `https://vyzindex.com` — Caddy handles TLS automatically. compose files: `docker-compose.yml` + `docker-compose.beta.yml`. SSH key: `C:\Code\AWS\media-indexing-key.pem`, user `ubuntu`.
 - **Stripe note:** All billing runs in dev/test mode. To enable: set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_ADVANCED`, `STRIPE_PRICE_ID_PREMIUM` on the server.
 - **Before inviting broader beta users:** rotate the `ANTHROPIC_API_KEY`, `POSTGRES_PASSWORD`, and `AUTH_SECRET_KEY`.
-- **Next implementation gate:** approve `docs/planning/P5-003_plan.md`, then mark `P5-003` active in `docs/WORKSTREAMS.md` before Engineer starts.
+- **Next implementation gate:** approve `docs/planning/P6-001_plan.md`, then mark `P6-001` active in `docs/WORKSTREAMS.md` before Engineer starts.
 - **Schema changes** require `alembic revision --autogenerate` + review + `alembic upgrade head`. Back up AWS DB before any migration deploy.
-- **Test status:** 158/158 pass. Tests run from `c:\AI Engineering\Projects\media_indexing_engine` with `.venv\Scripts\python.exe -m pytest tests/ -q --tb=short`.
+- **Test status:** 209/209 pass. Tests run from `c:\AI Engineering\Projects\media_indexing_engine` with `.venv\Scripts\python.exe -m pytest tests/ -q --tb=short`.

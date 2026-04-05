@@ -183,6 +183,10 @@ class ConvertResponse(BaseModel):
     message: str
 
 
+class GoogleExchangeRequest(BaseModel):
+    flow_id: str
+
+
 class BatchOperationRequest(BaseModel):
     media_ids: list[str] = Field(..., min_length=1, max_length=50)
 

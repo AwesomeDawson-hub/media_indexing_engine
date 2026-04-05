@@ -132,6 +132,29 @@ class ConnectorConfig:
 
 
 @dataclass
+class GoogleAuthConfig:
+    """Google OAuth2 / OpenID Connect configuration (P6-001).
+
+    All traffic to Google SSO routes is blocked when ``is_ready`` is False.
+    """
+    enabled: bool = False
+    client_id: str = ""
+    client_secret: str = ""
+    # Full backend callback URL (e.g. https://vyzindex.com/api/v1/auth/google/callback).
+    # Computed from request.base_url when empty (works for local dev).
+    # Must be set explicitly in production behind a reverse proxy.
+    redirect_uri: str = ""
+    # Frontend base URL for redirecting the browser after the backend callback.
+    # Falls back to email.app_url when empty.
+    frontend_url: str = ""
+
+    @property
+    def is_ready(self) -> bool:
+        """True only when the gate is ON and both Google credentials are present."""
+        return self.enabled and bool(self.client_id) and bool(self.client_secret)
+
+
+@dataclass
 class Settings:
     app: AppConfig = field(default_factory=AppConfig)
     storage: StorageConfig = field(default_factory=StorageConfig)
@@ -146,6 +169,7 @@ class Settings:
     email: EmailConfig = field(default_factory=EmailConfig)
     curation: CurationConfig = field(default_factory=CurationConfig)
     connector: ConnectorConfig = field(default_factory=ConnectorConfig)
+    google: GoogleAuthConfig = field(default_factory=GoogleAuthConfig)
 
 
 def load_settings(path: Path = DEFAULT_SETTINGS_PATH) -> Settings:
@@ -170,6 +194,9 @@ def load_settings(path: Path = DEFAULT_SETTINGS_PATH) -> Settings:
         email=EmailConfig(**raw.get("email", {})),
         curation=CurationConfig(**raw.get("curation", {})),
         connector=ConnectorConfig(**raw.get("connector", {})),
+        google=GoogleAuthConfig(**{k: v for k, v in raw.get("google", {}).items()
+                                   if k in ("enabled", "client_id", "client_secret",
+                                            "redirect_uri", "frontend_url")}),
     )
 
     # Override secret key from env var if set (production override)
@@ -236,6 +263,26 @@ def load_settings(path: Path = DEFAULT_SETTINGS_PATH) -> Settings:
     env_connector_key = os.environ.get("CONNECTOR_CREDENTIALS_KEY")
     if env_connector_key:
         s.connector.credentials_key = env_connector_key
+
+    env_google_sso = os.environ.get("ENABLE_GOOGLE_SSO")
+    if env_google_sso is not None:
+        s.google.enabled = env_google_sso.lower() in ("1", "true", "yes")
+
+    env_google_client_id = os.environ.get("GOOGLE_CLIENT_ID")
+    if env_google_client_id:
+        s.google.client_id = env_google_client_id
+
+    env_google_client_secret = os.environ.get("GOOGLE_CLIENT_SECRET")
+    if env_google_client_secret:
+        s.google.client_secret = env_google_client_secret
+
+    env_google_redirect_uri = os.environ.get("GOOGLE_REDIRECT_URI")
+    if env_google_redirect_uri:
+        s.google.redirect_uri = env_google_redirect_uri
+
+    env_google_frontend_url = os.environ.get("GOOGLE_FRONTEND_URL")
+    if env_google_frontend_url:
+        s.google.frontend_url = env_google_frontend_url
 
     return s
 

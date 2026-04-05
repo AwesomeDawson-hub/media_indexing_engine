@@ -14,11 +14,15 @@ import SourcesPage from './pages/SourcesPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage';
 import BillingPage from './pages/BillingPage';
+import GoogleAuthCallbackPage from './pages/GoogleAuthCallbackPage';
 
 export default function App() {
   return (
     <AuthProvider>
       <Routes>
+        {/* Standalone OAuth callback — must not be behind Public or Protected guards */}
+        <Route path="/auth/google/callback" element={<GoogleAuthCallbackPage />} />
+
         {/* Public routes - redirect to / if authenticated */}
         <Route element={<PublicRoute />}>
           <Route path="/login" element={<LoginPage />} />

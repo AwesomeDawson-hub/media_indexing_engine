@@ -8,11 +8,11 @@ _Update this document at the end of every session and at every workstream transi
 
 | Field | Value |
 |---|---|
-| **Current Phase** | Phase 5 complete — awaiting Phase 6 planning |
-| **Current Workstream** | None — all Phase 5 workstreams complete |
-| **Last Completed Work** | P5-003 — Connector Sync Foundation & First Connector (2026-04-04) |
-| **Next Task** | Operator decides Phase 6 direction — options: AWS deploy of P5-003, Phase 6 planning, or connector expansion (Google Drive / Dropbox) |
-| **Next Step Requested** | Operator direction on next phase |
+| **Current Phase** | Phase 6 — Identity & Access (planning) |
+| **Current Workstream** | None — Phase 6 planning active; `P6-001` awaiting approval |
+| **Last Completed Work** | P5-003 — Connector Sync Foundation & First Connector (2026-04-03) |
+| **Next Task** | Review and approve `P6-001 — Google SSO (Sign in with Google)` using `docs/planning/P6-001_plan.md` |
+| **Next Step Requested** | Operator reviews the revised P6-001 plan and approves it so Engineer can begin implementation |
 
 ## Required Reading
 
@@ -94,11 +94,18 @@ When suggesting code changes:
 
 ## Recent Session Activity
 
+- **P6-001 plan revision after audit (2026-04-03):**
+  - `docs/planning/P6-001_plan.md` updated to lock the backend-to-frontend completion handoff as a short-lived DB-backed one-time record plus HTTP-only completion cookie and non-secret `flow_id` correlation.
+  - OIDC nonce validation is now mandatory in addition to signed state-cookie comparison; state and nonce cookies are single-use and short-lived.
+  - Account-linking precedence is now explicit: existing provider link first, verified-email fallback only when no provider link exists, disabled accounts fail, later provider-email drift cannot re-key ownership, and Phase 6 enforces one Google identity per local user via `UNIQUE (user_id, provider)`.
+  - Google rollout gating is now mandatory via `ENABLE_GOOGLE_SSO`, so schema/code can ship dark before exposing the Google button and routes.
+  - `CURRENT_STATE.md` and `WORKSTREAMS.md` reconciled so the active gate is clean: Phase 6 planning active, no workstream in progress, `P6-001` awaiting approval.
+
 - **Bugfix: Concurrent upload race condition (2026-04-02):**
   - `UploadService.process_upload()`: added `except IntegrityError` handler after the DB write. When two identical files race past the dedup check and the second INSERT hits `uq_user_content_hash`, the handler rolls back, deletes the stored file, and re-queries for the winner — returning `is_duplicate=True` instead of propagating a 500.
   - `tests/test_upload.py`: added `test_concurrent_duplicate_handled_gracefully` (call-count side-effect patch simulates the race window). 209/209 tests pass. Commit: `fc2147a`. **AWS deploy needed.**
 
-- **P5-003 implementation (2026-04-04):**
+- **P5-003 implementation (2026-04-03):**
   - Full connector sync foundation implemented: encrypted credential storage, S3-compatible connector, sync-run state machine, idempotent per-object import tracking.
   - Alembic migration `f6a7b8c9d0e1`: adds `connector_status`/`last_synced_at` to `sources`; creates `source_connectors`, `sync_runs`, `source_objects` tables.
   - `ConnectorConfig` added to `config.py` — `credentials_key` from env `CONNECTOR_CREDENTIALS_KEY` (fail-closed when absent), `max_objects_per_sync=1000`.
@@ -107,7 +114,7 @@ When suggesting code changes:
   - `src/api/routes/connectors.py` created: `POST /{id}/connector/s3`, `GET /{id}/connector`, `POST /{id}/sync`, `GET /{id}/sync-runs`; registered in `app.py`.
   - Schemas: `ConnectorS3ConfigRequest`, `ConnectorResponse` (no secrets), `SyncRunResponse`, `SyncRunsResponse`, `TriggerSyncResponse`; `SourceResponse` extended.
   - Frontend: `SourcesPage.tsx` gains `ConnectorPanel` (S3 config form, sync trigger, sync run history table), connector status badge per row; `api.ts` + `client.ts` updated.
-  - 18 new tests in `tests/test_connectors.py`; **208/208 total pass**.
+  - 18 new tests in `tests/test_connectors.py`; connector workstream completed cleanly and later project-level regression coverage brought the suite to 209/209.
   - **AWS deploy not yet done** — `CONNECTOR_CREDENTIALS_KEY` env var must be set before deploying; migration `f6a7b8c9d0e1` will run on startup.
 
 - **P5-001 + P5-002 implementation (2026-04-03):**
@@ -239,7 +246,7 @@ When suggesting code changes:
 
 - No application blockers.
 - Operational limitation remains: AWS SES production access is still pending for live password reset email sending, but this does not block Phase 5 planning.
-- Workflow gate: no Phase 5 workstream is active yet. `P5-001` is the next candidate and is awaiting final operator approval after Auditor-requested design locks.
+- Workflow gate: no Phase 6 workstream is active yet. `P6-001` is the current approval gate and is awaiting operator approval after Auditor-requested design locks.
 
 ## Document Ownership Note
 

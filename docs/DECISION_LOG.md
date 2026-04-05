@@ -190,3 +190,53 @@ Each decision follows this structure:
 - **Reasoning:** Reusing the existing ingest path preserves one authoritative import contract and ensures connector imports inherit exact deduplication, quota enforcement, storage, and downstream analysis automatically. Manual trigger proves the connector foundation without forcing a scheduler, worker orchestration layer, or broad operational redesign into the final Phase 5 workstream.
 - **Alternatives considered:** Parallel connector-specific ingest path (rejected: duplicate logic and drift risk), overload `processing_jobs` for sync runs (rejected: media-item job model does not fit source-level execution), scheduled sync in Phase 5 (rejected: too much orchestration complexity for the current sprint).
 - **Consequences:** Connector code is responsible only for config validation, remote listing/download, and sync-state bookkeeping before handing files to the existing ingestion service. Scheduled sync, remote delete propagation, and broader orchestration remain deferred to a later phase or follow-up ADR.
+
+### ADR-016: Authlib Is the OAuth2 / OpenID Client Library for Google SSO
+- **Date:** 2026-04-02
+- **Workstream:** P6-001
+- **Status:** Accepted
+- **Context:** The project needs Google sign-in without disrupting the existing FastAPI + JWT auth stack. The implementation must handle OAuth2/OpenID redirects, token exchange, and claim parsing safely while remaining small and maintainable.
+- **Decision:** Use Authlib as the OAuth2 / OpenID Connect client library for Google SSO.
+- **Reasoning:** Authlib fits Python web applications cleanly, avoids reimplementing security-sensitive OAuth flows over raw `httpx`, and is less Google-specific than adopting Google’s broader client libraries for a single-provider login feature.
+- **Alternatives considered:** Manual `httpx` implementation (rejected: too much security-sensitive protocol code to hand-roll), Google’s own auth library (rejected: tighter provider coupling than needed for this app architecture).
+- **Consequences:** Google SSO will depend on Authlib for discovery, authorization redirect, token exchange, and ID token handling. Future providers can reuse the same library choice rather than introducing multiple OAuth stacks.
+
+### ADR-017: Google OAuth Callback Is Backend-Managed and Returns Existing JWT via Frontend Completion Exchange
+- **Date:** 2026-04-02
+- **Workstream:** P6-001
+- **Status:** Accepted
+- **Context:** Google SSO must keep `GOOGLE_CLIENT_SECRET` server-side, preserve the current JWT issuance model, and avoid exposing final bearer tokens in URL parameters. The frontend is a React SPA that already expects a standard `AuthResponse` payload from backend auth endpoints.
+- **Decision:** The Google OAuth callback will be handled on the backend. The backend performs the code exchange, validates the Google identity, finds or creates the local user, and then redirects to a frontend completion route. The frontend completion route calls a backend exchange endpoint that returns the same `AuthResponse` shape used by existing login/register flows.
+- **Reasoning:** Backend-managed callback handling keeps client secrets off the frontend, centralizes account linking near the database, and preserves the current bearer-token model without placing final JWTs into query strings.
+- **Alternatives considered:** Frontend-handled OAuth callback and token exchange (rejected: exposes too much OAuth protocol logic to the frontend and complicates secret handling), backend callback redirecting with JWT in query param (rejected: poor token hygiene and leakage risk).
+- **Consequences:** The auth flow gains a frontend callback page and a backend exchange endpoint, but downstream auth consumers remain unchanged because the final token is still produced by the existing JWT helper.
+
+### ADR-018: OAuth Anti-CSRF Uses Signed State Cookie Comparison Rather Than Server Session Storage
+- **Date:** 2026-04-02
+- **Workstream:** P6-001
+- **Status:** Accepted
+- **Context:** Google OAuth requires CSRF protection via the `state` parameter. The current application does not already use server-side sessions and should avoid adding a session subsystem solely for one OAuth provider.
+- **Decision:** Implement anti-CSRF by generating a short-lived signed state value, storing it in an HTTP-only SameSite=Lax cookie, sending the same value as the OAuth `state` parameter, and verifying signature, expiry, and exact match on callback.
+- **Reasoning:** This is the smallest secure solution compatible with the existing JWT-oriented architecture. It avoids introducing session storage or a dedicated database state table while still providing robust CSRF protection.
+- **Alternatives considered:** Server-side session storage for OAuth state (rejected: new subsystem for a small workstream), raw unsigned state nonce (rejected: too easy to tamper with).
+- **Consequences:** The backend callback must clear the state cookie after verification and treat missing, invalid, or expired state as a hard auth failure. Reverse-proxy and cookie settings must be validated in production.
+
+### ADR-019: Google SSO Auto-Links Accounts by Verified Email Match
+- **Date:** 2026-04-02
+- **Workstream:** P6-001
+- **Status:** Accepted
+- **Context:** The operator requires that existing email+password accounts continue to work and that a Google login with the same email not create a duplicate local account. The system already normalizes emails to lowercase and treats them as unique local identifiers.
+- **Decision:** If Google returns a verified email that matches an existing local user, the Google identity is linked automatically to that existing user. If no matching user exists, a new user is created with `password_hash = null`. If the email is unverified, login fails.
+- **Reasoning:** Automatic linking on verified email match is the simplest user-friendly rule that satisfies the operator requirement without adding explicit account-link management UI in the initial SSO workstream.
+- **Alternatives considered:** Require manual account linking (rejected: worse UX and fails the operator’s automatic-link requirement), always create a new account (rejected: duplicate-account risk).
+- **Consequences:** Email verification from Google becomes a security-critical claim. The implementation must be conservative and never auto-link on unverified email.
+
+### ADR-020: External Provider Identities Live in `oauth_accounts`, Not on `users`
+- **Date:** 2026-04-02
+- **Workstream:** P6-001
+- **Status:** Accepted
+- **Context:** Google SSO requires storing Google’s stable subject ID. Hardcoding provider-specific columns like `google_sub` onto `users` would couple the core user model to a single provider and scale poorly when future identity providers are added.
+- **Decision:** Add a separate `oauth_accounts` table keyed to `user_id` that stores provider name, provider user ID, provider email snapshot, verification flag, and login timestamps.
+- **Reasoning:** A normalized identity-link table keeps `users` provider-neutral, supports future providers cleanly, and avoids schema sprawl on the primary account table.
+- **Alternatives considered:** Add `google_sub` directly to `users` (rejected: provider-specific coupling and poor extensibility).
+- **Consequences:** Google-created accounts remain ordinary `users` rows, while provider identities are linked through `oauth_accounts`. Future SSO providers can reuse the same table and API/service patterns.

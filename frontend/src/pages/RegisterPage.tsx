@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import * as api from '../api/client';
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -9,6 +10,11 @@ export default function RegisterPage() {
   const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleEnabled, setGoogleEnabled] = useState(false);
+
+  useEffect(() => {
+    api.getAuthConfig().then((cfg) => setGoogleEnabled(cfg.google_sso_enabled)).catch(() => {});
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -62,6 +68,14 @@ export default function RegisterPage() {
         <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
           {loading ? 'Registering...' : 'Register'}
         </button>
+        {googleEnabled && (
+          <>
+            <div className="auth-divider"><span>or</span></div>
+            <a href="/api/v1/auth/google/start" className="btn btn-secondary btn-block">
+              Sign up with Google
+            </a>
+          </>
+        )}
         <p className="auth-link">
           Already have an account? <Link to="/login">Sign In</Link>
         </p>

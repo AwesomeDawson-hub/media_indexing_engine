@@ -25,9 +25,7 @@ This document tracks all work items for the Media Indexing Engine through their 
 
 ## Planned
 
-_Phase 5 — Smart Curation & Connected Ingestion. Full phase plan at `docs/planning/PHASE_5_plan.md`. Workstreams use `P5-XXX` prefix._
-
-_No workstreams currently planned._
+_No planned workstreams currently. Phase 6 workstream P6-001 (Google SSO) has been completed._
 
 ---
 
@@ -53,10 +51,6 @@ _No workstreams currently planned._
 ## In Progress
 
 _No workstreams currently in progress._
-
----
-
-## Post-Phase 4 Improvements (Applied 2026-04-02)
 
 ---
 
@@ -98,12 +92,20 @@ _These changes were applied directly without a formal workstream, after Phase 1 
 
 ## Completed
 
+### P6-001: Google SSO (Sign in with Google)
+- **Objective:** Add Google-based sign-in and registration while preserving existing email+password auth, automatically linking same-email accounts, and keeping the existing JWT contract unchanged.
+- **Phase:** Phase 6 — Identity & Access
+- **Status:** Completed
+- **Started:** 2026-04-04
+- **Completed:** 2026-04-04
+- **Outcome:** Full Google SSO flow implemented end-to-end. Alembic migration `a3b4c5d6e7f8` adds `oauth_accounts` and `google_completion_records` tables. `GoogleAuthConfig` dataclass added to `config.py` with env overrides (`ENABLE_GOOGLE_SSO`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `GOOGLE_FRONTEND_URL`). `authlib>=1.3.0` and `httpx>=0.27.0` added as main dependencies. `src/auth/google_oauth.py`  created: HMAC-SHA256 signed state, nonce generation, OIDC token exchange via httpx, Authlib JWKS validation. `src/api/routes/google_auth.py` created: `GET /api/v1/auth/config`, `GET /api/v1/auth/google/start`, `GET /api/v1/auth/google/callback`, `POST /api/v1/auth/google/exchange`. Account resolution uses provider-link-first lookup with email fallback and disabled/link-conflict error handling. One-time completion records (public `flow_id` in URL + secret `completion_id` in HTTP-only cookie). Frontend: `GoogleAuthCallbackPage.tsx` (reads `flow_id`/`error` from URL, calls exchange, redirects); `LoginPage.tsx` and `RegisterPage.tsx` show Google button when `google_sso_enabled=true`; `AuthContext.tsx` gains `loginWithGoogle`; `App.tsx` adds `/auth/google/callback` as standalone route. 20 new tests all passing.
+
 ### P5-003: Connector Sync Foundation & First Connector
 - **Objective:** Extend Source Registry into a real connected-ingestion system with sync state, idempotent import behavior, and one production-ready S3-compatible connector.
 - **Phase:** Phase 5 — Smart Curation & Connected Ingestion
 - **Status:** Completed
-- **Started:** 2026-04-04
-- **Completed:** 2026-04-04
+- **Started:** 2026-04-03
+- **Completed:** 2026-04-03
 - **Outcome:** Full connector sync foundation. Alembic migration `f6a7b8c9d0e1` adds `connector_status`/`last_synced_at` to `sources`; creates `source_connectors`, `sync_runs`, `source_objects` tables. `ConnectorConfig` with `credentials_key` + `max_objects_per_sync` in config.py (env `CONNECTOR_CREDENTIALS_KEY`). `src/connectors/` package: `secrets.py` (Fernet encrypt/decrypt, fail-closed guard), `base.py` (RemoteObject, ConnectorBase ABC), `s3_connector.py` (S3Connector + factory), `sync_service.py` (trigger_sync, _run_sync, idempotency, overlap prevention, quota reservation, per-object error isolation). 4 new connector API endpoints under `/api/v1/sources/{id}`. Frontend: connector status badge, S3 config form, sync trigger button, sync runs table. 18 new tests all passing. See `IMPLEMENTATION_STATUS.md` for full details.
 
 ### P5-002: AI Best-Photo Selection
