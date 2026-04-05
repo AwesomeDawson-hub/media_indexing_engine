@@ -236,7 +236,10 @@ export async function getMedia(id: string): Promise<MediaItemResponse> {
   const cached = fromCache<MediaItemResponse>(`media:${id}`);
   if (cached) return cached;
   const data = await request<MediaItemResponse>(`/api/v1/media/${id}`);
-  toCache(`media:${id}`, data);
+  // Only cache terminal states — processing/pending items are actively polled
+  if (!['processing', 'pending', 'uploaded'].includes(data.status)) {
+    toCache(`media:${id}`, data);
+  }
   return data;
 }
 
