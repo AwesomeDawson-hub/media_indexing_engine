@@ -533,6 +533,19 @@ export async function confirmPasswordReset(token: string, newPassword: string): 
   });
 }
 
+export async function verifyEmail(token: string): Promise<{ message: string }> {
+  return request<{ message: string }>('/api/v1/auth/verify-email', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  });
+}
+
+export async function resendVerificationEmail(): Promise<{ message: string; token?: string }> {
+  return request<{ message: string; token?: string }>('/api/v1/auth/verify-email/resend', {
+    method: 'POST',
+  });
+}
+
 // Admin API
 
 export async function adminListUsers(

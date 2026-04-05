@@ -19,12 +19,13 @@ from src.api.schemas import (
     ProfileUpdateRequest,
     RegisterRequest,
     UserProfile,
+    VerifyEmailRequest,
 )
 from src.api.rate_limit import login_limiter, register_limiter
 from src.auth.passwords import hash_password, verify_password
 from src.auth.tokens import create_access_token
 from src.config import settings
-from src.email_service import send_password_reset
+from src.email_service import send_email_verification, send_password_reset
 from src.models import PendingToken, User
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -67,12 +68,34 @@ async def register(
         email=email,
         display_name=body.display_name.strip(),
         password_hash=hash_password(body.password),
+        email_verified=False,
     )
     db.add(user)
+    await db.flush()  # Assign user.id before creating the token
+
+    # Create email verification token
+    plaintext = secrets.token_urlsafe(32)
+    token_hash = hash_password(plaintext)
+    db.add(PendingToken(
+        user_id=user.id,
+        token_type="email_verification",
+        token_hash=token_hash,
+        expires_at=_utcnow() + timedelta(hours=24),
+    ))
     await db.commit()
 
-    # Generate token
+    # Send verification email (no-op in dev if EMAIL_FROM not set)
+    send_email_verification(user.email, plaintext)
+
+    # Generate JWT — user can log in immediately, but banner prompts verification
     token = create_access_token(user.id)
+
+    if settings.auth.dev_mode:
+        return AuthResponse(
+            access_token=token,
+            user=UserProfile.model_validate(user),
+            verification_token=plaintext,
+        )
 
     return AuthResponse(
         access_token=token,
@@ -282,3 +305,72 @@ async def confirm_password_reset(
     await db.commit()
 
     return {"message": "Password updated successfully."}
+
+
+# --- Email verification flow ---
+
+@router.post("/verify-email")
+async def verify_email(
+    body: VerifyEmailRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Verify a user's email address using the token sent on registration."""
+    # Find all non-expired, unused email_verification tokens and check them
+    result = await db.execute(
+        select(PendingToken).where(
+            PendingToken.token_type == "email_verification",
+            PendingToken.used_at.is_(None),
+            PendingToken.expires_at > _utcnow(),
+        )
+    )
+    candidates = result.scalars().all()
+
+    matched: PendingToken | None = None
+    for candidate in candidates:
+        if verify_password(body.token, candidate.token_hash):
+            matched = candidate
+            break
+
+    if matched is None:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification link")
+
+    user_result = await db.execute(select(User).where(User.id == matched.user_id))
+    user = user_result.scalar_one_or_none()
+    if user is None or user.disabled_at is not None:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification link")
+
+    user.email_verified = True
+    matched.used_at = _utcnow()
+    await db.commit()
+
+    return {"message": "Email verified successfully."}
+
+
+@router.post("/verify-email/resend")
+async def resend_verification_email(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Resend the email verification email for the current user."""
+    if user.email_verified:
+        return {"message": "Email is already verified."}
+
+    if user.disabled_at is not None:
+        raise HTTPException(status_code=403, detail="Account disabled")
+
+    plaintext = secrets.token_urlsafe(32)
+    token_hash = hash_password(plaintext)
+    db.add(PendingToken(
+        user_id=user.id,
+        token_type="email_verification",
+        token_hash=token_hash,
+        expires_at=_utcnow() + timedelta(hours=24),
+    ))
+    await db.commit()
+
+    send_email_verification(user.email, plaintext)
+
+    if settings.auth.dev_mode:
+        return {"token": plaintext, "message": "Verification email sent."}
+
+    return {"message": "Verification email sent. Check your inbox."}

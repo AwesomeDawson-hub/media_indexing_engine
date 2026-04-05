@@ -73,3 +73,61 @@ def send_password_reset(to_address: str, token: str) -> None:
     except Exception:
         logger.exception("Failed to send password reset email to %s", to_address)
         # Don't raise — the token is still valid; user can request again
+
+
+def send_email_verification(to_address: str, token: str) -> None:
+    """Send an email address verification email.
+
+    Does nothing if EMAIL_FROM is not configured (dev / sandbox fallback).
+    """
+    from_address = settings.email.from_address
+    if not from_address:
+        logger.info("EMAIL_FROM not set — skipping verification email to %s", to_address)
+        return
+
+    app_url = settings.email.app_url.rstrip("/")
+    verify_link = f"{app_url}/verify-email?token={token}"
+
+    subject = "Verify your Vyzindex email address"
+    body_text = (
+        f"Welcome to Vyzindex!\n\n"
+        f"Please verify your email address by clicking the link below (expires in 24 hours):\n\n"
+        f"{verify_link}\n\n"
+        f"If you did not create a Vyzindex account, you can safely ignore this email."
+    )
+    body_html = f"""<!DOCTYPE html>
+<html>
+<body style="font-family: sans-serif; max-width: 480px; margin: 40px auto; color: #222;">
+  <h2 style="color: #1a1a2e;">Verify your email address</h2>
+  <p>Welcome to Vyzindex! Please verify your email address to get started.</p>
+  <p>
+    <a href="{verify_link}"
+       style="display:inline-block;padding:12px 24px;background:#4f46e5;color:#fff;
+              border-radius:6px;text-decoration:none;font-weight:600;">
+      Verify email
+    </a>
+  </p>
+  <p style="color:#666;font-size:0.85em;">
+    This link expires in 24 hours. If you did not create a Vyzindex account,
+    you can safely ignore this email.
+  </p>
+</body>
+</html>"""
+
+    try:
+        client = _ses_client()
+        client.send_email(
+            Source=from_address,
+            Destination={"ToAddresses": [to_address]},
+            Message={
+                "Subject": {"Data": subject, "Charset": "UTF-8"},
+                "Body": {
+                    "Text": {"Data": body_text, "Charset": "UTF-8"},
+                    "Html": {"Data": body_html, "Charset": "UTF-8"},
+                },
+            },
+        )
+        logger.info("Verification email sent to %s", to_address)
+    except Exception:
+        logger.exception("Failed to send verification email to %s", to_address)
+        # Don't raise — user can request a resend

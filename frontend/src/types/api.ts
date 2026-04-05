@@ -11,12 +11,14 @@ export interface UserProfile {
   monthly_limit: number;
   billing_status: string;
   stripe_customer_id?: string | null;
+  email_verified: boolean;
 }
 
 export interface AuthResponse {
   access_token: string;
   token_type: string;
   user: UserProfile;
+  verification_token?: string | null;
 }
 
 export interface RegisterRequest {

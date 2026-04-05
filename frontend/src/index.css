@@ -2287,3 +2287,110 @@ input:focus {
     gap: 12px;
   }
 }
+
+/* === Email Verification Banner === */
+.verification-banner {
+  background: #fffbeb;
+  border-bottom: 1px solid #f59e0b;
+  color: #92400e;
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 0.9rem;
+  flex-wrap: wrap;
+}
+
+.verification-banner-resend {
+  background: none;
+  border: 1px solid #d97706;
+  color: #b45309;
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.verification-banner-resend:hover:not(:disabled) {
+  background: #fef3c7;
+}
+
+.verification-banner-resend:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.verification-banner-sent {
+  font-weight: 600;
+  color: #059669;
+}
+
+/* === Verify Email Page === */
+.verify-email-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg, #0f0f1a);
+}
+
+.verify-email-card {
+  background: var(--card-bg, #1a1a2e);
+  border: 1px solid var(--border, #2e2e4a);
+  border-radius: 12px;
+  padding: 48px 40px;
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.verify-email-card h2 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.verify-email-card p {
+  color: var(--text-secondary, #9ca3af);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.verify-email-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border, #2e2e4a);
+  border-top-color: #4f46e5;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.verify-email-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.verify-email-icon--success {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.verify-email-icon--error {
+  background: #fee2e2;
+  color: #dc2626;
+}

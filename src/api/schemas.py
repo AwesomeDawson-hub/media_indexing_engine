@@ -179,6 +179,7 @@ class UserProfile(BaseModel):
     monthly_limit: int = 500
     billing_status: str = "none"
     stripe_customer_id: str | None = None
+    email_verified: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -187,6 +188,11 @@ class AuthResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserProfile
+    verification_token: str | None = None  # Only present in dev_mode on registration
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
 
 
 # Download schemas

@@ -17,6 +17,7 @@ import BillingPage from './pages/BillingPage';
 import GoogleAuthCallbackPage from './pages/GoogleAuthCallbackPage';
 import CollectionsPage from './pages/CollectionsPage';
 import CollectionDetailPage from './pages/CollectionDetailPage';
+import VerifyEmailPage from './pages/VerifyEmailPage';
 
 export default function App() {
   return (
@@ -24,6 +25,9 @@ export default function App() {
       <Routes>
         {/* Standalone OAuth callback — must not be behind Public or Protected guards */}
         <Route path="/auth/google/callback" element={<GoogleAuthCallbackPage />} />
+
+        {/* Standalone email verification — accessible with or without auth */}
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
 
         {/* Public routes - redirect to / if authenticated */}
         <Route element={<PublicRoute />}>

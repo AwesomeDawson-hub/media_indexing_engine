@@ -11,6 +11,7 @@ interface AuthContextValue {
   register: (email: string, password: string, displayName: string) => Promise<void>;
   loginWithGoogle: (flowId: string) => Promise<void>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -71,8 +72,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(res.user);
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const profile = await api.getProfile();
+      setUser(profile);
+    } catch {
+      // silently ignore — if it fails the state stays as-is
+    }
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, register, loginWithGoogle, logout }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, register, loginWithGoogle, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

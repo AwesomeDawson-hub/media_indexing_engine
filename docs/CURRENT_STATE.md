@@ -9,7 +9,7 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 | **Current Phase** | Phase 6 — Identity & Access |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
 | **Active Workstream** | None — post-P6-001 beta feedback applied |
-| **Last Updated** | 2026-04-05 (session 2) |
+| **Last Updated** | 2026-04-05 (session 3) |
 | **Updated By** | AI — Engineer |
 
 ## System Health
@@ -18,15 +18,17 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | Docs aligned | Yes |
 | Drift detected | No |
-| All docs in sync | Yes — updated 2026-04-05 session 2 |
+| All docs in sync | Yes — updated 2026-04-05 session 3 |
 | Registry complete | Yes |
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
 | Test status | 229/229 pass (209 existing + 20 new Google SSO tests) |
 | Active workstream | None |
-| Last governance audit | 2026-04-05 session 2 — bulk ops, schema fix, profile redesign |
+| Last governance audit | 2026-04-05 session 3 — Collections (P7-001) shipped |
 
 ## Recent Activity
+
+- **2026-04-05 (session 3):** Collections (P7-001) shipped. Alembic migration `c0d1e2f3a4b5` creates `collections` (id, user_id, name, description, UNIQUE user+name) and `collection_items` (id, collection_id, media_item_id, added_at, UNIQUE col+item) tables. `Collection` + `CollectionItem` ORM models with cascade deletes. 7 API endpoints: create, list, get (with items), PATCH, DELETE, POST add-items, DELETE remove-items — all user-scoped, 100 collection / 500 item limits. `CollectionsPage` (grid of collection cards with cover thumbnail from first item, item count badge, delete button), `CollectionDetailPage` (full gallery grid + inline edit/delete + per-item remove button). "Add to Collection" picker dropdown in `SelectionBar` (bulk add from gallery) and `MediaDetailPage` (single item). Collections nav link added. `CollectionResponse`, `CollectionDetailResponse`, `CollectionListResponse`, `CollectionItemsRequest`, `CollectionItemsModifiedResponse` schemas. All types + 8 API functions added to frontend. CSS for cards grid, dropdown picker, detail page. Commit: `93bf467`. AWS deployed — migration ran on startup.
 
 - **2026-04-05 (session 2):** Post-beta UX polish continued. Details:
   - **Profile page redesign:** `ProfilePage.tsx` fully rewritten. Card-based layout (max-width 680px). Avatar circle with initials fallback at top. Account info displayed as a 2-column info-grid with labelled items. Edit Profile form uses proper `form-group` pattern. Email/Password sections each in their own expandable card with sub-card form and token confirm step. `icon_url` removed from edit form (stored in DB but no upload UI yet). All profile CSS added to `index.css` (`profile-page`, `profile-card`, `profile-avatar`, `profile-badge`, `profile-info-grid`, etc.). `alert-success` / `alert-error` CSS variants added globally. Commit: `0f487d6`. AWS deployed.

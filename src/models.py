@@ -34,6 +34,7 @@ class User(Base):
     stripe_customer_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     stripe_subscription_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     billing_status: Mapped[str] = mapped_column(String(30), nullable=False, default="none")
+    email_verified: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
 
