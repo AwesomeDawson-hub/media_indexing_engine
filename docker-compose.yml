@@ -21,6 +21,12 @@ services:
       - EMAIL_AWS_REGION=${EMAIL_AWS_REGION:-us-east-1}
       # Auth — must be false in production or all routes bypass auth checks
       - AUTH_DEV_MODE=${AUTH_DEV_MODE:-false}
+      # Google SSO
+      - ENABLE_GOOGLE_SSO=${ENABLE_GOOGLE_SSO:-false}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-}
+      - GOOGLE_FRONTEND_URL=${GOOGLE_FRONTEND_URL:-}
       # Connector credentials encryption key
       - CONNECTOR_CREDENTIALS_KEY=${CONNECTOR_CREDENTIALS_KEY:-}
       # Google Drive connector
