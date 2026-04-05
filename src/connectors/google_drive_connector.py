@@ -30,13 +30,15 @@ logger = logging.getLogger(__name__)
 DRIVE_FILES_URL = "https://www.googleapis.com/drive/v3/files"
 DRIVE_ABOUT_URL = "https://www.googleapis.com/drive/v3/about"
 
-# Files API query: images only, no trashed, no shortcuts, no native Google formats.
-_LIST_QUERY = (
+# Base image-only filter (folder parent is added dynamically)
+_BASE_QUERY = (
     "trashed=false"
     " and mimeType!='application/vnd.google-apps.shortcut'"
     " and not mimeType contains 'application/vnd.google-apps.'"
     " and mimeType contains 'image/'"
 )
+# Legacy alias kept for tests that import _LIST_QUERY directly
+_LIST_QUERY = _BASE_QUERY
 _LIST_FIELDS = "nextPageToken,files(id,name,version,mimeType,size,modifiedTime)"
 _PAGE_SIZE = 100  # Drive API max per page
 
@@ -50,8 +52,16 @@ class GoogleDriveConnector(ConnectorBase):
 
     connector_type = "google_drive"
 
-    def __init__(self, token_manager) -> None:  # DriveTokenManager — avoid circular import
+    def __init__(self, token_manager, folder_id: str | None = None) -> None:
         self._tm = token_manager
+        # None or "root" both mean My Drive root; store normalised value
+        self._folder_id = folder_id if folder_id and folder_id != "root" else None
+
+    def _build_query(self) -> str:
+        """Return the Files API query string, scoped to the target folder if set."""
+        if self._folder_id:
+            return f"'{self._folder_id}' in parents and {_BASE_QUERY}"
+        return _BASE_QUERY
 
     async def list_objects(self, max_keys: int = 1000) -> list[RemoteObject]:
         """List image files in My Drive up to *max_keys*.
@@ -70,7 +80,7 @@ class GoogleDriveConnector(ConnectorBase):
         async with httpx.AsyncClient() as client:
             while len(results) < max_keys:
                 params: dict = {
-                    "q": _LIST_QUERY,
+                    "q": self._build_query(),
                     "fields": _LIST_FIELDS,
                     "pageSize": min(_PAGE_SIZE, max_keys - len(results)),
                     "orderBy": "modifiedTime desc",

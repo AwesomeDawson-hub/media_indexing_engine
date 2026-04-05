@@ -7,6 +7,9 @@ import type {
   ConnectorResponse,
   SyncRunResponse,
   SyncRunsResponse,
+  DriveFolderItem,
+  CollectionResponse,
+  ConnectorDriveConfigureRequest,
 } from '../types/api';
 
 export default function SourcesPage() {
@@ -17,6 +20,7 @@ export default function SourcesPage() {
   const [error, setError] = useState('');
   const [expandedConnector, setExpandedConnector] = useState<string | null>(null);
   const [callbackBanner, setCallbackBanner] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [autoConfigureSourceId, setAutoConfigureSourceId] = useState<string | null>(null);
 
   async function load(includeArchived: boolean) {
     setLoading(true);
@@ -40,7 +44,12 @@ export default function SourcesPage() {
     const result = params.get('connector_result');
     if (connector === 'google_drive' && result) {
       if (result === 'connected') {
-        setCallbackBanner({ type: 'success', message: 'Google Drive connected successfully.' });
+        const sid = params.get('source_id');
+        setCallbackBanner({ type: 'success', message: 'Google Drive connected. Choose a folder to sync.' });
+        if (sid) {
+          setAutoConfigureSourceId(sid);
+          setExpandedConnector(sid);
+        }
         load(false);
       } else if (result === 'error') {
         const code = params.get('error_code') || 'unknown_error';
@@ -126,6 +135,8 @@ export default function SourcesPage() {
                   onSourceUpdate={(updated) =>
                     setSources((prev) => prev.map((x) => (x.id === s.id ? updated : x)))
                   }
+                  autoOpenConfigure={autoConfigureSourceId === s.id}
+                  onAutoConfigureHandled={() => setAutoConfigureSourceId(null)}
                 />
               ))}
             </div>
@@ -165,6 +176,8 @@ function SourceRow({
   connectorExpanded,
   onToggleConnector,
   onSourceUpdate,
+  autoOpenConfigure,
+  onAutoConfigureHandled,
 }: {
   source: SourceResponse;
   pending: boolean;
@@ -173,6 +186,8 @@ function SourceRow({
   connectorExpanded?: boolean;
   onToggleConnector?: () => void;
   onSourceUpdate?: (updated: SourceResponse) => void;
+  autoOpenConfigure?: boolean;
+  onAutoConfigureHandled?: () => void;
 }) {
   const isArchived = !!source.archived_at;
   const hasConnector = !!source.connector_status;
@@ -231,6 +246,8 @@ function SourceRow({
         <ConnectorPanel
           source={source}
           onSourceUpdate={onSourceUpdate}
+          autoOpenConfigure={autoOpenConfigure}
+          onAutoConfigureHandled={onAutoConfigureHandled}
         />
       )}
     </div>
@@ -244,9 +261,13 @@ function SourceRow({
 function ConnectorPanel({
   source,
   onSourceUpdate,
+  autoOpenConfigure,
+  onAutoConfigureHandled,
 }: {
   source: SourceResponse;
   onSourceUpdate?: (updated: SourceResponse) => void;
+  autoOpenConfigure?: boolean;
+  onAutoConfigureHandled?: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<'config' | 'runs'>(source.connector_status ? 'runs' : 'config');
   const [formData, setFormData] = useState<ConnectorS3ConfigRequest>({
@@ -267,12 +288,38 @@ function ConnectorPanel({
   const [panelError, setPanelError] = useState('');
   const [panelInfo, setPanelInfo] = useState('');
 
+  // Drive folder + collection configure state
+  const [showDriveConfigure, setShowDriveConfigure] = useState(false);
+  const [driveNavStack, setDriveNavStack] = useState<{ id: string; name: string }[]>([]);
+  const [driveFolders, setDriveFolders] = useState<DriveFolderItem[]>([]);
+  const [folderLoading, setFolderLoading] = useState(false);
+  const [selectedFolder, setSelectedFolder] = useState<{ id: string; name: string } | null>(null);
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
+  const [collections, setCollections] = useState<CollectionResponse[]>([]);
+  const [configurePending, setConfigurePending] = useState(false);
+
   useEffect(() => {
     if (source.connector_status) {
-      api.getConnector(source.id).then(setConnector).catch(() => null);
+      api.getConnector(source.id).then((c) => {
+        setConnector(c);
+        // If auto-open was requested (just OAuth'd), open the configure panel now
+        if (autoOpenConfigure && c.connector_type === 'google_drive') {
+          if (onAutoConfigureHandled) onAutoConfigureHandled();
+          setShowDriveConfigure(true);
+          setDriveNavStack([]);
+          setSelectedFolder(c.target_folder_id ? { id: c.target_folder_id, name: c.target_folder_label ?? c.target_folder_id } : null);
+          setSelectedCollectionId(c.target_collection_id ?? null);
+          setFolderLoading(true);
+          api.listDriveFolders(source.id, 'root')
+            .then((r) => setDriveFolders(r.folders))
+            .catch(() => null)
+            .finally(() => setFolderLoading(false));
+          api.listCollections().then((data) => setCollections(data.collections)).catch(() => null);
+        }
+      }).catch(() => null);
       loadRuns();
     }
-  }, [source.id]);
+  }, [source.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadRuns() {
     try {
@@ -341,6 +388,7 @@ function ConnectorPanel({
     try {
       await api.disconnectGoogleDriveConnector(source.id);
       setConnector(null);
+      setShowDriveConfigure(false);
       if (onSourceUpdate) {
         onSourceUpdate({ ...source, connector_status: 'disconnected', source_type: 'google_drive' });
       }
@@ -350,6 +398,75 @@ function ConnectorPanel({
       setPanelError(`Disconnect failed: ${msg}`);
     } finally {
       setDrivePending(false);
+    }
+  }
+
+  async function loadDriveFolders(parentId: string) {
+    setFolderLoading(true);
+    try {
+      const resp = await api.listDriveFolders(source.id, parentId);
+      setDriveFolders(resp.folders);
+    } catch {
+      setPanelError('Failed to load Drive folders.');
+    } finally {
+      setFolderLoading(false);
+    }
+  }
+
+  async function handleDriveConfigOpen() {
+    setPanelError('');
+    setShowDriveConfigure(true);
+    setDriveNavStack([]);
+    setSelectedFolder(connector?.target_folder_id
+      ? { id: connector.target_folder_id, name: connector.target_folder_label ?? connector.target_folder_id }
+      : null);
+    setSelectedCollectionId(connector?.target_collection_id ?? null);
+    loadDriveFolders('root');
+    try {
+      const data = await api.listCollections();
+      setCollections(data.collections);
+    } catch {
+      // collections unavailable, not fatal
+    }
+  }
+
+  async function handleDriveNavInto(folder: { id: string; name: string }) {
+    setDriveNavStack((prev) => [...prev, folder]);
+    await loadDriveFolders(folder.id);
+  }
+
+  async function handleDriveNavTo(idx: number) {
+    const newStack = driveNavStack.slice(0, idx + 1);
+    setDriveNavStack(newStack);
+    await loadDriveFolders(newStack[newStack.length - 1].id);
+  }
+
+  async function handleDriveNavRoot() {
+    setDriveNavStack([]);
+    await loadDriveFolders('root');
+  }
+
+  async function handleDriveConfigureSave() {
+    setPanelError('');
+    setConfigurePending(true);
+    try {
+      const body: ConnectorDriveConfigureRequest = {
+        target_folder_id: selectedFolder?.id ?? null,
+        target_folder_label: selectedFolder?.name ?? null,
+        target_collection_id: selectedCollectionId,
+      };
+      const updated = await api.configureDriveConnector(source.id, body);
+      setConnector(updated);
+      setShowDriveConfigure(false);
+      setPanelInfo(
+        `Sync scope saved: ${selectedFolder ? selectedFolder.name : 'My Drive (root)'}` +
+        (selectedCollectionId ? ` → collection assigned` : ''),
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setPanelError(`Save failed: ${msg}`);
+    } finally {
+      setConfigurePending(false);
     }
   }
 
@@ -387,22 +504,172 @@ function ConnectorPanel({
           {connector?.connector_type === 'google_drive' ? (
             // ── Google Drive connected ──────────────────────────────────────
             <div className="connector-drive-section">
-              <p>
-                <strong>Google Drive</strong> — My Drive
-                {connector.authorized_account_email && (
-                  <span className="text-muted"> ({connector.authorized_account_email})</span>
-                )}
-                {connector.authorized_account_display_name && (
-                  <span className="text-muted"> · {connector.authorized_account_display_name}</span>
-                )}
-              </p>
-              <button
-                className="btn btn-sm btn-outline"
-                onClick={handleDriveDisconnect}
-                disabled={drivePending}
-              >
-                {drivePending ? '...' : 'Disconnect Google Drive'}
-              </button>
+              {!showDriveConfigure ? (
+                <>
+                  <p>
+                    <strong>Google Drive</strong>
+                    {connector.authorized_account_email && (
+                      <span className="text-muted"> · {connector.authorized_account_email}</span>
+                    )}
+                  </p>
+                  <div className="connector-drive-scope">
+                    <span className="connector-drive-scope-label">Sync folder:</span>
+                    <span className="connector-drive-scope-value">
+                      {connector.target_folder_label ?? 'My Drive (root)'}
+                    </span>
+                    <button
+                      className="btn btn-sm btn-outline connector-drive-change-btn"
+                      onClick={handleDriveConfigOpen}
+                    >
+                      Change
+                    </button>
+                  </div>
+                  {connector.target_collection_id && (
+                    <div className="connector-drive-scope">
+                      <span className="connector-drive-scope-label">Auto-collection:</span>
+                      <span className="connector-drive-scope-value">
+                        {collections.find((c) => c.id === connector.target_collection_id)?.name ?? connector.target_collection_id}
+                      </span>
+                    </div>
+                  )}
+                  <button
+                    className="btn btn-sm btn-outline"
+                    onClick={handleDriveDisconnect}
+                    disabled={drivePending}
+                    style={{ marginTop: '0.5rem' }}
+                  >
+                    {drivePending ? '...' : 'Disconnect Google Drive'}
+                  </button>
+                </>
+              ) : (
+                // ── Drive folder + collection picker ───────────────────────
+                <div className="drive-configure-panel">
+                  <div className="drive-configure-header">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline"
+                      onClick={() => setShowDriveConfigure(false)}
+                    >
+                      ← Back
+                    </button>
+                    <strong>Configure sync scope</strong>
+                  </div>
+
+                  <div className="drive-folder-picker">
+                    <p className="form-label">Folder to sync from</p>
+
+                    {/* Breadcrumb */}
+                    <div className="drive-breadcrumb">
+                      <button
+                        type="button"
+                        className="drive-breadcrumb-item"
+                        onClick={handleDriveNavRoot}
+                      >
+                        My Drive
+                      </button>
+                      {driveNavStack.map((seg, idx) => (
+                        <span key={seg.id}>
+                          <span className="drive-breadcrumb-sep">›</span>
+                          <button
+                            type="button"
+                            className="drive-breadcrumb-item"
+                            onClick={() => handleDriveNavTo(idx)}
+                          >
+                            {seg.name}
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Use this level button */}
+                    <button
+                      type="button"
+                      className={`drive-folder-select-btn${
+                        (driveNavStack.length === 0 && selectedFolder === null) ||
+                        (driveNavStack.length > 0 && selectedFolder?.id === driveNavStack[driveNavStack.length - 1].id)
+                          ? ' drive-folder-select-btn--active'
+                          : ''
+                      }`}
+                      onClick={() =>
+                        setSelectedFolder(
+                          driveNavStack.length === 0
+                            ? null
+                            : { id: driveNavStack[driveNavStack.length - 1].id, name: driveNavStack[driveNavStack.length - 1].name },
+                        )
+                      }
+                    >
+                      {driveNavStack.length === 0
+                        ? (selectedFolder === null ? '✓ Syncing: My Drive (root)' : 'Use My Drive (root)')
+                        : (selectedFolder?.id === driveNavStack[driveNavStack.length - 1].id
+                          ? `✓ Syncing: ${driveNavStack[driveNavStack.length - 1].name}`
+                          : `Use "${driveNavStack[driveNavStack.length - 1].name}"`)}
+                    </button>
+
+                    {/* Sub-folder list */}
+                    {folderLoading ? (
+                      <div className="drive-folder-loading"><div className="spinner spinner-sm" /></div>
+                    ) : driveFolders.length === 0 ? (
+                      <p className="text-muted drive-folder-empty">No sub-folders</p>
+                    ) : (
+                      <ul className="drive-folder-list">
+                        {driveFolders.map((f) => (
+                          <li key={f.id} className="drive-folder-row">
+                            <span className="drive-folder-icon">📁</span>
+                            <span className="drive-folder-name">{f.name}</span>
+                            {f.has_children && (
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline drive-folder-drill"
+                                onClick={() => handleDriveNavInto(f)}
+                              >
+                                Open ›
+                              </button>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  {/* Collection picker */}
+                  {collections.length > 0 && (
+                    <div className="drive-collection-picker">
+                      <label className="form-label">
+                        Auto-add synced images to collection
+                        <span className="text-muted"> (optional)</span>
+                      </label>
+                      <select
+                        className="form-input"
+                        value={selectedCollectionId ?? ''}
+                        onChange={(e) => setSelectedCollectionId(e.target.value || null)}
+                      >
+                        <option value="">— None —</option>
+                        {collections.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className="drive-configure-actions">
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={handleDriveConfigureSave}
+                      disabled={configurePending}
+                    >
+                      {configurePending ? 'Saving…' : 'Save settings'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline"
+                      onClick={() => setShowDriveConfigure(false)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : connector?.connector_type === 's3_compatible' ? (
             // ── S3 connected — show form to reconfigure ────────────────────

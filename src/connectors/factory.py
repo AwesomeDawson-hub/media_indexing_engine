@@ -47,6 +47,9 @@ def build_connector(
             client_secret=settings.google_drive.client_secret,
             redirect_uri=settings.google_drive.redirect_uri,
         )
-        return GoogleDriveConnector(token_manager=token_manager)
+        return GoogleDriveConnector(
+            token_manager=token_manager,
+            folder_id=connector_row.target_folder_id,
+        )
 
     raise ValueError(f"Unknown connector type: {ctype!r}")

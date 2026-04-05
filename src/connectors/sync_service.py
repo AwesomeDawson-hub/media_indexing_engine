@@ -324,6 +324,28 @@ async def _run_sync(
         )
         result.imported_count += 1
         sync_run.imported_count = result.imported_count
+
+        # Auto-add to target collection if configured
+        if connector_row.target_collection_id:
+            try:
+                from src.models import CollectionItem
+                from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+                # Use INSERT OR IGNORE style: only add if not already a member
+                existing_ci = await db.execute(
+                    select(CollectionItem).where(
+                        CollectionItem.collection_id == connector_row.target_collection_id,
+                        CollectionItem.media_item_id == media_item.id,
+                    )
+                )
+                if existing_ci.scalar_one_or_none() is None:
+                    db.add(CollectionItem(
+                        collection_id=connector_row.target_collection_id,
+                        media_item_id=media_item.id,
+                    ))
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Failed to add item %s to collection %s: %s",
+                               media_item.id, connector_row.target_collection_id, exc)
+
         await db.commit()
 
     # Determine terminal status if not already set by quota break

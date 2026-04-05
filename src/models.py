@@ -241,6 +241,11 @@ class SourceConnector(Base):
     authorized_account_provider_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     authorized_account_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     authorized_account_display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Drive folder scoping (P7-002b): NULL = root of My Drive
+    target_folder_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    target_folder_label: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Optional collection to auto-add synced items to (P7-002b)
+    target_collection_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
 

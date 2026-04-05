@@ -2574,3 +2574,152 @@ input:focus {
 .connector-back-btn {
   margin-bottom: 12px;
 }
+
+/* ── Drive scope display ─────────────────────────────────────────────────── */
+.connector-drive-scope {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.connector-drive-scope-label {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  min-width: 90px;
+}
+.connector-drive-scope-value {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+.connector-drive-change-btn {
+  font-size: 0.75rem;
+  padding: 1px 8px;
+}
+
+/* ── Drive configure panel ───────────────────────────────────────────────── */
+.drive-configure-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.drive-configure-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.drive-folder-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.drive-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.8rem;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+.drive-breadcrumb-item {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #6366f1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+.drive-breadcrumb-item:hover {
+  background: rgba(99, 102, 241, 0.1);
+}
+.drive-breadcrumb-sep {
+  color: #9ca3af;
+  margin: 0 1px;
+}
+
+/* "Use this folder" toggle button */
+.drive-folder-select-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid #374151;
+  background: transparent;
+  color: #e5e7eb;
+  cursor: pointer;
+  font-size: 0.8rem;
+  margin-bottom: 6px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.drive-folder-select-btn:hover {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: #6366f1;
+}
+.drive-folder-select-btn--active {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: #818cf8;
+  color: #a5b4fc;
+}
+
+.drive-folder-loading {
+  padding: 8px 0;
+}
+.spinner-sm {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+}
+.drive-folder-empty {
+  font-size: 0.8rem;
+  margin: 4px 0;
+}
+
+.drive-folder-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.drive-folder-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid #1f2937;
+  font-size: 0.85rem;
+}
+.drive-folder-row:last-child {
+  border-bottom: none;
+}
+.drive-folder-icon {
+  font-size: 0.9rem;
+}
+.drive-folder-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.drive-folder-drill {
+  font-size: 0.7rem;
+  padding: 1px 8px;
+  flex-shrink: 0;
+}
+
+/* Collection picker */
+.drive-collection-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.drive-configure-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 4px;
+}

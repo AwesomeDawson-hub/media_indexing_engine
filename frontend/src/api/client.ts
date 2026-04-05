@@ -24,6 +24,8 @@ import type {
   ConnectorS3ConfigRequest,
   ConnectorResponse,
   ConnectorDriveStartResponse,
+  DriveFoldersResponse,
+  ConnectorDriveConfigureRequest,
   SyncRunsResponse,
   TriggerSyncResponse,
   QuotaHistoryResponse,
@@ -478,6 +480,25 @@ export async function startGoogleDriveConnector(
 
 export async function disconnectGoogleDriveConnector(sourceId: string): Promise<void> {
   await request<void>(`/api/v1/sources/${sourceId}/connector/google-drive`, { method: 'DELETE' });
+}
+
+export async function listDriveFolders(
+  sourceId: string,
+  parentId: string = 'root',
+): Promise<DriveFoldersResponse> {
+  return request<DriveFoldersResponse>(
+    `/api/v1/sources/${sourceId}/connector/google-drive/folders?parent_id=${encodeURIComponent(parentId)}`,
+  );
+}
+
+export async function configureDriveConnector(
+  sourceId: string,
+  body: ConnectorDriveConfigureRequest,
+): Promise<ConnectorResponse> {
+  return request<ConnectorResponse>(
+    `/api/v1/sources/${sourceId}/connector/google-drive/configure`,
+    { method: 'POST', body: JSON.stringify(body) },
+  );
 }
 
 export async function triggerSync(sourceId: string): Promise<TriggerSyncResponse> {

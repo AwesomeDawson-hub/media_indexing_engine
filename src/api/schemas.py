@@ -480,6 +480,10 @@ class ConnectorResponse(BaseModel):
     authorized_account_provider_id: str | None = None
     authorized_account_email: str | None = None
     authorized_account_display_name: str | None = None
+    # Drive folder scoping (P7-002b)
+    target_folder_id: str | None = None
+    target_folder_label: str | None = None
+    target_collection_id: str | None = None
     prefix: str | None = None
     region: str | None = None
     endpoint_url: str | None = None
@@ -494,6 +498,26 @@ class ConnectorResponse(BaseModel):
 class ConnectorDriveStartResponse(BaseModel):
     """Response from POST /sources/{id}/connector/google-drive/start."""
     authorization_url: str
+
+
+class DriveFolderItem(BaseModel):
+    """One folder entry returned by the Drive folder browser."""
+    id: str
+    name: str
+    has_children: bool = False
+
+
+class DriveFoldersResponse(BaseModel):
+    """Response from GET /sources/{id}/connector/google-drive/folders."""
+    parent_id: str
+    folders: list[DriveFolderItem]
+
+
+class ConnectorDriveConfigureRequest(BaseModel):
+    """Body for POST /sources/{id}/connector/google-drive/configure."""
+    target_folder_id: str | None = None   # None or omitted = root (My Drive)
+    target_folder_label: str | None = None
+    target_collection_id: str | None = None
 
 
 class SyncRunResponse(BaseModel):

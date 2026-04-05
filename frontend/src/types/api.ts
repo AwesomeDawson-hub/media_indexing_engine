@@ -251,6 +251,9 @@ export interface ConnectorResponse {
   remote_container_label: string | null;
   authorized_account_email: string | null;
   authorized_account_display_name: string | null;
+  target_folder_id: string | null;
+  target_folder_label: string | null;
+  target_collection_id: string | null;
   prefix?: string | null;
   region?: string | null;
   endpoint_url?: string | null;
@@ -262,6 +265,23 @@ export interface ConnectorResponse {
 
 export interface ConnectorDriveStartResponse {
   authorization_url: string;
+}
+
+export interface DriveFolderItem {
+  id: string;
+  name: string;
+  has_children: boolean;
+}
+
+export interface DriveFoldersResponse {
+  parent_id: string;
+  folders: DriveFolderItem[];
+}
+
+export interface ConnectorDriveConfigureRequest {
+  target_folder_id: string | null;
+  target_folder_label: string | null;
+  target_collection_id: string | null;
 }
 
 export interface SyncRunResponse {

@@ -28,7 +28,13 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_db, get_current_user_id
-from src.api.schemas import ConnectorDriveStartResponse
+from src.api.schemas import (
+    ConnectorDriveStartResponse,
+    ConnectorDriveConfigureRequest,
+    ConnectorResponse,
+    DriveFolderItem,
+    DriveFoldersResponse,
+)
 from src.auth.google_drive_oauth import (
     DRIVE_STATE_COOKIE,
     DRIVE_STATE_MAX_AGE,
@@ -40,7 +46,7 @@ from src.auth.google_drive_oauth import (
 from src.config import settings
 from src.connectors.google_drive_tokens import DriveTokenError, exchange_code, fetch_account_snapshot
 from src.connectors.secrets import encrypt_credentials, MissingEncryptionKeyError
-from src.models import Source, SourceConnector, SourceObject
+from src.models import Collection, Source, SourceConnector, SourceObject
 
 logger = logging.getLogger(__name__)
 
@@ -380,3 +386,123 @@ async def google_drive_disconnect(
         source.updated_at = now
 
     await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/sources/{source_id}/connector/google-drive/folders
+# ---------------------------------------------------------------------------
+
+@router.get("/sources/{source_id}/connector/google-drive/folders")
+async def google_drive_list_folders(
+    source_id: str,
+    parent_id: str = "root",
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+) -> DriveFoldersResponse:
+    """Browse Google Drive folders for the connected source.
+
+    Lists immediate child folders of `parent_id` (default: Drive root).
+    Requires an active (non-disconnected) Google Drive connector on the source.
+    """
+    await _require_owned_source(source_id, user_id, db)
+
+    conn_result = await db.execute(
+        select(SourceConnector).where(
+            SourceConnector.source_id == source_id,
+            SourceConnector.user_id == user_id,
+            SourceConnector.connector_type == "google_drive",
+        )
+    )
+    connector_row = conn_result.scalar_one_or_none()
+    if connector_row is None:
+        raise HTTPException(status_code=404, detail="No Google Drive connector configured for this source")
+
+    from src.connectors.secrets import decrypt_credentials
+    from src.connectors.google_drive_tokens import DriveTokenManager
+    import httpx
+
+    credentials = decrypt_credentials(connector_row.credentials_encrypted)
+    if not credentials.get("refresh_token"):
+        raise HTTPException(status_code=409, detail="Google Drive connector is disconnected")
+
+    token_manager = DriveTokenManager(
+        connector_row=connector_row,
+        credentials=credentials,
+        client_id=settings.google_drive.client_id,
+        client_secret=settings.google_drive.client_secret,
+        redirect_uri=settings.google_drive.redirect_uri,
+    )
+    access_token = await token_manager.get_access_token(db)
+
+    q = f"'{parent_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
+    params = {
+        "q": q,
+        "fields": "files(id,name),nextPageToken",
+        "pageSize": 200,
+        "orderBy": "name",
+    }
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(
+            "https://www.googleapis.com/drive/v3/files",
+            params=params,
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to fetch Drive folders")
+
+    data = resp.json()
+    folders = [
+        DriveFolderItem(id=f["id"], name=f["name"])
+        for f in data.get("files", [])
+    ]
+    return DriveFoldersResponse(parent_id=parent_id, folders=folders)
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/sources/{source_id}/connector/google-drive/configure
+# ---------------------------------------------------------------------------
+
+@router.post("/sources/{source_id}/connector/google-drive/configure", status_code=200)
+async def google_drive_configure(
+    source_id: str,
+    body: ConnectorDriveConfigureRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+) -> ConnectorResponse:
+    """Set (or update) the target folder and/or collection for a Drive connector.
+
+    - target_folder_id=None means sync from My Drive root.
+    - target_collection_id=None means do not auto-add to any collection.
+    Can be called after initial OAuth or any time to change the scope.
+    """
+    await _require_owned_source(source_id, user_id, db)
+
+    conn_result = await db.execute(
+        select(SourceConnector).where(
+            SourceConnector.source_id == source_id,
+            SourceConnector.user_id == user_id,
+            SourceConnector.connector_type == "google_drive",
+        )
+    )
+    connector_row = conn_result.scalar_one_or_none()
+    if connector_row is None:
+        raise HTTPException(status_code=404, detail="No Google Drive connector configured for this source")
+
+    if body.target_collection_id is not None:
+        coll_result = await db.execute(
+            select(Collection).where(
+                Collection.id == body.target_collection_id,
+                Collection.user_id == user_id,
+            )
+        )
+        if coll_result.scalar_one_or_none() is None:
+            raise HTTPException(status_code=404, detail="Collection not found")
+
+    now = datetime.now(timezone.utc)
+    connector_row.target_folder_id = body.target_folder_id or None
+    connector_row.target_folder_label = body.target_folder_label or None
+    connector_row.target_collection_id = body.target_collection_id or None
+    connector_row.updated_at = now
+    await db.commit()
+    await db.refresh(connector_row)
+    return ConnectorResponse.model_validate(connector_row)
