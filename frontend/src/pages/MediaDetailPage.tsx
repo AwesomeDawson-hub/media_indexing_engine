@@ -26,6 +26,7 @@ export default function MediaDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reanalyzing, setReanalyzing] = useState(false);
+  const [confirmReanalyze, setConfirmReanalyze] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [converting, setConverting] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -371,13 +372,35 @@ export default function MediaDetailPage() {
           <div className="media-detail-analysis">
             <div className="section-header">
               <h2>Analysis</h2>
-              <button
-                className="btn btn-sm btn-outline"
-                onClick={handleReanalyze}
-                disabled={reanalyzing || analysis?.status === 'processing' || analysis?.status === 'pending'}
-              >
-                {reanalyzing ? 'Analyzing...' : 'Re-analyze'}
-              </button>
+              {!reanalyzing && !confirmReanalyze && (
+                <button
+                  className="btn btn-sm btn-outline"
+                  onClick={() => setConfirmReanalyze(true)}
+                  disabled={analysis?.status === 'processing' || analysis?.status === 'pending'}
+                >
+                  Re-analyze
+                </button>
+              )}
+              {confirmReanalyze && (
+                <span className="reanalyze-confirm">
+                  <span className="reanalyze-confirm-label">Uses 1 credit —</span>
+                  <button
+                    className="btn btn-sm btn-primary"
+                    onClick={() => { setConfirmReanalyze(false); handleReanalyze(); }}
+                  >
+                    Confirm
+                  </button>
+                  <button
+                    className="btn btn-sm btn-outline"
+                    onClick={() => setConfirmReanalyze(false)}
+                  >
+                    Cancel
+                  </button>
+                </span>
+              )}
+              {reanalyzing && (
+                <span className="reanalyze-confirm-label">Analyzing...</span>
+              )}
             </div>
 
             {!reanalyzing && !analysis && <p className="text-muted">No analysis available yet.</p>}
