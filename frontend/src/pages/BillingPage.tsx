@@ -117,26 +117,6 @@ export default function BillingPage() {
         </div>
       )}
 
-      {billing && (
-        <div className="billing-current">
-          <h2>Current Plan</h2>
-          <div className="billing-summary">
-            <span className="billing-plan-name">{billing.plan_name}</span>
-            {statusBadge(billing.billing_status)}
-            <span className="billing-limit">{billing.monthly_limit.toLocaleString()} analyses / month</span>
-          </div>
-          {hasActiveSubscription && billing.stripe_customer_id && (
-            <button
-              className="btn btn-secondary"
-              onClick={handleManage}
-              disabled={actionLoading}
-            >
-              {actionLoading ? 'Loading…' : 'Manage Subscription'}
-            </button>
-          )}
-        </div>
-      )}
-
       {errorMsg && (
         <div className="alert alert-error" role="alert">
           {errorMsg}
@@ -155,27 +135,40 @@ export default function BillingPage() {
               key={plan.key}
               className={`billing-plan-card${isCurrent ? ' billing-plan-card--current' : ''}`}
             >
-              <div className="billing-plan-header">
-                <h3>{plan.name}</h3>
-                <span className="billing-plan-price">{plan.priceLabel}</span>
+              {isCurrent && (
+                <div className="billing-plan-banner">Active Plan</div>
+              )}
+              <div className="billing-plan-body">
+                <div className="billing-plan-header">
+                  <h3>{plan.name}</h3>
+                  <span className="billing-plan-price">{plan.priceLabel}</span>
+                </div>
+                <p className="billing-plan-desc">{plan.description}</p>
+                <p className="billing-plan-limit">
+                  <strong>{plan.limit.toLocaleString()}</strong> analyses / month
+                </p>
+                <div className="billing-plan-action">
+                  {isCurrent && hasActiveSubscription && billing?.stripe_customer_id ? (
+                    <button
+                      className="btn btn-secondary btn-block"
+                      onClick={handleManage}
+                      disabled={actionLoading}
+                    >
+                      {actionLoading ? 'Loading…' : 'Manage Subscription'}
+                    </button>
+                  ) : isUpgrade && plan.priceId ? (
+                    <button
+                      className="btn btn-primary btn-block"
+                      onClick={() => handleUpgrade(plan.priceId)}
+                      disabled={actionLoading}
+                    >
+                      {actionLoading ? 'Loading…' : `Upgrade to ${plan.name}`}
+                    </button>
+                  ) : isUpgrade && !plan.priceId ? (
+                    <span className="billing-plan-contact">Contact sales to upgrade</span>
+                  ) : null}
+                </div>
               </div>
-              <p className="billing-plan-desc">{plan.description}</p>
-              <p className="billing-plan-limit">
-                <strong>{plan.limit.toLocaleString()}</strong> analyses / month
-              </p>
-              {isCurrent ? (
-                <span className="billing-plan-current-label">Current plan</span>
-              ) : isUpgrade && plan.priceId ? (
-                <button
-                  className="btn btn-primary"
-                  onClick={() => handleUpgrade(plan.priceId)}
-                  disabled={actionLoading}
-                >
-                  {actionLoading ? 'Loading…' : `Upgrade to ${plan.name}`}
-                </button>
-              ) : isUpgrade && !plan.priceId ? (
-                <span className="billing-plan-contact">Contact sales to upgrade</span>
-              ) : null}
             </div>
           );
         })}
