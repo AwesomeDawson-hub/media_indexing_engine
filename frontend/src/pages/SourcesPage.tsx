@@ -499,8 +499,8 @@ function ConnectorPanel({
         )}
       </div>
 
-      {panelError && <div className="alert alert-danger connector-alert">{panelError}</div>}
-      {panelInfo && <div className="alert alert-info connector-alert">{panelInfo}</div>}
+      {panelError && <div className="connector-status connector-status--error">{panelError}</div>}
+      {panelInfo && <div className="connector-status connector-status--info">{panelInfo}</div>}
 
       {activeTab === 'config' && (
         <>
@@ -778,40 +778,31 @@ function ConnectorPanel({
       {activeTab === 'runs' && (
         <div className="sync-runs">
           {runs.length === 0 ? (
-            <p className="text-muted">No sync runs yet. Click &quot;Sync now&quot; to start the first sync.</p>
+            <p className="text-muted sync-runs-empty">No sync runs yet. Click "Sync now" to start.</p>
           ) : (
-            <table className="sync-runs-table">
-              <thead>
-                <tr>
-                  <th>Started</th>
-                  <th>Status</th>
-                  <th>Discovered</th>
-                  <th>Imported</th>
-                  <th>Dupes</th>
-                  <th>Skipped</th>
-                  <th>Failed</th>
-                </tr>
-              </thead>
-              <tbody>
-                {runs.map((run) => (
-                  <tr key={run.id}>
-                    <td>{run.started_at ? new Date(run.started_at).toLocaleString() : '—'}</td>
-                    <td>
-                      <span className={`badge badge-${
-                        run.status === 'completed' ? 'success' :
-                        run.status === 'running' ? 'info' :
-                        run.status.startsWith('completed_with') ? 'warning' : 'danger'
-                      }`}>{run.status}</span>
-                    </td>
-                    <td>{run.discovered_count}</td>
-                    <td>{run.imported_count}</td>
-                    <td>{run.duplicate_count}</td>
-                    <td>{run.skipped_count}</td>
-                    <td>{run.failed_count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="sync-run-list">
+              {runs.map((run) => (
+                <div key={run.id} className="sync-run-row">
+                  <div className="sync-run-left">
+                    <span className={`badge badge-${
+                      run.status === 'completed' ? 'success' :
+                      run.status === 'running' ? 'info' :
+                      run.status.startsWith('completed_with') ? 'warning' : 'danger'
+                    } sync-run-status`}>{run.status}</span>
+                    <span className="sync-run-date">
+                      {run.started_at ? new Date(run.started_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                    </span>
+                  </div>
+                  <div className="sync-run-stats">
+                    <span className="sync-run-stat" title="Discovered">{run.discovered_count} <span className="sync-run-stat-label">found</span></span>
+                    <span className="sync-run-stat" title="Imported">{run.imported_count} <span className="sync-run-stat-label">imported</span></span>
+                    {run.duplicate_count > 0 && <span className="sync-run-stat sync-run-stat--muted" title="Duplicates">{run.duplicate_count} <span className="sync-run-stat-label">dupes</span></span>}
+                    {run.skipped_count > 0 && <span className="sync-run-stat sync-run-stat--muted" title="Skipped">{run.skipped_count} <span className="sync-run-stat-label">skipped</span></span>}
+                    {run.failed_count > 0 && <span className="sync-run-stat sync-run-stat--danger" title="Failed">{run.failed_count} <span className="sync-run-stat-label">failed</span></span>}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}
