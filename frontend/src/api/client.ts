@@ -26,6 +26,7 @@ import type {
   SyncRunsResponse,
   TriggerSyncResponse,
   QuotaHistoryResponse,
+  QuotaDailyUsageResponse,
   CollectionListResponse,
   CollectionDetailResponse,
   CollectionResponse,
@@ -489,6 +490,14 @@ export async function getQuotaHistory(
   params.set('page', String(page));
   params.set('per_page', String(perPage));
   return request<QuotaHistoryResponse>(`/api/v1/quota/history?${params}`);
+}
+
+export async function getQuotaDailyUsage(
+  period?: string,
+): Promise<QuotaDailyUsageResponse> {
+  const params = new URLSearchParams();
+  if (period) params.set('period', period);
+  return request<QuotaDailyUsageResponse>(`/api/v1/quota/daily?${params}`);
 }
 
 // Profile management

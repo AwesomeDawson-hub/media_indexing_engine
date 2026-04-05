@@ -203,6 +203,16 @@ export interface QuotaHistoryResponse {
   period_month: string;
 }
 
+export interface QuotaDayItem {
+  date: string; // "YYYY-MM-DD"
+  count: number;
+}
+
+export interface QuotaDailyUsageResponse {
+  days: QuotaDayItem[];
+  period_month: string; // "YYYY-MM"
+}
+
 export interface SearchResponse {
   query: string;
   total: number;

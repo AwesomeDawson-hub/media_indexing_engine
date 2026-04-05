@@ -285,6 +285,16 @@ class QuotaHistoryResponse(BaseModel):
     period_month: str  # "YYYY-MM"
 
 
+class QuotaDayItem(BaseModel):
+    date: str   # "YYYY-MM-DD"
+    count: int
+
+
+class QuotaDailyUsageResponse(BaseModel):
+    days: list[QuotaDayItem]
+    period_month: str  # "YYYY-MM"
+
+
 # Admin + profile schemas
 
 class ProfileUpdateRequest(BaseModel):

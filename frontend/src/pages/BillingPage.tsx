@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import * as api from '../api/client';
-import type { BillingStatus, QuotaStatus, QuotaHistoryItem, QuotaHistoryResponse } from '../types/api';
+import type { BillingStatus, QuotaStatus, QuotaHistoryItem, QuotaHistoryResponse, QuotaDailyUsageResponse } from '../types/api';
 
 const PLANS = [
   {
@@ -55,6 +55,79 @@ function eventLabel(type: QuotaHistoryItem['event_type']): string {
   return 'Processing';
 }
 
+function UsageChart({ data }: { data: QuotaDailyUsageResponse }) {
+  const [year, month] = data.period_month.split('-').map(Number);
+  const daysInMonth = new Date(year, month, 0).getDate();
+
+  const countMap = new Map<number, number>();
+  for (const d of data.days) {
+    const day = parseInt(d.date.split('-')[2], 10);
+    countMap.set(day, d.count);
+  }
+
+  const maxCount = Math.max(...Array.from(countMap.values()), 1);
+
+  const svgW = 700;
+  const svgH = 140;
+  const padL = 32;
+  const padR = 8;
+  const padT = 16;
+  const padB = 28;
+  const chartW = svgW - padL - padR;
+  const chartH = svgH - padT - padB;
+  const slotW = chartW / daysInMonth;
+  const barW = Math.max(2, Math.floor(slotW) - 2);
+
+  return (
+    <div className="usage-chart-card">
+      <div className="usage-card-header">
+        <span className="usage-card-title">Daily Activity</span>
+        <span className="usage-card-period">{formatPeriod(data.period_month)}</span>
+      </div>
+      <svg
+        className="usage-chart-svg"
+        viewBox={`0 0 ${svgW} ${svgH}`}
+        preserveAspectRatio="xMidYMid meet"
+        aria-label="Daily usage bar chart"
+      >
+        {[0, 0.5, 1].map((frac) => {
+          const y = padT + chartH - frac * chartH;
+          return (
+            <g key={frac}>
+              <line x1={padL} x2={svgW - padR} y1={y} y2={y} className="chart-gridline" />
+              <text x={padL - 4} y={y + 4} className="chart-axis-label" textAnchor="end">
+                {Math.round(frac * maxCount)}
+              </text>
+            </g>
+          );
+        })}
+        {Array.from({ length: daysInMonth }, (_, i) => {
+          const day = i + 1;
+          const count = countMap.get(day) ?? 0;
+          const barH = count > 0 ? Math.max(4, (count / maxCount) * chartH) : 0;
+          const x = padL + i * slotW + (slotW - barW) / 2;
+          const showLabel = day === 1 || day % 5 === 0 || day === daysInMonth;
+          return (
+            <g key={day}>
+              <rect x={x} y={padT} width={barW} height={chartH} className="chart-bar-ghost" rx={2} />
+              {count > 0 && (
+                <rect x={x} y={padT + chartH - barH} width={barW} height={barH} className="chart-bar" rx={2}>
+                  <title>{`Day ${day}: ${count} ${count === 1 ? 'analysis' : 'analyses'}`}</title>
+                </rect>
+              )}
+              {showLabel && (
+                <text x={x + barW / 2} y={svgH - 4} className="chart-axis-label" textAnchor="middle">
+                  {day}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
 function statusBadge(status: string) {
   const map: Record<string, string> = {
     none: 'status-none',
@@ -74,6 +147,7 @@ export default function BillingPage() {
   const [history, setHistory] = useState<QuotaHistoryResponse | null>(null);
   const [historyPage, setHistoryPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [dailyUsage, setDailyUsage] = useState<QuotaDailyUsageResponse | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -86,11 +160,13 @@ export default function BillingPage() {
       api.getBillingStatus(),
       api.getQuotaStatus(),
       api.getQuotaHistory(undefined, 1, 25),
+      api.getQuotaDailyUsage(),
     ])
-      .then(([b, q, h]) => {
+      .then(([b, q, h, d]) => {
         setBilling(b);
         setQuota(q);
         setHistory(h);
+        setDailyUsage(d);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -199,6 +275,8 @@ export default function BillingPage() {
           <p className="usage-reset">Resets {formatResetDate(quota.period_month)}</p>
         </div>
       )}
+
+      {dailyUsage && <UsageChart data={dailyUsage} />}
 
       <div className="billing-plans">
         {PLANS.map((plan) => {

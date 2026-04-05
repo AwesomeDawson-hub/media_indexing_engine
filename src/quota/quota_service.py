@@ -9,7 +9,8 @@ from __future__ import annotations
 import logging
 from datetime import date, datetime, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import cast, func, select
+from sqlalchemy.types import Date as SADate
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import MediaItem, QuotaEvent, User
@@ -234,3 +235,43 @@ class QuotaService:
         event.event_type = "released"
         await db.commit()
         logger.debug("Quota released: reservation=%s", reservation_id)
+
+    async def get_daily_usage(
+        self,
+        db: AsyncSession,
+        user_id: str,
+        period_str: str | None = None,
+    ) -> dict:
+        """Return per-day consumed+reserved counts for a billing period.
+
+        Returns dict with keys: days (list of {date, count}), period_month.
+        Only 'consumed' events are counted (reserved are transient).
+        """
+        if period_str:
+            try:
+                dt = datetime.strptime(period_str, "%Y-%m")
+                period = date(dt.year, dt.month, 1)
+            except ValueError:
+                period = _current_period()
+        else:
+            period = _current_period()
+
+        rows_result = await db.execute(
+            select(
+                cast(QuotaEvent.created_at, SADate).label("day"),
+                func.count().label("count"),
+            )
+            .where(
+                QuotaEvent.user_id == user_id,
+                QuotaEvent.period_month == period,
+                QuotaEvent.event_type == "consumed",
+            )
+            .group_by(cast(QuotaEvent.created_at, SADate))
+            .order_by(cast(QuotaEvent.created_at, SADate))
+        )
+        rows = rows_result.all()
+
+        return {
+            "days": [{"date": row.day.isoformat(), "count": row.count} for row in rows],
+            "period_month": period.strftime("%Y-%m"),
+        }

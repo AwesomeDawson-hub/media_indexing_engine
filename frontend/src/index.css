@@ -1382,6 +1382,49 @@ input:focus {
   width: 100%;
 }
 
+/* === Usage Chart === */
+.usage-chart-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 24px;
+  margin-bottom: 28px;
+}
+
+.usage-chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 8px;
+}
+
+.chart-gridline {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.chart-bar-ghost {
+  fill: var(--border);
+  opacity: 0.35;
+}
+
+.chart-bar {
+  fill: var(--primary);
+  opacity: 0.85;
+  transition: opacity 0.15s;
+}
+
+.chart-bar:hover {
+  opacity: 1;
+}
+
+.chart-axis-label {
+  font-size: 10px;
+  fill: var(--text-muted);
+  font-family: inherit;
+}
+
 .billing-plans {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
