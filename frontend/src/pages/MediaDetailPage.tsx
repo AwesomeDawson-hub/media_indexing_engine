@@ -85,9 +85,9 @@ export default function MediaDetailPage() {
 
   useEffect(() => {
     if (!id) return;
-    const analysisSettled = analysis !== null && isTerminal(analysis.status);
+    // reanalyzing=true forces poll even if analysis.status hasn't changed yet (race condition fix)
+    const analysisSettled = !reanalyzing && analysis !== null && isTerminal(analysis.status);
     const mediaSettled = media !== null && media.status !== 'processing' && media.status !== 'pending';
-    // Poll while media or analysis is still in progress (including when analysis doesn't exist yet)
     if (analysisSettled && mediaSettled) return;
 
     pollRef.current = setInterval(async () => {
@@ -110,16 +110,15 @@ export default function MediaDetailPage() {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [id, analysis?.status, media?.status]);
+  }, [id, analysis?.status, media?.status, reanalyzing]);
 
   async function handleReanalyze() {
     if (!id) return;
     setReanalyzing(true);
+    // Don't fetch analysis here — backend may still return old 'completed' status
+    // (race condition). The poll effect starts because reanalyzing=true.
     try {
       await api.reanalyze(id);
-      // Immediately fetch so the UI shows the spinner; poll effect will complete it
-      const a = await api.getAnalysis(id);
-      setAnalysis(a);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Re-analyze failed');
       setReanalyzing(false);
@@ -381,16 +380,16 @@ export default function MediaDetailPage() {
               </button>
             </div>
 
-            {!analysis && <p className="text-muted">No analysis available yet.</p>}
+            {!reanalyzing && !analysis && <p className="text-muted">No analysis available yet.</p>}
 
-            {analysis && (analysis.status === 'pending' || analysis.status === 'processing') && (
+            {(reanalyzing || (analysis && (analysis.status === 'pending' || analysis.status === 'processing'))) && (
               <div className="analysis-pending">
                 <div className="spinner" />
                 <p>Analysis in progress...</p>
               </div>
             )}
 
-            {analysis && analysis.status === 'completed' && analysis.metadata && (
+            {!reanalyzing && analysis && analysis.status === 'completed' && analysis.metadata && (
               <MetadataDisplay metadata={analysis.metadata} />
             )}
 
