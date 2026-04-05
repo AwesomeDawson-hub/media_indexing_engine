@@ -65,9 +65,14 @@ class AnthropicVisionProvider:
         self, image_base64: str, media_type: str, hint: str | None = None
     ) -> MediaMetadataResult:
         """Send image to Claude and return validated structured metadata."""
-        user_text = "Analyze this image and return the JSON metadata."
         if hint:
-            user_text += f"\n\nAdditional guidance: {hint}"
+            user_text = (
+                f"The user has provided the following context about this image: {hint}\n\n"
+                "Use this context as ground truth — it overrides any conflicting visual impression. "
+                "Analyze the image with this context in mind and return the JSON metadata."
+            )
+        else:
+            user_text = "Analyze this image and return the JSON metadata."
         try:
             response = await self._client.messages.create(
                 model=self._model,

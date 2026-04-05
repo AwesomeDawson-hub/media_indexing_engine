@@ -390,7 +390,7 @@ export default function MediaDetailPage() {
                   <span className="reanalyze-confirm-label">Uses 1 credit —</span>
                   <button
                     className="btn btn-sm btn-primary"
-                    onClick={() => { handleReanalyze(reanalyzeHint); setReanalyzeHint(''); }}
+                    onClick={() => { handleReanalyze(reanalyzeHint); }}
                     disabled={analysis?.status === 'processing' || analysis?.status === 'pending'}
                   >
                     Re-analyze
