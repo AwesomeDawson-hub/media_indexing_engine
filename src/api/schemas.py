@@ -237,6 +237,23 @@ class QuotaStatusResponse(BaseModel):
     period_month: str  # "YYYY-MM"
 
 
+class QuotaHistoryItem(BaseModel):
+    id: str
+    event_type: str  # "reserved" | "consumed" | "released"
+    media_item_id: str | None
+    original_filename: str | None
+    created_at: datetime
+    period_month: str  # "YYYY-MM"
+
+
+class QuotaHistoryResponse(BaseModel):
+    items: list[QuotaHistoryItem]
+    total: int
+    page: int
+    per_page: int
+    period_month: str  # "YYYY-MM"
+
+
 # Admin + profile schemas
 
 class ProfileUpdateRequest(BaseModel):

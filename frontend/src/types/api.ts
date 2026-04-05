@@ -184,6 +184,23 @@ export interface QuotaStatus {
   period_month: string; // "YYYY-MM"
 }
 
+export interface QuotaHistoryItem {
+  id: string;
+  event_type: 'reserved' | 'consumed' | 'released';
+  media_item_id: string | null;
+  original_filename: string | null;
+  created_at: string;
+  period_month: string;
+}
+
+export interface QuotaHistoryResponse {
+  items: QuotaHistoryItem[];
+  total: number;
+  page: number;
+  per_page: number;
+  period_month: string;
+}
+
 export interface SearchResponse {
   query: string;
   total: number;

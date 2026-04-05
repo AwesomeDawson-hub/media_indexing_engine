@@ -12,7 +12,7 @@ from datetime import date, datetime, timezone
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import QuotaEvent, User
+from src.models import MediaItem, QuotaEvent, User
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +78,77 @@ class QuotaService:
             "consumed": consumed,
             "reserved": reserved,
             "remaining": remaining,
+            "period_month": period.strftime("%Y-%m"),
+        }
+
+    async def get_history(
+        self,
+        db: AsyncSession,
+        user_id: str,
+        period_str: str | None = None,
+        page: int = 1,
+        per_page: int = 25,
+    ) -> dict:
+        """Return paginated quota event history for a given period.
+
+        Returns dict with keys: items, total, page, per_page, period_month.
+        """
+        if period_str:
+            try:
+                dt = datetime.strptime(period_str, "%Y-%m")
+                period = date(dt.year, dt.month, 1)
+            except ValueError:
+                period = _current_period()
+        else:
+            period = _current_period()
+
+        offset = (page - 1) * per_page
+
+        count_result = await db.execute(
+            select(func.count())
+            .select_from(QuotaEvent)
+            .where(
+                QuotaEvent.user_id == user_id,
+                QuotaEvent.period_month == period,
+            )
+        )
+        total = count_result.scalar_one()
+
+        rows_result = await db.execute(
+            select(
+                QuotaEvent.id,
+                QuotaEvent.event_type,
+                QuotaEvent.media_item_id,
+                QuotaEvent.created_at,
+                QuotaEvent.period_month,
+                MediaItem.original_filename,
+            )
+            .outerjoin(MediaItem, QuotaEvent.media_item_id == MediaItem.id)
+            .where(
+                QuotaEvent.user_id == user_id,
+                QuotaEvent.period_month == period,
+            )
+            .order_by(QuotaEvent.created_at.desc())
+            .limit(per_page)
+            .offset(offset)
+        )
+        rows = rows_result.all()
+
+        return {
+            "items": [
+                {
+                    "id": str(row.id),
+                    "event_type": row.event_type,
+                    "media_item_id": str(row.media_item_id) if row.media_item_id else None,
+                    "original_filename": row.original_filename,
+                    "created_at": row.created_at,
+                    "period_month": row.period_month.strftime("%Y-%m"),
+                }
+                for row in rows
+            ],
+            "total": total,
+            "page": page,
+            "per_page": per_page,
             "period_month": period.strftime("%Y-%m"),
         }
 

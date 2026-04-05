@@ -8,8 +8,8 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | **Current Phase** | Phase 6 — Identity & Access |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | None — P6-001 (Google SSO) completed |
-| **Last Updated** | 2026-04-04 |
+| **Active Workstream** | None — post-P6-001 beta feedback applied |
+| **Last Updated** | 2026-04-05 |
 | **Updated By** | AI — Engineer |
 
 ## System Health
@@ -24,9 +24,22 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 | No duplicate ownership | Yes |
 | Test status | 229/229 pass (209 existing + 20 new Google SSO tests) |
 | Active workstream | None |
-| Last governance audit | 2026-04-04 — P6-001 (Google SSO) implemented and closed out |
+| Last governance audit | 2026-04-05 — beta feedback polish + re-analyze hint + metadata edit features |
 
 ## Recent Activity
+
+- **2026-04-05:** Beta feedback polish + new features shipped. Details:
+  - **Upload status labels:** `Uploading…` → `Processing…`, `Created` → `Completed` (`FileQueue.tsx`)
+  - **Clear Completed button removed** from `UploadPage.tsx`
+  - **Active nav highlight:** switched to React Router `NavLink` + `.nav-link.active` CSS
+  - **Billing page redesign:** 3-column horizontal plan cards with "Active Plan" banner and border highlight
+  - **Auth divider centering:** `.auth-divider` CSS with flexbox + pseudo-element rules
+  - **MediaDetailPage polling fix:** auto-refresh when processing/pending even if analysis is null
+  - **Re-analyze race condition fix:** poll starts on `reanalyzing=true`; no post-trigger getAnalysis fetch
+  - **Re-analyze with AI hint:** optional guidance textarea always shown in the Analysis panel. Hint is sent as authoritative context to Claude (`"ground truth — overrides conflicting visual impressions"`). Hint persists in textarea after re-analyze for easy refinement. Backend: `ReanalyzeRequest(hint)` schema, `analyze_image(hint=)` param on `AnthropicVisionProvider` and `VisionProvider` protocol, hint threaded through `analyze_media_item`.
+  - **Manual metadata editing:** `Edit` button on the Analysis panel opens inline form for all 13 editable fields. `PATCH /api/v1/media/{id}/analysis` endpoint updates DB and best-effort re-indexes. `MetadataUpdateRequest` schema added. `MetadataDisplay` component now supports edit/view toggle.
+  - **`get_analysis` re-analyze polling fix:** backend now checks for an active pending/running job before returning cached completed metadata — previously returned stale `completed` on first poll tick, stopping the poller immediately.
+  - **`getMedia` cache fix:** `getMedia` only caches terminal statuses (same pattern as `getAnalysis`) — was caching unconditionally, causing stale `processing` badge after re-analyze.
 
 - **2026-04-04:** P6-001 (Google SSO) **completed**. Alembic migration `a3b4c5d6e7f8` adds `oauth_accounts` and `google_completion_records` tables. `GoogleAuthConfig` added to `config.py` with `ENABLE_GOOGLE_SSO` gate and four supporting env vars. `src/auth/google_oauth.py` provides HMAC-SHA256 signed state, nonce, Authlib OIDC token exchange. Three SSO endpoints added (`/google/start`, `/google/callback`, `/google/exchange`) plus `/auth/config` feature-flag endpoint. Account resolution: provider-link-first → email fallback → create new user. Frontend: `GoogleAuthCallbackPage.tsx`, Google buttons in Login/Register, `loginWithGoogle` in `AuthContext`, standalone `/auth/google/callback` route in `App.tsx`. 20 new tests, all passing. See `IMPLEMENTATION_STATUS.md` for full details.
 

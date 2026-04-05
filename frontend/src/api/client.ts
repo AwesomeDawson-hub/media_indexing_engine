@@ -25,6 +25,7 @@ import type {
   ConnectorResponse,
   SyncRunsResponse,
   TriggerSyncResponse,
+  QuotaHistoryResponse,
 } from '../types/api';
 
 const BASE_URL = '';
@@ -460,6 +461,18 @@ export async function listSyncRuns(
 
 export async function getQuotaStatus(): Promise<QuotaStatus> {
   return request<QuotaStatus>('/api/v1/quota/status');
+}
+
+export async function getQuotaHistory(
+  period?: string,
+  page = 1,
+  perPage = 25,
+): Promise<QuotaHistoryResponse> {
+  const params = new URLSearchParams();
+  if (period) params.set('period', period);
+  params.set('page', String(page));
+  params.set('per_page', String(perPage));
+  return request<QuotaHistoryResponse>(`/api/v1/quota/history?${params}`);
 }
 
 // Profile management

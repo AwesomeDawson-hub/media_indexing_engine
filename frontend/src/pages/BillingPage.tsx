@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import * as api from '../api/client';
-import type { BillingStatus } from '../types/api';
+import type { BillingStatus, QuotaStatus, QuotaHistoryItem, QuotaHistoryResponse } from '../types/api';
 
 const PLANS = [
   {
@@ -30,6 +30,31 @@ const PLANS = [
   },
 ];
 
+function formatPeriod(period: string): string {
+  const [year, month] = period.split('-').map(Number);
+  return new Date(year, month - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
+function formatResetDate(period: string): string {
+  const [year, month] = period.split('-').map(Number);
+  const nextMonth = new Date(year, month); // month (not month-1) is next month in 0-indexed
+  return nextMonth.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+function formatEventDate(isoString: string): string {
+  return new Date(isoString).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function eventLabel(type: QuotaHistoryItem['event_type']): string {
+  if (type === 'consumed') return 'Analyzed';
+  if (type === 'released') return 'Refunded';
+  return 'Processing';
+}
+
 function statusBadge(status: string) {
   const map: Record<string, string> = {
     none: 'status-none',
@@ -45,7 +70,11 @@ function statusBadge(status: string) {
 
 export default function BillingPage() {
   const [billing, setBilling] = useState<BillingStatus | null>(null);
+  const [quota, setQuota] = useState<QuotaStatus | null>(null);
+  const [history, setHistory] = useState<QuotaHistoryResponse | null>(null);
+  const [historyPage, setHistoryPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [searchParams] = useSearchParams();
@@ -53,14 +82,34 @@ export default function BillingPage() {
   const sessionResult = searchParams.get('session');
 
   useEffect(() => {
-    api
-      .getBillingStatus()
-      .then((b) => {
+    Promise.all([
+      api.getBillingStatus(),
+      api.getQuotaStatus(),
+      api.getQuotaHistory(undefined, 1, 25),
+    ])
+      .then(([b, q, h]) => {
         setBilling(b);
+        setQuota(q);
+        setHistory(h);
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, []);
+
+  async function loadMoreHistory() {
+    if (!history || historyLoading) return;
+    const nextPage = historyPage + 1;
+    setHistoryLoading(true);
+    try {
+      const more = await api.getQuotaHistory(undefined, nextPage, 25);
+      setHistory((prev) =>
+        prev ? { ...more, items: [...prev.items, ...more.items] } : more,
+      );
+      setHistoryPage(nextPage);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
 
   async function handleUpgrade(priceId: string) {
     if (!priceId) {
@@ -123,6 +172,34 @@ export default function BillingPage() {
         </div>
       )}
 
+      {quota && (
+        <div className="usage-card">
+          <div className="usage-card-header">
+            <span className="usage-card-title">Usage This Month</span>
+            <span className="usage-card-period">{formatPeriod(quota.period_month)}</span>
+          </div>
+          <div className="usage-progress-bar">
+            <div
+              className="usage-progress-fill"
+              style={{
+                width: `${Math.min(100, ((quota.consumed + quota.reserved) / quota.monthly_limit) * 100)}%`,
+              }}
+            />
+          </div>
+          <div className="usage-stats">
+            <span className="usage-used">
+              <strong>{(quota.consumed + quota.reserved).toLocaleString()}</strong> of{' '}
+              <strong>{quota.monthly_limit.toLocaleString()}</strong> analyses used
+            </span>
+            <span className="usage-remaining">{quota.remaining.toLocaleString()} remaining</span>
+          </div>
+          {quota.reserved > 0 && (
+            <p className="usage-in-progress">{quota.reserved} in progress</p>
+          )}
+          <p className="usage-reset">Resets {formatResetDate(quota.period_month)}</p>
+        </div>
+      )}
+
       <div className="billing-plans">
         {PLANS.map((plan) => {
           const isCurrent = plan.key === currentPlanKey;
@@ -173,6 +250,36 @@ export default function BillingPage() {
           );
         })}
       </div>
+
+      {history && history.total > 0 && (
+        <div className="usage-history">
+          <h2 className="usage-history-title">Recent Activity</h2>
+          <div className="usage-history-list">
+            {history.items.map((item) => (
+              <div key={item.id} className="usage-history-row">
+                <span className="usage-history-filename">
+                  {item.original_filename ?? '(unknown file)'}
+                </span>
+                <span className={`usage-event-badge usage-event-${item.event_type}`}>
+                  {eventLabel(item.event_type)}
+                </span>
+                <span className="usage-history-date">{formatEventDate(item.created_at)}</span>
+              </div>
+            ))}
+          </div>
+          {history.items.length < history.total && (
+            <button
+              className="btn btn-secondary usage-load-more"
+              onClick={loadMoreHistory}
+              disabled={historyLoading}
+            >
+              {historyLoading
+                ? 'Loading…'
+                : `Load more (${(history.total - history.items.length).toLocaleString()} remaining)`}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

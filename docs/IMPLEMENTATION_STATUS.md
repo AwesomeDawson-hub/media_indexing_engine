@@ -31,6 +31,27 @@ Each completed workstream gets one entry in the log below, following this struct
 
 ## Completed Workstream Log
 
+### Beta Feedback Polish + Re-analyze Hint + Manual Metadata Edit
+- **Phase:** Phase 6 — Identity & Access (post-P6-001 beta feedback)
+- **Completed:** 2026-04-05
+- **Objective:** Polish the UI based on beta tester feedback and add two user-requested features: guided re-analysis with an optional AI hint, and in-place manual metadata editing.
+- **Outcome:** All items shipped and deployed to vyzindex.com. Key changes:
+  - Upload status labels: `Uploading…` → `Processing…`, `Created` → `Completed`
+  - Clear Completed button removed from UploadPage
+  - Active nav highlight via React Router `NavLink` + `.nav-link.active` CSS
+  - Billing page redesigned as 3-column horizontal plan cards with Active Plan banner + border
+  - Auth divider centered with flexbox pseudo-element rules
+  - MediaDetailPage polling fixed: auto-polls when media is processing/pending even if analysis is null
+  - Re-analyze race condition fixed: `reanalyzing=true` state forces poll; no post-trigger getAnalysis fetch
+  - **Re-analyze with AI hint:** Guidance textarea always shown in the Analysis panel. Hint sent to Claude as authoritative context that overrides conflicting visual impressions. Hint persists after re-analyze for refinement. `ReanalyzeRequest(hint: str | None, max_length=500)` schema; `analyze_image(hint=)` on `AnthropicVisionProvider` and `VisionProvider` protocol; `analyze_media_item(hint=)` in processor; `reanalyze(id, hint?)` in `client.ts`.
+  - **Manual metadata editing:** `Edit` button toggles an inline form across all 13 editable fields (text, textarea, comma-separated lists, orientation dropdown). `PATCH /api/v1/media/{id}/analysis` endpoint; `MetadataUpdateRequest` Pydantic schema; `MetadataDisplay` component refactored with edit/view mode. On save: DB updated, vector index re-indexed best-effort, fresh `AnalysisResponse` returned to update UI state.
+  - **`get_analysis` polling correctness:** Endpoint now checks for an active pending/running job before returning cached completed metadata, so re-analyze polling works correctly on first run.
+  - **`getMedia` cache correctness:** Only caches terminal statuses (not `processing`/`pending`/`uploaded`), matching the same pattern as `getAnalysis`. Prevents stale "processing" badge after re-analyze completes.
+- **Key decisions:** Hint prompt uses "ground truth — overrides conflicting visual impressions" framing rather than "additional guidance" so Claude defers to user-supplied context even when the image strongly suggests otherwise. Hint textarea is always shown (never gated behind a button) to make the feature discoverable and reduce clicks. Metadata PATCH uses `model_dump(exclude_unset=True)` so partial updates don't clobber fields not sent by the client. Vector re-indexing on metadata edit is best-effort (silent pass on failure) since stale embeddings are preferable to a failed save.
+- **Artifacts modified:** `frontend/src/components/FileQueue.tsx`, `frontend/src/pages/UploadPage.tsx`, `frontend/src/components/Layout.tsx`, `frontend/src/pages/BillingPage.tsx`, `frontend/src/index.css`, `frontend/src/pages/MediaDetailPage.tsx`, `frontend/src/components/MetadataDisplay.tsx`, `frontend/src/api/client.ts`, `src/analysis/anthropic_provider.py`, `src/analysis/provider.py`, `src/analysis/processor.py`, `src/api/routes/analysis.py`, `src/api/schemas.py`
+
+---
+
 ### P6-001: Google SSO (Sign in with Google)
 - **Phase:** Phase 6 — Identity & Access
 - **Completed:** 2026-04-04
