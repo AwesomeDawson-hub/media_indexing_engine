@@ -26,7 +26,6 @@ export default function MediaDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reanalyzing, setReanalyzing] = useState(false);
-  const [confirmReanalyze, setConfirmReanalyze] = useState(false);
   const [reanalyzeHint, setReanalyzeHint] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [converting, setConverting] = useState(false);
@@ -373,20 +372,11 @@ export default function MediaDetailPage() {
           <div className="media-detail-analysis">
             <div className="section-header">
               <h2>Analysis</h2>
-              {!reanalyzing && !confirmReanalyze && (
-                <button
-                  className="btn btn-sm btn-outline"
-                  onClick={() => setConfirmReanalyze(true)}
-                  disabled={analysis?.status === 'processing' || analysis?.status === 'pending'}
-                >
-                  Re-analyze
-                </button>
-              )}
               {reanalyzing && (
                 <span className="reanalyze-confirm-label">Analyzing...</span>
               )}
             </div>
-            {confirmReanalyze && (
+            {!reanalyzing && (
               <div className="reanalyze-confirm">
                 <label className="reanalyze-hint-label">Optional guidance for the AI</label>
                 <textarea
@@ -400,15 +390,10 @@ export default function MediaDetailPage() {
                   <span className="reanalyze-confirm-label">Uses 1 credit —</span>
                   <button
                     className="btn btn-sm btn-primary"
-                    onClick={() => { setConfirmReanalyze(false); handleReanalyze(reanalyzeHint); setReanalyzeHint(''); }}
+                    onClick={() => { handleReanalyze(reanalyzeHint); setReanalyzeHint(''); }}
+                    disabled={analysis?.status === 'processing' || analysis?.status === 'pending'}
                   >
-                    Confirm
-                  </button>
-                  <button
-                    className="btn btn-sm btn-outline"
-                    onClick={() => { setConfirmReanalyze(false); setReanalyzeHint(''); }}
-                  >
-                    Cancel
+                    Re-analyze
                   </button>
                 </div>
               </div>
