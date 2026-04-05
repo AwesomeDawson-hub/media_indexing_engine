@@ -253,6 +253,7 @@ class BatchTagResponse(BaseModel):
     message: str
 
 
+class QuotaStatusResponse(BaseModel):
     plan_name: str
     monthly_limit: int
     consumed: int
