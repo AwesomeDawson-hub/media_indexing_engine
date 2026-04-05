@@ -2491,6 +2491,12 @@ input:focus {
   cursor: pointer;
   padding: 0;
   line-height: 1;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.profile-avatar-click:hover .profile-avatar-remove {
+  opacity: 1;
 }
 
 .profile-avatar-remove:hover:not(:disabled) {
