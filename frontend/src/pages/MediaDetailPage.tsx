@@ -382,37 +382,37 @@ export default function MediaDetailPage() {
                   Re-analyze
                 </button>
               )}
-              {confirmReanalyze && (
-                <div className="reanalyze-confirm">
-                  <textarea
-                    className="reanalyze-hint-input"
-                    placeholder="Optional: add guidance for the AI (e.g. 'focus on the background', 'this is a wedding photo')"
-                    value={reanalyzeHint}
-                    onChange={(e) => setReanalyzeHint(e.target.value)}
-                    maxLength={500}
-                    rows={2}
-                  />
-                  <div className="reanalyze-confirm-row">
-                    <span className="reanalyze-confirm-label">Uses 1 credit —</span>
-                    <button
-                      className="btn btn-sm btn-primary"
-                      onClick={() => { setConfirmReanalyze(false); handleReanalyze(reanalyzeHint); setReanalyzeHint(''); }}
-                    >
-                      Confirm
-                    </button>
-                    <button
-                      className="btn btn-sm btn-outline"
-                      onClick={() => { setConfirmReanalyze(false); setReanalyzeHint(''); }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
               {reanalyzing && (
                 <span className="reanalyze-confirm-label">Analyzing...</span>
               )}
             </div>
+            {confirmReanalyze && (
+              <div className="reanalyze-confirm">
+                <label className="reanalyze-hint-label">Optional guidance for the AI</label>
+                <textarea
+                  className="reanalyze-hint-input"
+                  placeholder="e.g. 'focus on the background details', 'this is a wedding photo', 'identify the car model'"
+                  value={reanalyzeHint}
+                  onChange={(e) => setReanalyzeHint(e.target.value)}
+                  maxLength={500}
+                />
+                <div className="reanalyze-confirm-row">
+                  <span className="reanalyze-confirm-label">Uses 1 credit —</span>
+                  <button
+                    className="btn btn-sm btn-primary"
+                    onClick={() => { setConfirmReanalyze(false); handleReanalyze(reanalyzeHint); setReanalyzeHint(''); }}
+                  >
+                    Confirm
+                  </button>
+                  <button
+                    className="btn btn-sm btn-outline"
+                    onClick={() => { setConfirmReanalyze(false); setReanalyzeHint(''); }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
 
             {!reanalyzing && !analysis && <p className="text-muted">No analysis available yet.</p>}
 

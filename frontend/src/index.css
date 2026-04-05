@@ -1259,24 +1259,44 @@ input:focus {
 .reanalyze-confirm {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 4px;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.reanalyze-hint-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .reanalyze-hint-input {
   width: 100%;
-  padding: 6px 10px;
+  min-height: 72px;
+  padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
   color: var(--text-primary);
-  font-size: 0.8125rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  line-height: 1.5;
   resize: vertical;
   box-sizing: border-box;
 }
 
 .reanalyze-hint-input::placeholder {
   color: var(--text-muted);
+}
+
+.reanalyze-hint-input:focus {
+  outline: none;
+  border-color: var(--accent);
 }
 
 .reanalyze-confirm-row {
