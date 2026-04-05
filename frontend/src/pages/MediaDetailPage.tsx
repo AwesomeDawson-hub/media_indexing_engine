@@ -81,20 +81,26 @@ export default function MediaDetailPage() {
     };
   }, [id]);
 
+  const isTerminal = (s: string) => ['completed', 'failed', 'error'].includes(s);
+
   useEffect(() => {
-    if (!id || !analysis) return;
-    const isTerminal = (s: string) => ['completed', 'failed', 'error'].includes(s);
-    if (isTerminal(analysis.status)) return;
+    if (!id) return;
+    const analysisSettled = analysis !== null && isTerminal(analysis.status);
+    const mediaSettled = media !== null && media.status !== 'processing' && media.status !== 'pending';
+    // Poll while media or analysis is still in progress (including when analysis doesn't exist yet)
+    if (analysisSettled && mediaSettled) return;
 
     pollRef.current = setInterval(async () => {
       try {
-        const a = await api.getAnalysis(id);
+        const [m, a] = await Promise.all([
+          api.getMedia(id),
+          api.getAnalysis(id).catch(() => null),
+        ]);
+        setMedia(m);
         setAnalysis(a);
-        if (isTerminal(a.status)) {
+        if (a && isTerminal(a.status)) {
           clearInterval(pollRef.current);
-          // Re-fetch media so status badge reflects the completed state
-          const m = await api.getMedia(id);
-          setMedia(m);
+          setReanalyzing(false);
         }
       } catch {
         // ignore polling errors
@@ -104,18 +110,18 @@ export default function MediaDetailPage() {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [id, analysis?.status]);
+  }, [id, analysis?.status, media?.status]);
 
   async function handleReanalyze() {
     if (!id) return;
     setReanalyzing(true);
     try {
       await api.reanalyze(id);
+      // Immediately fetch so the UI shows the spinner; poll effect will complete it
       const a = await api.getAnalysis(id);
       setAnalysis(a);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Re-analyze failed');
-    } finally {
       setReanalyzing(false);
     }
   }
@@ -369,9 +375,9 @@ export default function MediaDetailPage() {
               <button
                 className="btn btn-sm btn-outline"
                 onClick={handleReanalyze}
-                disabled={reanalyzing}
+                disabled={reanalyzing || analysis?.status === 'processing' || analysis?.status === 'pending'}
               >
-                {reanalyzing ? 'Requesting...' : 'Re-analyze'}
+                {reanalyzing ? 'Analyzing...' : 'Re-analyze'}
               </button>
             </div>
 
