@@ -83,14 +83,16 @@ export default function SourcesPage() {
     }
   }
 
-  const active = sources.filter((s) => !s.archived_at);
-  const archived = sources.filter((s) => s.archived_at);
+  const SYSTEM_SOURCE_PREFIX = '__';
+  const active = sources.filter((s) => !s.archived_at && !s.name.startsWith(SYSTEM_SOURCE_PREFIX));
+  const archived = sources.filter((s) => s.archived_at && !s.name.startsWith(SYSTEM_SOURCE_PREFIX));
 
   return (
     <div>
       <div className="page-header">
-        <h1>Sources</h1>
+        <h1>Connections</h1>
         <div className="upload-header-actions">
+          <Link to="/add-media" className="btn btn-primary btn-sm">+ Add connection</Link>
           <label className="sources-toggle-archived">
             <input
               type="checkbox"
@@ -116,7 +118,7 @@ export default function SourcesPage() {
       ) : (
         <>
           {active.length === 0 && !showArchived && (
-            <p className="text-muted">No active sources. Create one on the <Link to="/upload">Upload page</Link>.</p>
+            <p className="text-muted">No connections yet. <Link to="/add-media">Add one →</Link></p>
           )}
 
           {active.length > 0 && (

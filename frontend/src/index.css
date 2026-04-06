@@ -2841,3 +2841,35 @@ input:focus {
   gap: 10px;
   padding-top: 2px;
 }
+
+/* === Add Media Page === */
+.add-media-section {
+  margin-bottom: 32px;
+}
+.add-media-section-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 12px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.add-media-hint {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin: 0 0 12px;
+}
+.drive-configure-selected {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  padding: 6px 0;
+}
+.drive-configure-collection {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 0.88rem;
+}
+.drive-configure-collection label {
+  color: var(--text-muted);
+}

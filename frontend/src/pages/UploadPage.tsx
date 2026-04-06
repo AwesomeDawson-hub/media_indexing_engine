@@ -1,8 +1,8 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import DropZone from '../components/DropZone';
 import FileQueue, { type QueuedFile } from '../components/FileQueue';
 import * as api from '../api/client';
-import type { QuotaStatus, SourceResponse } from '../types/api';
+import type { QuotaStatus } from '../types/api';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/tiff', 'image/bmp', 'image/avif'];
 const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.tiff', '.tif', '.bmp', '.avif'];
@@ -22,61 +22,9 @@ export default function UploadPage() {
   const [quotaStatus, setQuotaStatus] = useState<QuotaStatus | null>(null);
   const [showQuotaModal, setShowQuotaModal] = useState(false);
   const [quotaLoading, setQuotaLoading] = useState(false);
-  const [sources, setSources] = useState<SourceResponse[]>([]);
-  const [selectedSourceId, setSelectedSourceId] = useState('');
-  const [showNewSourceForm, setShowNewSourceForm] = useState(false);
-  const [newSourceName, setNewSourceName] = useState('');
-  const [creatingSource, setCreatingSource] = useState(false);
-  const [createError, setCreateError] = useState<{ message: string; archivedSourceId?: string } | null>(null);
   const queuedCount = queue.filter((q) => q.status === 'queued').length;
   const exceedsQuota = quotaStatus !== null && queuedCount > quotaStatus.remaining;
   const quotaDepleted = quotaStatus !== null && quotaStatus.remaining === 0;
-
-  useEffect(() => {
-    api.listSources().then(setSources).catch(() => {});
-  }, []);
-
-  async function handleCreateSource() {
-    const name = newSourceName.trim();
-    if (!name) return;
-    setCreatingSource(true);
-    setCreateError(null);
-    try {
-      const created = await api.createSource(name);
-      setSources((prev) => [...prev, created]);
-      setSelectedSourceId(created.id);
-      setShowNewSourceForm(false);
-      setNewSourceName('');
-    } catch (err: unknown) {
-      if (err instanceof api.ApiRequestError && err.status === 409) {
-        setCreateError({ message: err.message, archivedSourceId: err.archivedSourceId });
-      } else {
-        setCreateError({ message: 'Failed to create source.' });
-      }
-    } finally {
-      setCreatingSource(false);
-    }
-  }
-
-  async function handleRestoreFromConflict(archivedSourceId: string) {
-    setCreatingSource(true);
-    try {
-      const restored = await api.restoreSource(archivedSourceId);
-      setSources((prev) => {
-        const exists = prev.find((s) => s.id === restored.id);
-        if (exists) return prev.map((s) => (s.id === restored.id ? { ...restored, media_count: s.media_count } : s));
-        return [...prev, { ...restored, media_count: 0 }];
-      });
-      setSelectedSourceId(restored.id);
-      setShowNewSourceForm(false);
-      setNewSourceName('');
-      setCreateError(null);
-    } catch {
-      setCreateError({ message: 'Failed to restore source.' });
-    } finally {
-      setCreatingSource(false);
-    }
-  }
 
   const handleFiles = useCallback((files: File[]) => {
     const newEntries: QueuedFile[] = files.map((file) => {
@@ -114,7 +62,7 @@ export default function UploadPage() {
         return;
       }
       try {
-        const res = await api.uploadFile(qf.file, selectedSourceId || undefined);
+        const res = await api.uploadFile(qf.file);
         results.push({ filename: qf.file.name, status: res.is_duplicate ? 'duplicate' : 'created' });
       } catch (err: unknown) {
         if (err instanceof api.ApiRequestError && err.error === 'quota_exceeded') {
@@ -188,73 +136,6 @@ export default function UploadPage() {
 
         </div>
       </div>
-      <div className="upload-source-section card">
-        <div className="filter-group">
-          <label>Tag uploads with a source</label>
-          <div className="upload-source-row">
-            <select
-              value={selectedSourceId}
-              onChange={(e) => setSelectedSourceId(e.target.value)}
-            >
-              <option value="">No source</option>
-              {sources.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-            {!showNewSourceForm && (
-              <button
-                className="btn btn-outline btn-sm"
-                onClick={() => setShowNewSourceForm(true)}
-              >
-                + New Source
-              </button>
-            )}
-          </div>
-          {showNewSourceForm && (
-            <div className="upload-new-source-form">
-              <input
-                type="text"
-                placeholder="Source name"
-                value={newSourceName}
-                onChange={(e) => { setNewSourceName(e.target.value); setCreateError(null); }}
-                maxLength={200}
-              />
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={handleCreateSource}
-                disabled={creatingSource || !newSourceName.trim()}
-              >
-                {creatingSource ? 'Creating...' : 'Create'}
-              </button>
-              <button
-                className="btn btn-outline btn-sm"
-                onClick={() => { setShowNewSourceForm(false); setNewSourceName(''); setCreateError(null); }}
-              >
-                Cancel
-              </button>
-              {createError && (
-                <div className="upload-new-source-error">
-                  {createError.message}
-                  {createError.archivedSourceId && (
-                    <button
-                      className="btn btn-sm btn-outline"
-                      onClick={() => handleRestoreFromConflict(createError.archivedSourceId!)}
-                      disabled={creatingSource}
-                    >
-                      Restore it
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-      {selectedSourceId && (
-        <p className="upload-source-active-hint">
-          Uploads will be tagged: <strong>{sources.find((s) => s.id === selectedSourceId)?.name}</strong>
-        </p>
-      )}
       <DropZone
         onFiles={handleFiles}
         accept={[...ALLOWED_TYPES, ...ALLOWED_EXTENSIONS].join(',')}

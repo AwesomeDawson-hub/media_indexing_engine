@@ -478,6 +478,18 @@ export async function startGoogleDriveConnector(
   );
 }
 
+export async function quickConnectGoogleDrive(
+  sourceName?: string,
+): Promise<ConnectorDriveStartResponse> {
+  return request<ConnectorDriveStartResponse>(
+    '/api/v1/connectors/google-drive/quick-connect',
+    {
+      method: 'POST',
+      body: JSON.stringify({ source_name: sourceName ?? null }),
+    },
+  );
+}
+
 export async function disconnectGoogleDriveConnector(sourceId: string): Promise<void> {
   await request<void>(`/api/v1/sources/${sourceId}/connector/google-drive`, { method: 'DELETE' });
 }

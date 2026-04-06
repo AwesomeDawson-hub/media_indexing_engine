@@ -500,6 +500,11 @@ class ConnectorDriveStartResponse(BaseModel):
     authorization_url: str
 
 
+class ConnectorDriveQuickConnectRequest(BaseModel):
+    """Body for POST /api/v1/connectors/google-drive/quick-connect."""
+    source_name: str | None = None  # Defaults to "Google Drive" if omitted
+
+
 class DriveFolderItem(BaseModel):
     """One folder entry returned by the Drive folder browser."""
     id: str

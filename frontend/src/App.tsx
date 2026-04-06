@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import PublicRoute from './components/PublicRoute';
@@ -9,6 +9,7 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import GalleryPage from './pages/GalleryPage';
 import UploadPage from './pages/UploadPage';
+import AddMediaPage from './pages/AddMediaPage';
 import MediaDetailPage from './pages/MediaDetailPage';
 import SourcesPage from './pages/SourcesPage';
 import ProfilePage from './pages/ProfilePage';
@@ -41,7 +42,8 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<Layout />}>
             <Route path="/" element={<GalleryPage />} />
-            <Route path="/upload" element={<UploadPage />} />
+            <Route path="/add-media" element={<AddMediaPage />} />
+            <Route path="/upload" element={<Navigate to="/add-media" replace />} />
             <Route path="/sources" element={<SourcesPage />} />
             <Route path="/media/:id" element={<MediaDetailPage />} />
             <Route path="/profile" element={<ProfilePage />} />

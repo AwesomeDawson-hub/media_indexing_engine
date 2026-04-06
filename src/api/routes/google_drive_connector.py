@@ -10,8 +10,8 @@ The callback endpoint is unauthenticated — it is reached via a browser redirec
 The disconnect endpoint is authenticated.
 
 Callback redirect contract (to frontend):
-  Success: {frontend_url}/sources?connector=google_drive&source_id={id}&connector_result=connected
-  Error:   {frontend_url}/sources?connector=google_drive&source_id={id}&connector_result=error&error_code={code}
+  Success: {frontend_url}/add-media?connector=google_drive&source_id={id}&connector_result=connected
+  Error:   {frontend_url}/add-media?connector=google_drive&source_id={id}&connector_result=error&error_code={code}
 
 Error codes: access_denied, invalid_state, state_expired_or_replayed, exchange_failed,
              connector_disabled, source_not_found, source_archived, account_snapshot_failed
@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.dependencies import get_db, get_current_user_id
 from src.api.schemas import (
     ConnectorDriveStartResponse,
+    ConnectorDriveQuickConnectRequest,
     ConnectorDriveConfigureRequest,
     ConnectorResponse,
     DriveFolderItem,
@@ -75,7 +76,7 @@ def _error_redirect(frontend_url: str, source_id: str | None, error_code: str) -
     """Return a 302 redirect to the frontend error page."""
     sid_param = f"&source_id={source_id}" if source_id else ""
     url = (
-        f"{frontend_url}/sources"
+        f"{frontend_url}/add-media"
         f"?connector=google_drive{sid_param}"
         f"&connector_result=error"
         f"&error_code={error_code}"
@@ -150,6 +151,68 @@ async def google_drive_start(
     _set_drive_state_cookie(response, nonce)
 
     # FastAPI does not support mixing Response + return type; return JSONResponse directly
+    from fastapi.responses import JSONResponse
+    json_response = JSONResponse(
+        content={"authorization_url": auth_url},
+        status_code=200,
+    )
+    _set_drive_state_cookie(json_response, nonce)
+    return json_response
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/connectors/google-drive/quick-connect
+# ---------------------------------------------------------------------------
+
+@router.post("/connectors/google-drive/quick-connect", status_code=200)
+async def google_drive_quick_connect(
+    body: ConnectorDriveQuickConnectRequest | None = None,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+) -> ConnectorDriveStartResponse:
+    """Create a Source automatically and initiate Google Drive OAuth in one step.
+
+    Removes the requirement for the user to pre-create a Source before
+    starting OAuth. Used by the Add Media page.
+    """
+    if not settings.google_drive.is_ready:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": "Google Drive connector is not enabled.",
+                "error_code": "connector_disabled",
+            },
+        )
+    if not settings.connector.credentials_key:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": "Connector credentials encryption key is not configured.",
+                "error_code": "connector_unavailable",
+            },
+        )
+
+    source_name = (body.source_name.strip() if body and body.source_name else None) or "Google Drive"
+    new_source = Source(user_id=user_id, name=source_name, source_type="manual")
+    db.add(new_source)
+    await db.flush()
+    source_id = new_source.id
+
+    nonce = generate_nonce()
+    signed_state = sign_state(
+        user_id=user_id,
+        source_id=source_id,
+        nonce=nonce,
+        secret=settings.auth.secret_key,
+    )
+    auth_url = build_auth_url(
+        client_id=settings.google_drive.client_id,
+        redirect_uri=settings.google_drive.redirect_uri,
+        signed_state=signed_state,
+    )
+
+    await db.commit()
+
     from fastapi.responses import JSONResponse
     json_response = JSONResponse(
         content={"authorization_url": auth_url},
@@ -333,7 +396,7 @@ async def google_drive_callback(
     # Step 10: respond with success redirect
     # ------------------------------------------------------------------
     success_url = (
-        f"{frontend_url}/sources"
+        f"{frontend_url}/add-media"
         f"?connector=google_drive"
         f"&source_id={source_id}"
         f"&connector_result=connected"

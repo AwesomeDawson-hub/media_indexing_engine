@@ -64,16 +64,35 @@ async def _cleanup_unqueued_upload(db: AsyncSession, media_item_id: str, storage
         logger.warning("Failed to delete quota-rejected upload file %s", storage_path, exc_info=True)
 
 
+_UPLOADS_SOURCE_NAME = "__uploads__"
+
+
 async def _resolve_source_id(
     db: AsyncSession,
     user_id: str,
     source_id: str | None,
-) -> str | None:
-    """Validate source ownership. Returns source_id if valid, None if not provided.
-    Raises 404 if the source does not exist, 403 if it belongs to another user.
+) -> str:
+    """Return a source_id scoped to this user.
+
+    If source_id is provided, validates ownership and returns it.
+    If source_id is None, returns (creating if necessary) the per-user
+    system upload source named '__uploads__'.
     """
     if source_id is None:
-        return None
+        result = await db.execute(
+            select(Source).where(
+                Source.user_id == user_id,
+                Source.name == _UPLOADS_SOURCE_NAME,
+                Source.archived_at.is_(None),
+            )
+        )
+        system_source = result.scalar_one_or_none()
+        if system_source is None:
+            system_source = Source(user_id=user_id, name=_UPLOADS_SOURCE_NAME, source_type="manual")
+            db.add(system_source)
+            await db.flush()
+        return system_source.id
+
     result = await db.execute(select(Source).where(Source.id == source_id))
     source = result.scalar_one_or_none()
     if source is None:

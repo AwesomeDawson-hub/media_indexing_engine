@@ -8,7 +8,7 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | **Current Phase** | Phase 7 — Post-Phase 6 User-Value Features |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | None — P7-002 complete |
+| **Active Workstream** | P7-003: Navigation & UX Redesign (Add Media Hub) |
 | **Last Updated** | 2026-04-05 |
 | **Updated By** | AI — Engineer |
 
@@ -23,10 +23,12 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
 | Test status | 254/254 pass (229 existing + 25 new Google Drive tests) |
-| Active workstream | None — P7-002 complete |
+| Active workstream | P7-003 — In Progress |
 | Last governance audit | 2026-04-05 — P7-002 implemented and closed out; governance docs updated |
 
 ## Recent Activity
+
+- **2026-04-05:** P7-003 (Navigation & UX Redesign) **started**. ARCH-001 approved. 6 sub-workstreams: WS-01 (silent upload source), WS-05 (rename Sources→Connections), WS-03 (quick-connect endpoint), WS-02 (Add Media page), WS-04 (OAuth callback redirect), WS-06 (Connections cleanup). No schema changes. Implementation in progress.
 
 - **2026-04-05:** P7-002 (Google Drive Connector, root-only) **completed**. Full OAuth 2.0 Drive connector implemented: DB schema made provider-neutral (`remote_container_id`/`remote_container_label` + account snapshot columns), HMAC-signed browser-bound callback state, Fernet-encrypted token storage, `DriveTokenManager` with access-token caching and refresh rotation, `build_connector()` factory replaces hardcoded S3 build in sync service, three new API routes, full frontend connect/disconnect/callback-banner flow. 25 new tests + 18 S3 regressions all pass. `IMPLEMENTATION_STATUS.md` updated; `WORKSTREAMS.md` P7-002 moved to Completed.
 
