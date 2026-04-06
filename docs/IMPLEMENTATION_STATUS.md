@@ -31,6 +31,26 @@ Each completed workstream gets one entry in the log below, following this struct
 
 ## Completed Workstream Log
 
+### P7-003: Navigation & UX Redesign (Add Media Hub)
+- **Phase:** Phase 7 — Post-Phase 6 User-Value Features
+- **Completed:** 2026-04-05
+- **Objective:** Eliminate Source management friction. Make `/add-media` the single ingestion entry point. Rename Sources → Connections. Enable Google Drive OAuth in one click without pre-creating a Source.
+- **Outcome:** All 6 sub-workstreams delivered as designed. No DB migration required.
+  - **WS-01 (Backend):** `_resolve_source_id()` in `upload.py` now auto-creates a per-user `__uploads__` system Source when no `source_id` is provided, instead of returning `None`. System sources use `__` prefix convention.
+  - **WS-01 (Frontend):** Removed all source picker UI from `UploadPage.tsx` — 6 state vars, `useEffect`, `handleCreateSource`, `handleRestoreFromConflict`, the source section JSX, and the `selectedSourceId` argument to `uploadFile()`.
+  - **WS-05:** "Sources" → "Connections" in `Layout.tsx` nav and `SourcesPage.tsx` `<h1>`. Path `/sources` unchanged.
+  - **WS-03:** `POST /api/v1/connectors/google-drive/quick-connect` — creates a Source + initiates OAuth in one request. `ConnectorDriveQuickConnectRequest` schema added to `schemas.py`. `quickConnectGoogleDrive()` added to `client.ts`.
+  - **WS-02:** `AddMediaPage.tsx` created at `/add-media`. Contains: file upload queue (full logic), inline Drive configure panel (folder picker after callback), Drive quick-connect button, S3 link to Connections. `/upload` → `<Navigate to="/add-media" />` redirect in `App.tsx`. CSS appended to `index.css`.
+  - **WS-04:** Both `_error_redirect()` and the success path in `google_drive_callback()` now redirect to `{frontend_url}/add-media` instead of `/sources`.
+  - **WS-06:** `SourcesPage.tsx`: system sources (`__` prefix) excluded from active/archived lists; "+ Add connection" link to `/add-media` added to header; empty-state links updated.
+- **Key decisions:**
+  - System sources use `__` prefix so they're identifiable without a schema column. Filtered at the query/display layer; no DB change needed.
+  - Quick-connect creates the Source before returning the OAuth URL so `source_id` is available in the callback state. Source is committed inside the endpoint (not deferred to caller).
+  - `/upload` route kept as a redirect rather than removed, to avoid 404s from bookmarks/external links.
+- **Artifacts produced:** `frontend/src/pages/AddMediaPage.tsx` (new), `frontend/src/pages/UploadPage.tsx` (stripped), `frontend/src/App.tsx`, `frontend/src/components/Layout.tsx`, `frontend/src/pages/SourcesPage.tsx`, `frontend/src/api/client.ts`, `frontend/src/index.css`, `src/api/routes/upload.py`, `src/api/routes/google_drive_connector.py`, `src/api/schemas.py`, `docs/planning/ARCH-001-navigation-ux-redesign.md`, `docs/planning/ARCH-002-reference-mode-storage.md` (backlog). Commit: `985a220`.
+- **Test fixes (same session):** Fixed 4 pre-existing test failures unrelated to P7-003: `MockVisionProvider.analyze_image()` missing `hint` keyword arg (added `hint: str | None = None` to `mock_provider.py`); 3 tests expecting 503 "feature disabled" were getting 200 because `config.py` calls `load_dotenv()` at import time and the `.env` file has credentials set — fixed by adding `monkeypatch` to each test to explicitly clear the setting. Commit: `8a69c8a`.
+- **Lessons learned:** `load_dotenv()` at module import means all local tests run with production-like credentials from `.env`. Tests that assert "feature off" always need `monkeypatch` to override the setting explicitly.
+
 ### Beta Feedback Polish + Re-analyze Hint + Manual Metadata Edit
 - **Phase:** Phase 6 — Identity & Access (post-P6-001 beta feedback)
 - **Completed:** 2026-04-05

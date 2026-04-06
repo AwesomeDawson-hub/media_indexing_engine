@@ -47,24 +47,27 @@ _No planned workstreams currently queued._
 
 ## In Progress
 
-### P7-003: Navigation & UX Redesign (Add Media Hub)
-- **Objective:** Eliminate Source management friction from user-facing flows. Introduce `/add-media` as the single ingestion entry point. Rename Sources → Connections. Enable Google Drive OAuth without a pre-existing Source.
-- **Phase:** Phase 7 — Post-Phase 6 User-Value Features
-- **Status:** In Progress — 2026-04-05
-- **Size:** Medium
-- **Architect review:** Complete — approved 2026-04-05
-- **Plan:** `docs/planning/ARCH-001-navigation-ux-redesign.md`
-- **Sub-workstreams (ordered):**
-  - WS-01: Silent upload source — auto-create hidden `__uploads__` source; remove source picker from UploadPage — Small
-  - WS-05: Rename Sources → Connections in nav + page — Small
-  - WS-03: `POST /api/v1/connectors/google-drive/quick-connect` endpoint — Small–Medium
-  - WS-02: New `AddMediaPage.tsx` at `/add-media`; retire `/upload` in nav — Medium
-  - WS-04: OAuth callback redirect `/sources` → `/add-media` — Small
-  - WS-06: Connections page cleanup (hide system sources, add "+ Add connection" link) — Small
+_No workstreams currently in progress._
 
 ---
 
 ## Completed (Phase 7)
+
+### P7-003: Navigation & UX Redesign (Add Media Hub)
+- **Objective:** Eliminate Source management friction from user-facing flows. Introduce `/add-media` as the single ingestion entry point. Rename Sources → Connections. Enable Google Drive OAuth without a pre-existing Source.
+- **Phase:** Phase 7 — Post-Phase 6 User-Value Features
+- **Status:** Completed — 2026-04-05
+- **Size:** Medium
+- **Architect review:** Complete — approved 2026-04-05
+- **Plan:** `docs/planning/ARCH-001-navigation-ux-redesign.md`
+- **Sub-workstreams:**
+  - WS-01: Silent upload source — auto-create hidden `__uploads__` source; remove source picker from UploadPage ✅
+  - WS-05: Rename Sources → Connections in nav + page ✅
+  - WS-03: `POST /api/v1/connectors/google-drive/quick-connect` endpoint ✅
+  - WS-02: New `AddMediaPage.tsx` at `/add-media`; retire `/upload` in nav ✅
+  - WS-04: OAuth callback redirect `/sources` → `/add-media` ✅
+  - WS-06: Connections page cleanup (hide system sources, add "+ Add connection" link) ✅
+- **Summary:** `IMPLEMENTATION_STATUS.md` — P7-003 entry
 
 ### P7-002: Google Drive Connector (Root-Only)
 - **Objective:** Add the first OAuth-backed connector on top of the existing connector foundation so users can connect `My Drive` and manually sync supported image files through the current ingestion pipeline.

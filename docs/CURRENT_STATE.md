@@ -8,7 +8,7 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | **Current Phase** | Phase 7 — Post-Phase 6 User-Value Features |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | P7-003: Navigation & UX Redesign (Add Media Hub) |
+| **Active Workstream** | None — P7-003 complete |
 | **Last Updated** | 2026-04-05 |
 | **Updated By** | AI — Engineer |
 
@@ -22,11 +22,13 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 | Registry complete | Yes |
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
-| Test status | 254/254 pass (229 existing + 25 new Google Drive tests) |
-| Active workstream | P7-003 — In Progress |
+| Test status | 258/258 pass (all pre-existing failures fixed too: MockVisionProvider hint param + 3 env-isolation monkeypatch fixes) |
+| Active workstream | None — P7-003 completed |
 | Last governance audit | 2026-04-05 — P7-002 implemented and closed out; governance docs updated |
 
 ## Recent Activity
+
+- **2026-04-05:** P7-003 (Navigation & UX Redesign) **completed**. All 6 sub-workstreams implemented: WS-01 (silent `__uploads__` source, UploadPage source picker removed), WS-05 (Sources→Connections rename), WS-03 (`quick-connect` endpoint + schema + client), WS-02 (AddMediaPage at `/add-media` + CSS), WS-04 (OAuth callback → `/add-media`), WS-06 (Connections hides system sources, adds "+ Add connection"). No DB migration. Commit `985a220` deployed to EC2. Test suite also cleaned up: 4 pre-existing failures fixed (`MockVisionProvider` missing `hint` kwarg; 3 env-isolation tests needed monkeypatch to override `.env`-loaded credentials). All 258 tests pass. `WORKSTREAMS.md` and `IMPLEMENTATION_STATUS.md` updated.
 
 - **2026-04-05:** P7-003 (Navigation & UX Redesign) **started**. ARCH-001 approved. 6 sub-workstreams: WS-01 (silent upload source), WS-05 (rename Sources→Connections), WS-03 (quick-connect endpoint), WS-02 (Add Media page), WS-04 (OAuth callback redirect), WS-06 (Connections cleanup). No schema changes. Implementation in progress.
 
