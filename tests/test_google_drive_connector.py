@@ -466,8 +466,10 @@ def test_remote_object_display_name():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_drive_start_503_when_disabled(client):
+async def test_drive_start_503_when_disabled(client, monkeypatch):
     """POST /connector/google-drive/start returns 503 when connector is disabled."""
+    import src.config as cfg_mod
+    monkeypatch.setattr(cfg_mod.settings.google_drive, "enabled", False)
     source = await _create_source(client)
     resp = await client.post(
         f"/api/v1/sources/{source['id']}/connector/google-drive/start"

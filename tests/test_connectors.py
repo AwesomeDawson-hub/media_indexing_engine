@@ -232,8 +232,10 @@ def test_encrypt_decrypt_roundtrip(monkeypatch):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_configure_connector_no_key_returns_503(client):
+async def test_configure_connector_no_key_returns_503(client, monkeypatch):
     """POST /connector/s3 fails with 503 when encryption key is not set."""
+    import src.config as cfg_mod
+    monkeypatch.setattr(cfg_mod.settings.connector, "credentials_key", "")
     source = await _create_source(client)
     resp = await client.post(f"/api/v1/sources/{source['id']}/connector/s3", json=_S3_CONFIG)
     assert resp.status_code == 503
@@ -350,8 +352,10 @@ async def test_trigger_sync_no_connector_returns_422(client_with_key):
 
 
 @pytest.mark.asyncio
-async def test_trigger_sync_no_encryption_key_returns_503(client):
+async def test_trigger_sync_no_encryption_key_returns_503(client, monkeypatch):
     """POST /sync returns 503 when encryption key is not configured."""
+    import src.config as cfg_mod
+    monkeypatch.setattr(cfg_mod.settings.connector, "credentials_key", "")
     source = await _create_source(client)
     resp = await client.post(f"/api/v1/sources/{source['id']}/sync")
     assert resp.status_code == 503

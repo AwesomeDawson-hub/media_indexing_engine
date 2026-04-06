@@ -31,7 +31,7 @@ class MockVisionProvider:
         self._call_count = 0
 
     async def analyze_image(
-        self, image_base64: str, media_type: str
+        self, image_base64: str, media_type: str, hint: str | None = None
     ) -> MediaMetadataResult:
         self._call_count += 1
         if self._call_count <= self._fail_until_attempt:
