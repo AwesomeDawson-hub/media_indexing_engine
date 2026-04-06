@@ -27,8 +27,6 @@ This document tracks all work items for the Media Indexing Engine through their 
 
 _Post-Phase 6 workstreams are being planned incrementally as the beta product expands beyond identity and the initial connector foundation._
 
-_No planned workstreams currently queued._
-
 ---
 
 ## Future
@@ -52,6 +50,15 @@ _No workstreams currently in progress._
 ---
 
 ## Completed (Phase 7)
+
+### P7-004: Source Mutation Completion States
+- **Objective:** Formalize and implement the completion-state contract for Google Drive, browser local working-folder intake, and folder-scan flows. Analysis success is not terminal completion when source mutation is required. Includes Drive writable-scope upgrade path beyond the P7-002 `drive.readonly` foundation.
+- **Phase:** Phase 7 — Post-Phase 6 User-Value Features
+- **Status:** Completed — 2026-04-06
+- **Size:** Large
+- **Architect review:** Complete — approved
+- **Plan:** `docs/planning/P7-004_plan.md`
+- **Summary:** `IMPLEMENTATION_STATUS.md` — P7-004 entry
 
 ### P7-003: Navigation & UX Redesign (Add Media Hub)
 - **Objective:** Eliminate Source management friction from user-facing flows. Introduce `/add-media` as the single ingestion entry point. Rename Sources → Connections. Enable Google Drive OAuth without a pre-existing Source.

@@ -9,10 +9,10 @@ _Update this document at the end of every session and at every workstream transi
 | Field | Value |
 |---|---|
 | **Current Phase** | Phase 7 — Post-Phase 6 User-Value Features |
-| **Current Workstream** | `P7-002` — Google Drive Connector (Root-Only) |
-| **Last Completed Work** | P6-001 (Google SSO) + beta feedback polish + re-analyze hint + metadata edit (2026-04-05) |
-| **Next Task** | Implement `P7-002 — Google Drive Connector (Root-Only)` exactly per `docs/planning/P7-002_plan.md` |
-| **Next Step Requested** | Engineer begins implementation of P7-002 without changing the approved architecture |
+| **Current Workstream** | None — `P7-004` planned and awaiting approval |
+| **Last Completed Work** | P7-003 (Navigation & UX Redesign) completed; P7-004 was then revised after Auditor findings to remove handoff blockers before Engineer starts (2026-04-05) |
+| **Next Task** | Review and approve the revised `P7-004 — Source Mutation Completion States` using `docs/planning/P7-004_plan.md` |
+| **Next Step Requested** | Operator reviews the completion-state contract before Engineer begins any storage-pivot implementation |
 
 ## Required Reading
 
@@ -26,7 +26,8 @@ Before making any changes, read these documents in order:
 If implementation is underway, also read:
 5. **`docs/PROJECT_MAP.md`** — codebase structure
 6. **`docs/PROJECT_PLAYBOOK.md`** — safety practices and common tasks
-7. **`docs/planning/P7-002_plan.md`** — locked implementation contract for the active workstream
+7. **`docs/planning/ARCH-002-reference-mode-storage.md`** — approved architectural basis for the storage pivot
+8. **`docs/planning/P7-004_plan.md`** — current approval-gate plan for completion-state and source-mutation behavior
 
 ## System Summary
 
@@ -95,24 +96,31 @@ When suggesting code changes:
 
 ## Recent Session Activity
 
+- **P7-004 revision after Auditor findings (2026-04-05):**
+  - `docs/planning/P7-004_plan.md` and `docs/planning/ARCH-002-reference-mode-storage.md` were revised to resolve the critical contradiction between the mandatory source-mutation contract and the completed P7-002 `drive.readonly` Google Drive foundation.
+  - Locked decision: P7-004 includes the Google Drive writable-scope upgrade and re-consent path plus the rewrite-and-reupload metadata mutation workflow. Existing read-only Drive connectors remain valid for sync/analysis but are `blocked_writeback` until reauthorized.
+  - Locked rule: browser drag-drop and local-folder flows must not silently fall back to permanent AWS original retention.
+  - Locked rule: cloud metadata fallback counts only when it writes canonical metadata to a provider-approved source-side representation; app-only metadata persistence does not satisfy `fully_applied`.
+  - `docs/DECISION_LOG.md` updated with the storage-pivot ADR and related P7-004 decisions so Engineer inherits a complete architecture record.
+
 - **P7-002 plan revision before approval (2026-04-05):**
   - `docs/planning/P7-002_plan.md` updated to explicitly require a non-secret authorized Google account snapshot and define same-account vs different-account reconnect handling.
   - Callback-state wording narrowed to the exact guarantees in this workstream: signed browser-bound state plus provider single-use auth-code enforcement, without claiming a separate DB-backed one-time state store.
   - Backend callback redirect behavior is now locked to a fixed success/failure query contract so the Sources page can show deterministic banners.
-  - `CURRENT_STATE.md` reconciled so Phase 7 planning remains active and `P7-002` is the clean approval gate.
+  - At that time, `CURRENT_STATE.md` was reconciled for the P7-002 approval gate; that is now historical and has been superseded by P7-004.
 
 - **P7-002 planning (2026-04-05):**
   - `docs/planning/P7-002_plan.md` created to formalize the first Google Drive connector on top of the existing connector foundation.
   - Locked decisions include: authenticated SPA OAuth start returning `authorization_url`, signed browser-bound callback state, Drive refresh tokens in encrypted connector-secret storage, dedicated token manager for exchange/refresh/rotation persistence, provider-neutral connector container semantics (`remote_container_id`, `remote_container_label`), root-only `My Drive`, `drive.readonly`, exclusion of trashed files/shortcuts/Google-native docs, file ID + Drive `version` idempotency, connector factory/registry adoption, and `RemoteObject.display_name` for non-path-based connectors.
   - `docs/DECISION_LOG.md` updated with `ADR-021` through `ADR-025`.
-  - `docs/WORKSTREAMS.md` updated so `P7-002` is the planned approval gate.
+  - At that time, `docs/WORKSTREAMS.md` was updated so `P7-002` became the planned approval gate; that state is now historical and has been superseded by P7-004.
 
 - **P6-001 plan revision after audit (2026-04-03):**
   - `docs/planning/P6-001_plan.md` updated to lock the backend-to-frontend completion handoff as a short-lived DB-backed one-time record plus HTTP-only completion cookie and non-secret `flow_id` correlation.
   - OIDC nonce validation is now mandatory in addition to signed state-cookie comparison; state and nonce cookies are single-use and short-lived.
   - Account-linking precedence is now explicit: existing provider link first, verified-email fallback only when no provider link exists, disabled accounts fail, later provider-email drift cannot re-key ownership, and Phase 6 enforces one Google identity per local user via `UNIQUE (user_id, provider)`.
   - Google rollout gating is now mandatory via `ENABLE_GOOGLE_SSO`, so schema/code can ship dark before exposing the Google button and routes.
-  - `CURRENT_STATE.md` and `WORKSTREAMS.md` reconciled so the active gate is clean: Phase 6 planning active, no workstream in progress, `P6-001` awaiting approval.
+  - At that time, `CURRENT_STATE.md` and `WORKSTREAMS.md` were reconciled for the P6-001 approval gate; that state is historical and no longer current.
 
 - **Bugfix: Concurrent upload race condition (2026-04-02):**
   - `UploadService.process_upload()`: added `except IntegrityError` handler after the DB write. When two identical files race past the dedup check and the second INSERT hits `uq_user_content_hash`, the handler rolls back, deletes the stored file, and re-queries for the winner — returning `is_duplicate=True` instead of propagating a 500.
@@ -259,7 +267,7 @@ When suggesting code changes:
 
 - No application blockers.
 - Operational limitation remains: AWS SES production access is still pending for live password reset email sending, but this does not block Phase 5 planning.
-- Workflow gate: no Phase 6 workstream is active yet. `P6-001` is the current approval gate and is awaiting operator approval after Auditor-requested design locks.
+- Workflow gate: no Phase 7 implementation workstream is active yet. `P7-004` is the current approval gate and is awaiting operator approval after the Auditor-requested design reconciliation.
 
 ## Document Ownership Note
 

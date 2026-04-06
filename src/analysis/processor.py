@@ -23,6 +23,7 @@ from src.models import MediaItem, MediaMetadata, ProcessingJob
 from src.ocr.ocr_service import extract_text as ocr_extract_text
 from src.quota.quota_service import QuotaService
 from src.storage.file_store import FileStore
+from src.analysis.drive_mutation_service import attempt_drive_rename_after_analysis
 
 if TYPE_CHECKING:
     from src.search.indexing_service import IndexingService
@@ -169,6 +170,17 @@ async def analyze_media_item(
                         )
                     except Exception as idx_err:
                         logger.warning("Indexing failed for %s (non-fatal): %s", media_item.id, idx_err)
+
+                # Attempt Drive source mutation (rename) immediately after analysis (P7-004).
+                # This is non-fatal: if it fails the item is marked blocked/pending, but analysis
+                # is still recorded as successful.
+                try:
+                    await attempt_drive_rename_after_analysis(db, media_item)
+                except Exception as mut_err:
+                    logger.warning(
+                        "Drive mutation step raised unexpectedly for %s (non-fatal): %s",
+                        media_item.id, mut_err,
+                    )
 
                 media_item.status = "completed"
                 job.status = "completed"

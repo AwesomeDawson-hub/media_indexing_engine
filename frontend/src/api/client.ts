@@ -34,6 +34,8 @@ import type {
   CollectionDetailResponse,
   CollectionResponse,
   CollectionItemsModifiedResponse,
+  MutationStateResponse,
+  LocalMutationResultRequest,
 } from '../types/api';
 
 const BASE_URL = '';
@@ -494,6 +496,15 @@ export async function disconnectGoogleDriveConnector(sourceId: string): Promise<
   await request<void>(`/api/v1/sources/${sourceId}/connector/google-drive`, { method: 'DELETE' });
 }
 
+export async function upgradeGoogleDriveScope(
+  sourceId: string,
+): Promise<ConnectorDriveStartResponse> {
+  return request<ConnectorDriveStartResponse>(
+    `/api/v1/sources/${sourceId}/connector/google-drive/upgrade-scope/start`,
+    { method: 'POST' },
+  );
+}
+
 export async function listDriveFolders(
   sourceId: string,
   parentId: string = 'root',
@@ -755,5 +766,17 @@ export async function removeItemsFromCollection(
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ media_item_ids: mediaItemIds }),
+  });
+}
+
+// Source mutation completion states (P7-004)
+export async function reportLocalMutationResult(
+  mediaId: string,
+  body: LocalMutationResultRequest,
+): Promise<MutationStateResponse> {
+  return request<MutationStateResponse>(`/api/v1/media/${mediaId}/mutation-result`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
   });
 }

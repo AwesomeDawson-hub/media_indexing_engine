@@ -290,3 +290,53 @@ Each decision follows this structure:
 - **Reasoning:** The real architectural need now is separation of connector construction and token lifecycle concerns from sync orchestration, not a new class hierarchy. A small factory and token-manager boundary solve that with less complexity and remain reversible.
 - **Alternatives considered:** Branch provider construction inside `sync_service` (rejected: orchestration drift), introduce `OAuthConnectorBase` immediately (rejected: speculative abstraction based on one OAuth-backed connector).
 - **Consequences:** `sync_service` stays focused on orchestration. Future OAuth-backed connectors can either reuse the same pattern or, if several accumulate enough shared behavior, motivate a later ADR that introduces a broader OAuth connector abstraction.
+
+### ADR-026: Source Mutation Completion Is Separate from Analysis Completion
+- **Date:** 2026-04-05
+- **Workstream:** P7-004
+- **Status:** Accepted
+- **Context:** The storage pivot changes the product contract: generated metadata and computed filenames are meant to be applied back to the source asset, not merely stored inside the app. If analysis success alone were treated as terminal completion, the system would misrepresent items whose source images were never actually updated.
+- **Decision:** Source-mutation-aware items must track a completion state separate from analysis state. The canonical completion outcomes are `fully_applied`, `pending_writeback`, and `blocked_writeback`. Analysis success alone is insufficient to mark an item complete when source mutation is required.
+- **Reasoning:** This keeps the product honest about whether the source image actually matches the app's computed end state and prevents silent drift between app metadata and source asset state.
+- **Alternatives considered:** Treat analysis completion as the only terminal state and log write-back failures as warnings (rejected: hides material product failure); use a single generic warning state (rejected: loses the important distinction between retryable pending work and blocked flows requiring intervention).
+- **Consequences:** Data model, orchestration, and UX all need explicit mutation-state support. Connections and item detail must surface these states clearly.
+
+### ADR-027: Source Mutation History Must Preserve Original and Prior Filenames
+- **Date:** 2026-04-05
+- **Workstream:** P7-004
+- **Status:** Accepted
+- **Context:** The new product direction requires images to be renamed and enriched at the source. Once that happens, the application still needs to explain what the image used to be before the system changed it and to support auditability across cloud and local flows.
+- **Decision:** The system must preserve durable source-mutation history including first-seen original filename, prior filename before each rename, current filename after successful rename, and the last successfully written metadata payload or equivalent revision marker.
+- **Reasoning:** Without mutation history, the system cannot answer a core user and operator question: what did this image used to be before the app changed it? History also supports troubleshooting, rollback reasoning, and trustworthy status display.
+- **Alternatives considered:** Store only the current filename (rejected: loses provenance), store only the first original filename (rejected: insufficient once multiple renames occur), infer history from external provider logs (rejected: incomplete and provider-dependent).
+- **Consequences:** The data model needs mutation-history fields or tables. UI must expose enough history to explain current versus prior state without overwhelming the user.
+
+### ADR-028: Storage Pivot Keeps Originals at Source and Prohibits Silent Permanent AWS Original Fallback
+- **Date:** 2026-04-05
+- **Workstream:** P7-004
+- **Status:** Accepted
+- **Context:** The storage pivot is meant to stop the product from acting like a long-term original-image host. Without an explicit ADR, implementation could drift back toward app-owned permanent originals whenever browser-local flows or cloud-source mutation become operationally awkward.
+- **Decision:** Originals remain at their source system. AWS retains metadata, search/index state, and preview assets only. Browser drag-drop and local-folder flows must not silently fall back to permanent AWS original retention, and cloud write-back failures must not be "solved" by mutating a permanent AWS-hosted original instead of the source asset.
+- **Reasoning:** This is the central architectural boundary of the storage pivot. Without locking it explicitly, later implementation pressure would almost certainly reintroduce the very storage model this redesign is meant to replace.
+- **Alternatives considered:** Continue storing permanent originals in AWS for convenience (rejected: contradicts the new product direction), allow silent permanent-copy fallback only for local/browser flows (rejected: creates a hidden second product model and misleading user expectations).
+- **Consequences:** Source-mutation failures must surface as `pending_writeback` or `blocked_writeback`. Preview retention remains allowed, but permanent original retention does not.
+
+### ADR-029: P7-004 Expands Google Drive from `drive.readonly` to a Writable Mutation-Capable Grant
+- **Date:** 2026-04-05
+- **Workstream:** P7-004
+- **Status:** Accepted
+- **Context:** P7-002 deliberately shipped a narrow Google Drive connector foundation using root-only `My Drive` and `drive.readonly`. P7-004 requires source rename and embedded metadata mutation, which cannot be satisfied under the completed read-only grant.
+- **Decision:** P7-004 includes a Google Drive writable-scope upgrade and re-consent path for mutation-capable sources, plus the rewrite-and-reupload path needed for embedded metadata mutation. Existing connectors that remain on the P7-002 read-only grant may continue to sync and analyze, but they must be treated as `blocked_writeback` when source mutation is required.
+- **Reasoning:** This preserves the value of the completed P7-002 foundation while making the new source-mutation contract implementable without pretending read-only connectors can satisfy it.
+- **Alternatives considered:** Exclude Google Drive from `fully_applied` in P7-004 (rejected: leaves a central intake flow outside the workstream’s own contract), rewrite P7-002 as if it had always been writable (rejected: historically false and needlessly disruptive).
+- **Consequences:** Engineer must implement reauthorization handling, writable-scope persistence, and explicit blocked-state UX for legacy read-only connectors.
+
+### ADR-030: Cloud Metadata Fallback Counts Only When It Writes Back to the Source System
+- **Date:** 2026-04-05
+- **Workstream:** P7-004
+- **Status:** Accepted
+- **Context:** Some cloud providers do not support cheap native embedded metadata mutation, and some mutation paths may be lossy or intentionally deferred. Without a locked fallback rule, `fully_applied`, `pending_writeback`, and `blocked_writeback` would be inconsistently interpreted across providers.
+- **Decision:** For cloud sources, `fully_applied` requires source rename plus either successful embedded metadata write-back or successful operator-approved provider-specific fallback written to the source system itself. App-only metadata persistence and permanent AWS original retention never satisfy fallback. `pending_writeback` is reserved for safe queued mutation or approved fallback writes that need no user action; `blocked_writeback` is required when writable permission is missing, no approved fallback exists, or the mutation path is unsafe or terminally failed.
+- **Reasoning:** This keeps the completion states honest while still giving the operator a structured way to support provider differences without redefining the storage pivot.
+- **Alternatives considered:** Treat app-side metadata as good enough for `fully_applied` (rejected: source and app would diverge), require embedded rewrite for every provider with no fallback concept at all (rejected: too rigid for future provider diversity).
+- **Consequences:** Each provider needs an explicit write-back mode decision, and the UI/data model must record whether completion happened through embedded mutation or provider-approved source fallback.

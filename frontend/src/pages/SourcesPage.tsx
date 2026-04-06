@@ -50,8 +50,11 @@ export default function SourcesPage() {
           setAutoConfigureSourceId(sid);
           setExpandedConnector(sid);
         }
-        load(false);
-      } else if (result === 'error') {
+        load(false);      } else if (result === 'upgraded') {
+        const sid = params.get('source_id');
+        setCallbackBanner({ type: 'success', message: 'Google Drive permissions upgraded. Write-back is now enabled.' });
+        if (sid) setExpandedConnector(sid);
+        load(false);      } else if (result === 'error') {
         const code = params.get('error_code') || 'unknown_error';
         setCallbackBanner({ type: 'error', message: `Google Drive connection failed: ${code.replace(/_/g, ' ')}` });
       }
@@ -523,6 +526,30 @@ function ConnectorPanel({
                       {drivePending ? '...' : 'Disconnect'}
                     </button>
                   </div>
+                  {/* P7-004: warn when the connector lacks writable scope */}
+                  {!connector.has_write_scope && (
+                    <div className="connector-scope-warning">
+                      <span>⚠ Read-only — source files cannot be renamed or updated with metadata.</span>
+                      <button
+                        className="btn btn-sm btn-warning"
+                        disabled={drivePending}
+                        onClick={async () => {
+                          setDrivePending(true);
+                          setPanelError('');
+                          try {
+                            const resp = await api.upgradeGoogleDriveScope(source.id);
+                            window.location.href = resp.authorization_url;
+                          } catch (err: unknown) {
+                            const msg = err instanceof Error ? err.message : String(err);
+                            setPanelError(`Could not start scope upgrade: ${msg}`);
+                            setDrivePending(false);
+                          }
+                        }}
+                      >
+                        Upgrade Drive permissions
+                      </button>
+                    </div>
+                  )}
                   <div className="connector-drive-meta">
                     <div className="connector-drive-meta-row">
                       <span className="connector-drive-meta-label">Sync folder</span>

@@ -31,6 +31,26 @@ Each completed workstream gets one entry in the log below, following this struct
 
 ## Completed Workstream Log
 
+### P7-004: Source Mutation Completion States
+- **Phase:** Phase 7 — Post-Phase 6 User-Value Features
+- **Completed:** 2026-04-06
+- **Objective:** Formalize and implement the completion-state contract for Google Drive, browser local working-folder, and folder-scan intake flows. "Analysis alone ≠ completion when source mutation is required." Provide durable filename+mutation history so the system knows what each source asset was named before rename and metadata write-back.
+- **Outcome:** Full P7-004 contract delivered across data model, backend services, API, and frontend.
+  - **Data model:** `MediaItem` gains 9 new mutation-tracking fields (`mutation_state`, `first_seen_source_filename`, `prior_source_filename`, `source_filename_applied_at`, `last_writeback_at`, `last_mutation_attempted_at`, `last_mutation_error_code`, `last_mutation_error_message`, `source_file_fingerprint`). `SourceConnector` gains `granted_scopes` (Text, nullable). New `source_mutation_history` table for full audit trail. Alembic migration `f8a9b0c1d2e3` (revises `e2f3a4b5c6d7`).
+  - **Drive scope upgrade:** `google_drive_oauth.py` rewritten — `DRIVE_SCOPE_READWRITE` is now the default for new authorizations, `scope_has_write()` helper added, `sign_state()`/`verify_state()` updated to embed and return a 3-tuple `(user_id, source_id, mode)` with backward compat for legacy 3-part states. New `POST /api/v1/sources/{id}/connector/google-drive/upgrade-scope/start` endpoint.
+  - **Drive mutation service:** `src/analysis/drive_mutation_service.py` implements `attempt_drive_rename_after_analysis()` — slugifies AI title, checks write scope, decrypts credentials, refreshes access token, finds Drive file ID via `SourceObject`, calls Drive PATCH API. State transitions: `fully_applied` (HTTP 200), `blocked_writeback` (no scope / 401 / 403 / 404 / credential error), `pending_writeback` (HTTP 5xx / network error). History row written on every attempt.
+  - **Processor integration:** `processor.py` calls `attempt_drive_rename_after_analysis()` after analysis success (guarded by `try/except` so mutation errors never kill analysis).
+  - **Local flow endpoint:** `POST /api/v1/media/{id}/mutation-result` — browser reports rename or metadata write-back result; backend sets `fully_applied` or `blocked_writeback` and writes `SourceMutationHistory`.
+  - **Schemas:** `MediaItemResponse`, `AnalysisResponse` gain `mutation_state` / `last_mutation_error_code`. `ConnectorResponse` gains `has_write_scope` computed via `from_connector()` classmethod. New `LocalMutationResultRequest` and `MutationStateResponse` schemas.
+  - **Frontend:** Mutation-state banner in `MediaDetailPage.tsx` (green/yellow/red per state). Scope-upgrade warning + "Upgrade Drive permissions" button in `SourcesPage.tsx`. `upgradeGoogleDriveScope()` and `reportLocalMutationResult()` added to `client.ts`. TypeScript types updated in `api.ts`. CSS classes added to `index.css`.
+  - **Tests:** 27 new tests in `tests/test_mutation_completion.py` covering all completion states, history persistence, backward-compat verify_state, unit tests for slugify/target_filename. 3 existing Drive connector tests updated for the scope change (`drive.readonly` → `drive`).
+- **Key decisions:**
+  - `DRIVE_SCOPE` default changed to writable; existing connectors with `granted_scopes = NULL` or only `drive.readonly` are classified as `blocked_writeback` (no silent fallback).
+  - `verify_state()` now returns a 3-tuple — added `mode` for upgrade flow; backward compat handles legacy 3-part states.
+  - `ConnectorResponse.from_connector()` classmethod pattern used instead of Pydantic model_validator to avoid ORM session complexity.
+  - Mutation service errors never propagate to the analysis pipeline — wrapped in try/except in `processor.py`.
+- **Lessons learned:** SQLAlchemy test records for `SourceConnector` require all NOT NULL fields including `remote_container_id`; tests fail with IntegrityError otherwise. When changing OAuth return values, all existing tests that unpack the old return format must be updated in the same session.
+
 ### P7-003: Navigation & UX Redesign (Add Media Hub)
 - **Phase:** Phase 7 — Post-Phase 6 User-Value Features
 - **Completed:** 2026-04-05

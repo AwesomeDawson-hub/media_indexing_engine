@@ -39,8 +39,10 @@ from src.api.schemas import (
 from src.auth.google_drive_oauth import (
     DRIVE_STATE_COOKIE,
     DRIVE_STATE_MAX_AGE,
+    DRIVE_SCOPE_READWRITE,
     build_auth_url,
     generate_nonce,
+    scope_has_write,
     sign_state,
     verify_state,
 )
@@ -161,6 +163,77 @@ async def google_drive_start(
 
 
 # ---------------------------------------------------------------------------
+# POST /api/v1/sources/{source_id}/connector/google-drive/upgrade-scope/start
+# ---------------------------------------------------------------------------
+
+@router.post("/sources/{source_id}/connector/google-drive/upgrade-scope/start", status_code=200)
+async def google_drive_upgrade_scope_start(
+    source_id: str,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+) -> ConnectorDriveStartResponse:
+    """Initiate a Drive scope-upgrade re-consent flow (P7-004).
+
+    Used when an existing Drive connector was authorised with the read-only
+    scope (pre-P7-004) and the user needs to grant the writable scope so
+    source mutation (rename + metadata write-back) can proceed.
+
+    Any items currently classified as ``blocked_writeback`` due to a missing
+    writable scope will be reclassified to ``pending_writeback`` after the
+    upgrade callback completes and the connector has the writable grant.
+    """
+    if not settings.google_drive.is_ready:
+        raise HTTPException(
+            status_code=503,
+            detail={"message": "Google Drive connector is not enabled.", "error_code": "connector_disabled"},
+        )
+    if not settings.connector.credentials_key:
+        raise HTTPException(
+            status_code=503,
+            detail={"message": "Connector credentials key not configured.", "error_code": "connector_unavailable"},
+        )
+
+    source = await _require_owned_source(source_id, user_id, db)
+    if source.archived_at is not None:
+        raise HTTPException(status_code=409, detail="Cannot upgrade scope on an archived source")
+
+    # Existing connector must exist — you can only upgrade, not create via this endpoint
+    result = await db.execute(
+        select(SourceConnector).where(
+            SourceConnector.source_id == source_id,
+            SourceConnector.user_id == user_id,
+            SourceConnector.connector_type == "google_drive",
+        )
+    )
+    connector = result.scalar_one_or_none()
+    if connector is None:
+        raise HTTPException(status_code=404, detail="No Google Drive connector configured for this source")
+
+    nonce = generate_nonce()
+    signed_state = sign_state(
+        user_id=user_id,
+        source_id=source_id,
+        nonce=nonce,
+        secret=settings.auth.secret_key,
+        mode="upgrade",
+    )
+    auth_url = build_auth_url(
+        client_id=settings.google_drive.client_id,
+        redirect_uri=settings.google_drive.redirect_uri,
+        signed_state=signed_state,
+        scope=DRIVE_SCOPE_READWRITE,
+    )
+
+    from fastapi.responses import JSONResponse
+    json_response = JSONResponse(
+        content={"authorization_url": auth_url},
+        status_code=200,
+    )
+    _set_drive_state_cookie(json_response, nonce)
+    return json_response
+
+
+# ---------------------------------------------------------------------------
 # POST /api/v1/connectors/google-drive/quick-connect
 # ---------------------------------------------------------------------------
 
@@ -267,7 +340,7 @@ async def google_drive_callback(
         return _error_redirect(frontend_url, None, "invalid_state")
 
     try:
-        user_id, source_id = verify_state(signed_state, cookie_nonce, settings.auth.secret_key)
+        user_id, source_id, oauth_mode = verify_state(signed_state, cookie_nonce, settings.auth.secret_key)
     except ValueError as exc:
         err_str = str(exc)
         if "expired" in err_str:
@@ -353,10 +426,11 @@ async def google_drive_callback(
             source_id,
         )
 
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------
     # Step 9: upsert SourceConnector
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------
     now = datetime.now(timezone.utc)
+    granted_scopes_str = " ".join(token_data.get("granted_scopes") or [])
     if existing_connector is None:
         connector = SourceConnector(
             source_id=source_id,
@@ -373,6 +447,7 @@ async def google_drive_callback(
             authorized_account_display_name=snapshot["display_name"],
             config_validated_at=now,
             last_validation_error=None,
+            granted_scopes=granted_scopes_str,
         )
         db.add(connector)
     else:
@@ -385,6 +460,7 @@ async def google_drive_callback(
         existing_connector.authorized_account_display_name = snapshot["display_name"]
         existing_connector.config_validated_at = now
         existing_connector.last_validation_error = None
+        existing_connector.granted_scopes = granted_scopes_str
         existing_connector.updated_at = now
 
     source.source_type = "google_drive"
@@ -395,11 +471,13 @@ async def google_drive_callback(
     # ------------------------------------------------------------------
     # Step 10: respond with success redirect
     # ------------------------------------------------------------------
+    connector_result = "upgraded" if oauth_mode == "upgrade" else "connected"
+    connector_result = "upgraded" if oauth_mode == "upgrade" else "connected"
     success_url = (
         f"{frontend_url}/add-media"
         f"?connector=google_drive"
         f"&source_id={source_id}"
-        f"&connector_result=connected"
+        f"&connector_result={connector_result}"
     )
     return RedirectResponse(url=success_url, status_code=302)
 

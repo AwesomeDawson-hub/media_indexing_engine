@@ -83,6 +83,8 @@ export interface MediaItemResponse {
   created_at: string;
   has_similar?: boolean;
   similar_count?: number;
+  // Source mutation completion state (P7-004)
+  mutation_state?: string | null;
 }
 
 export interface SimilarItemResponse {
@@ -150,6 +152,9 @@ export interface AnalysisResponse {
   ai_model?: string;
   analyzed_at?: string;
   job?: JobInfo;
+  // Source mutation state (P7-004)
+  mutation_state?: string | null;
+  last_mutation_error_code?: string | null;
 }
 
 export interface ReanalyzeResponse {
@@ -261,6 +266,8 @@ export interface ConnectorResponse {
   last_validation_error?: string | null;
   created_at: string;
   updated_at: string;
+  // P7-004: true when the connector was authorised with writable Drive scope
+  has_write_scope?: boolean;
 }
 
 export interface ConnectorDriveStartResponse {
@@ -407,4 +414,24 @@ export interface CollectionItemsModifiedResponse {
   added: number;
   removed: number;
   skipped: number;
+}
+
+// Source mutation completion states (P7-004)
+export interface LocalMutationResultRequest {
+  succeeded: boolean;
+  operation_type?: string | null;
+  new_filename?: string | null;
+  error_code?: string | null;
+  error_message?: string | null;
+  source_file_fingerprint?: string | null;
+}
+
+export interface MutationStateResponse {
+  media_item_id: string;
+  mutation_state: string | null;
+  first_seen_source_filename: string | null;
+  prior_source_filename: string | null;
+  source_filename_applied_at: string | null;
+  last_mutation_error_code: string | null;
+  last_mutation_error_message: string | null;
 }

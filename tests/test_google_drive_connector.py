@@ -164,9 +164,10 @@ def test_sign_and_verify_state_roundtrip():
     secret = "test-secret"
 
     signed = sign_state(user_id, source_id, nonce, secret)
-    uid, sid = verify_state(signed, nonce, secret)
+    uid, sid, mode = verify_state(signed, nonce, secret)
     assert uid == user_id
     assert sid == source_id
+    assert mode == "connect"
 
 
 def test_verify_state_nonce_mismatch_raises():
@@ -210,12 +211,14 @@ def test_verify_state_expired_raises(monkeypatch):
 
 
 def test_build_auth_url_contains_drive_scope():
-    """build_auth_url includes drive.readonly scope and offline access."""
-    from src.auth.google_drive_oauth import build_auth_url, DRIVE_SCOPE
+    """build_auth_url includes Drive writable scope and offline access (P7-004)."""
+    from src.auth.google_drive_oauth import build_auth_url, DRIVE_SCOPE_READWRITE
 
     url = build_auth_url("client-id", "http://redirect", "signed-state")
     assert "accounts.google.com" in url
-    assert "drive.readonly" in url
+    # P7-004: default scope is readwrite, not readonly
+    assert "drive.readonly" not in url
+    assert "auth%2Fdrive" in url  # writable scope path present
     assert "access_type=offline" in url
     assert "prompt=consent" in url
     assert "signed-state" in url
@@ -488,7 +491,9 @@ async def test_drive_start_returns_authorization_url(drive_client):
     body = resp.json()
     assert "authorization_url" in body
     assert "accounts.google.com" in body["authorization_url"]
-    assert "drive.readonly" in body["authorization_url"]
+    # P7-004: new connections request writable scope, not readonly
+    assert "drive.readonly" not in body["authorization_url"]
+    assert "auth%2Fdrive" in body["authorization_url"]
 
 
 @pytest.mark.asyncio

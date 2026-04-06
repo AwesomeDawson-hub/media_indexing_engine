@@ -1,17 +1,24 @@
 """Media item API endpoints: list, detail, and file serving."""
 
+import hashlib
+import json
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_db, get_current_user_id
-from src.api.schemas import MediaItemResponse, PaginatedResponse, SimilarItemResponse, SimilarItemsResponse, ScoreGroupResponse
+from src.api.schemas import (
+    MediaItemResponse, PaginatedResponse, SimilarItemResponse, SimilarItemsResponse,
+    ScoreGroupResponse, LocalMutationResultRequest, MutationStateResponse,
+)
 from src.api.routes.upload import _file_store
 from src.config import settings
 from src.curation.phash_service import find_similar, PHASH_THRESHOLD
 from src.curation.scoring_service import load_scores_for_items, find_best_pick, score_group
-from src.models import MediaItem, MediaMetadata, Source
+from src.models import MediaItem, MediaMetadata, Source, SourceMutationHistory
 
 router = APIRouter(prefix="/api/v1", tags=["media"])
 
@@ -423,4 +430,102 @@ async def score_media_group(
         failed_count=result.failed_count,
         best_pick_id=result.best_pick_id,
         message=message,
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /media/{id}/mutation-result  — local working-folder / folder-scan flow
+# ---------------------------------------------------------------------------
+
+@router.post("/media/{media_id}/mutation-result", status_code=200)
+async def report_local_mutation_result(
+    media_id: str,
+    body: LocalMutationResultRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+) -> MutationStateResponse:
+    """Report the result of a browser-side local file mutation (P7-004).
+
+    Used by the frontend for browser drag-drop into a local working-folder or
+    user-selected folder-scan flows.  The browser performs the rename /
+    metadata write-back locally, then calls this endpoint to record the outcome
+    so the backend reflects the correct ``mutation_state``.
+
+    Body:
+      - ``succeeded``: whether the file mutation completed on the local device.
+      - ``new_filename``: the filename applied at the source (if succeeded).
+      - ``error_code``: short code for ``blocked_writeback`` classification.
+      - ``error_message``: human-readable error detail (operator-safe).
+      - ``operation_type``: ``rename`` or ``metadata_write``.
+      - ``source_file_fingerprint``: SHA-256 of the file bytes for later rematch.
+    """
+    result = await db.execute(
+        select(MediaItem).where(
+            MediaItem.id == media_id,
+            MediaItem.user_id == user_id,
+        )
+    )
+    item = result.scalar_one_or_none()
+    if item is None:
+        raise HTTPException(status_code=404, detail="Media item not found")
+
+    now = datetime.now(timezone.utc)
+    item.last_mutation_attempted_at = now
+
+    if item.first_seen_source_filename is None:
+        item.first_seen_source_filename = item.original_filename
+
+    if body.source_file_fingerprint:
+        item.source_file_fingerprint = body.source_file_fingerprint
+
+    if body.succeeded:
+        item.prior_source_filename = item.first_seen_source_filename
+        item.source_filename_applied_at = now
+        if body.operation_type == "metadata_write":
+            item.last_writeback_at = now
+        item.mutation_state = "fully_applied"
+        item.last_mutation_error_code = None
+        item.last_mutation_error_message = None
+
+        history = SourceMutationHistory(
+            media_item_id=item.id,
+            user_id=user_id,
+            operation_type=body.operation_type or "rename",
+            prior_filename=item.first_seen_source_filename,
+            new_filename=body.new_filename,
+            source_locator_snapshot=json.dumps({"source_type": "local_browser"}),
+            succeeded=True,
+            attempted_at=now,
+            completed_at=now,
+        )
+    else:
+        # Blocking condition — folder access lost, file not found, etc.
+        item.mutation_state = "blocked_writeback"
+        item.last_mutation_error_code = body.error_code or "local_access_lost"
+        item.last_mutation_error_message = body.error_message
+
+        history = SourceMutationHistory(
+            media_item_id=item.id,
+            user_id=user_id,
+            operation_type=body.operation_type or "rename",
+            prior_filename=item.first_seen_source_filename,
+            new_filename=body.new_filename,
+            source_locator_snapshot=json.dumps({"source_type": "local_browser"}),
+            succeeded=False,
+            error_code=item.last_mutation_error_code,
+            error_message=item.last_mutation_error_message[:500] if item.last_mutation_error_message else None,
+            attempted_at=now,
+        )
+
+    db.add(history)
+    await db.commit()
+
+    return MutationStateResponse(
+        media_item_id=item.id,
+        mutation_state=item.mutation_state,
+        first_seen_source_filename=item.first_seen_source_filename,
+        prior_source_filename=item.prior_source_filename,
+        source_filename_applied_at=item.source_filename_applied_at,
+        last_mutation_error_code=item.last_mutation_error_code,
+        last_mutation_error_message=item.last_mutation_error_message,
     )

@@ -20,6 +20,8 @@ class MediaItemResponse(BaseModel):
     # Duplicate-detection summary (populated when feature gate is ON)
     has_similar: bool = False
     similar_count: int = 0
+    # Source mutation completion state (P7-004) — None until analysis completes
+    mutation_state: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -92,6 +94,9 @@ class AnalysisResponse(BaseModel):
     ai_model: str | None = None
     analyzed_at: datetime | None = None
     job: JobInfo | None = None
+    # Source mutation state (P7-004)
+    mutation_state: str | None = None
+    last_mutation_error_code: str | None = None
 
 
 class ReanalyzeRequest(BaseModel):
@@ -491,8 +496,21 @@ class ConnectorResponse(BaseModel):
     last_validation_error: str | None = None
     created_at: datetime
     updated_at: datetime
+    # Scope capability summary (P7-004) — True when writable Drive scope is granted
+    has_write_scope: bool = False
 
     model_config = {"from_attributes": True}
+
+    @classmethod
+    def from_connector(cls, connector) -> "ConnectorResponse":
+        """Build a ConnectorResponse from an ORM SourceConnector row.
+
+        Computes ``has_write_scope`` from the stored ``granted_scopes`` field.
+        """
+        from src.auth.google_drive_oauth import scope_has_write
+        resp = cls.model_validate(connector)
+        resp.has_write_scope = scope_has_write(getattr(connector, "granted_scopes", None))
+        return resp
 
 
 class ConnectorDriveStartResponse(BaseModel):
@@ -612,3 +630,32 @@ class CollectionItemsModifiedResponse(BaseModel):
     added: int = 0
     removed: int = 0
     skipped: int = 0
+
+
+# ---------------------------------------------------------------------------
+# Source mutation completion state schemas (P7-004)
+# ---------------------------------------------------------------------------
+
+class LocalMutationResultRequest(BaseModel):
+    """Body for POST /media/{id}/mutation-result (P7-004).
+
+    Sent by the frontend after a browser-side local rename or metadata write-back.
+    """
+    succeeded: bool
+    operation_type: str | None = Field(default="rename", pattern=r"^(rename|metadata_write)$")
+    new_filename: str | None = Field(default=None, max_length=255)
+    error_code: str | None = Field(default=None, max_length=50)
+    error_message: str | None = Field(default=None, max_length=500)
+    # SHA-256 of file bytes for fingerprint-based rematch
+    source_file_fingerprint: str | None = Field(default=None, max_length=64)
+
+
+class MutationStateResponse(BaseModel):
+    """Current source-mutation state for a media item."""
+    media_item_id: str
+    mutation_state: str | None = None
+    first_seen_source_filename: str | None = None
+    prior_source_filename: str | None = None
+    source_filename_applied_at: datetime | None = None
+    last_mutation_error_code: str | None = None
+    last_mutation_error_message: str | None = None

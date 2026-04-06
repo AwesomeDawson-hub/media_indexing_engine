@@ -457,6 +457,33 @@ export default function MediaDetailPage() {
             <span>{new Date(media.created_at).toLocaleDateString()}</span>
           </div>
 
+          {/* Source mutation state (P7-004) */}
+          {media.status === 'completed' && media.mutation_state && (
+            <div className={`mutation-state-banner mutation-state--${media.mutation_state}`}>
+              {media.mutation_state === 'fully_applied' && (
+                <span>✓ Source file updated — filename and metadata applied at source</span>
+              )}
+              {media.mutation_state === 'pending_writeback' && (
+                <span>⏳ Write-back pending — source file update in progress</span>
+              )}
+              {media.mutation_state === 'blocked_writeback' && (
+                <>
+                  <span>⚠ Write-back blocked — source file has not been updated</span>
+                  {analysis?.last_mutation_error_code === 'no_write_scope' && (
+                    <span className="mutation-action-hint">
+                      {' '}Reconnect Google Drive with write permission to enable rename and metadata write-back.
+                    </span>
+                  )}
+                  {analysis?.last_mutation_error_code === 'local_access_lost' && (
+                    <span className="mutation-action-hint">
+                      {' '}Folder access was lost. Reselect the folder to retry.
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
           <div className="media-detail-analysis">
             <div className="section-header">
               <h2>Analysis</h2>

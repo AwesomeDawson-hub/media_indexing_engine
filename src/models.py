@@ -115,6 +115,17 @@ class MediaItem(Base):
     perceptual_hash: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
     phash_version: Mapped[str | None] = mapped_column(String(20), nullable=True)
     phash_computed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Source mutation completion state (P7-004)
+    # Values: fully_applied | pending_writeback | blocked_writeback | NULL (not yet determined)
+    mutation_state: Mapped[str | None] = mapped_column(String(30), nullable=True, index=True)
+    first_seen_source_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    prior_source_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    source_filename_applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_writeback_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_mutation_attempted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_mutation_error_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    last_mutation_error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_file_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
 
@@ -123,6 +134,7 @@ class MediaItem(Base):
     processing_jobs: Mapped[list["ProcessingJob"]] = relationship(back_populates="media_item")
     analysis_metadata: Mapped["MediaMetadata | None"] = relationship(back_populates="media_item", uselist=False)
     curation_score: Mapped["CurationScore | None"] = relationship(back_populates="media_item", uselist=False)
+    mutation_history: Mapped[list["SourceMutationHistory"]] = relationship(back_populates="media_item")
 
 
 class ProcessingJob(Base):
@@ -246,6 +258,10 @@ class SourceConnector(Base):
     target_folder_label: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Optional collection to auto-add synced items to (P7-002b)
     target_collection_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    # OAuth scopes actually granted at authorization time (P7-004)
+    # Stored as space-separated scope string (matches OAuth standard format).
+    # NULL means pre-P7-004 connector authorized before this field was added.
+    granted_scopes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
 
@@ -387,3 +403,35 @@ class CollectionItem(Base):
 
     collection: Mapped["Collection"] = relationship(back_populates="items")
     media_item: Mapped["MediaItem"] = relationship()
+
+
+class SourceMutationHistory(Base):
+    """Durable audit record of each source-mutation attempt for a media item (P7-004).
+
+    One row per mutation attempt (rename or metadata write-back).
+    The current mutation state lives on MediaItem; this table is the full history.
+    """
+    __tablename__ = "source_mutation_history"
+    __table_args__ = (
+        Index("ix_mutation_history_media_item_id", "media_item_id"),
+        Index("ix_mutation_history_user_id", "user_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    media_item_id: Mapped[str] = mapped_column(String(36), ForeignKey("media_items.id"), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    # Operation type: rename | metadata_write
+    operation_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    prior_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    new_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Provider-specific snapshot: Drive file ID + version, path hint, etc. (JSON)
+    source_locator_snapshot: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Hash of the metadata payload written back (for dedup / revision tracking)
+    metadata_payload_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    succeeded: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
+    error_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attempted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    media_item: Mapped["MediaItem"] = relationship(back_populates="mutation_history")

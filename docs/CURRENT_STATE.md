@@ -8,9 +8,9 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | **Current Phase** | Phase 7 — Post-Phase 6 User-Value Features |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | None — P7-003 complete |
-| **Last Updated** | 2026-04-05 |
-| **Updated By** | AI — Engineer |
+| **Active Workstream** | None — P7-004 completed 2026-04-06 |
+| **Last Updated** | 2026-04-06 |
+| **Updated By** | AI — Architect |
 
 ## System Health
 
@@ -18,15 +18,21 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | Docs aligned | Yes |
 | Drift detected | No |
-| All docs in sync | Yes — updated 2026-04-05 for the P7-002 approval gate |
+| All docs in sync | Yes — updated 2026-04-05 for the P7-004 approval gate |
 | Registry complete | Yes |
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
-| Test status | 258/258 pass (all pre-existing failures fixed too: MockVisionProvider hint param + 3 env-isolation monkeypatch fixes) |
-| Active workstream | None — P7-003 completed |
-| Last governance audit | 2026-04-05 — P7-002 implemented and closed out; governance docs updated |
+| Test status | 285/285 pass (258 pre-P7-004 + 27 new P7-004 tests; 3 Drive connector tests updated for scope change) |
+| Active workstream | None — P7-004 completed 2026-04-06 |
+| Last governance audit | 2026-04-06 — P7-004 completed; WORKSTREAMS.md, CURRENT_STATE.md, IMPLEMENTATION_STATUS.md updated |
 
 ## Recent Activity
+
+- **2026-04-05:** P7-004 plan revised after Auditor findings. The storage-pivot artifacts now explicitly reconcile the completed P7-002 Google Drive read-only foundation with the P7-004 mutation contract: P7-004 includes a writable-scope Drive re-consent path plus rewrite-and-reupload metadata mutation, and existing `drive.readonly` connectors are `blocked_writeback` until reauthorized. The docs also now lock the storage-pivot ADR, prohibit silent permanent AWS-original fallback for browser/local flows, and define the operator-approved cloud metadata fallback rule for providers where embedded mutation is impossible, lossy, or intentionally deferred.
+
+- **2026-04-06:** P7-004 (Source Mutation Completion States) **completed**. All five implementation steps delivered: (1) `MediaItem` + `SourceConnector` + `SourceMutationHistory` data model + Alembic migration `f8a9b0c1d2e3`; (2) `google_drive_oauth.py` writable-scope upgrade (`DRIVE_SCOPE_READWRITE`), 4-part signed state with `mode`, `scope_has_write()`, new `upgrade-scope/start` endpoint; (3) `drive_mutation_service.py` — post-analysis Drive PATCH rename with `fully_applied` / `pending_writeback` / `blocked_writeback` state transitions + history; (4) `POST /media/{id}/mutation-result` for browser local flow; (5) frontend: mutation-state banner in `MediaDetailPage.tsx`, scope-upgrade warning + button in `SourcesPage.tsx`, `upgradeGoogleDriveScope()` + `reportLocalMutationResult()` in `client.ts`, new TypeScript types, CSS. 27 new tests + 3 Drive connector test updates. `WORKSTREAMS.md` and `IMPLEMENTATION_STATUS.md` updated.
+
+- **2026-04-05:** P7-004 (Source Mutation Completion States) planned. `docs/planning/P7-004_plan.md` created to formalize the mandatory source-mutation contract across Google Drive, browser local working-folder intake, and user-selected folder scans. The plan locks `fully_applied`, `pending_writeback`, and `blocked_writeback` as the canonical completion states and requires durable filename/mutation history so the system knows what each source asset used to be before rename and metadata write-back.
 
 - **2026-04-05:** P7-003 (Navigation & UX Redesign) **completed**. All 6 sub-workstreams implemented: WS-01 (silent `__uploads__` source, UploadPage source picker removed), WS-05 (Sources→Connections rename), WS-03 (`quick-connect` endpoint + schema + client), WS-02 (AddMediaPage at `/add-media` + CSS), WS-04 (OAuth callback → `/add-media`), WS-06 (Connections hides system sources, adds "+ Add connection"). No DB migration. Commit `985a220` deployed to EC2. Test suite also cleaned up: 4 pre-existing failures fixed (`MockVisionProvider` missing `hint` kwarg; 3 env-isolation tests needed monkeypatch to override `.env`-loaded credentials). All 258 tests pass. `WORKSTREAMS.md` and `IMPLEMENTATION_STATUS.md` updated.
 
@@ -36,9 +42,9 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 
 - **2026-04-05:** P7-002 (Google Drive Connector, root-only) moved to **In Progress**. `WORKSTREAMS.md` now shows P7-002 as the active Phase 7 workstream, and the project governance docs were updated so Engineer can begin implementation against the approved `docs/planning/P7-002_plan.md` architecture without reopening the design.
 
-- **2026-04-05:** P7-002 (Google Drive Connector, root-only) plan revised before approval. `docs/planning/P7-002_plan.md` now explicitly locks the non-secret authorized Google account snapshot, same-account vs different-account reconnect handling for `source_objects` and `sync_runs`, the exact callback-state guarantees actually provided in this workstream, and the backend success/failure redirect contract used by the Sources page. `PROJECT_HANDOFF.md` was reconciled so the project state cleanly shows Phase 7 planning active and P7-002 as the current approval gate.
+- **2026-04-05:** P7-002 (Google Drive Connector, root-only) plan revised before approval. `docs/planning/P7-002_plan.md` now explicitly locks the non-secret authorized Google account snapshot, same-account vs different-account reconnect handling for `source_objects` and `sync_runs`, the exact callback-state guarantees actually provided in this workstream, and the backend success/failure redirect contract used by the Sources page. At that time, `PROJECT_HANDOFF.md` was reconciled for the P7-002 approval gate; that state is now historical and has been superseded by P7-004.
 
-- **2026-04-05:** P7-002 (Google Drive Connector, root-only) planned. `docs/planning/P7-002_plan.md` created to lock the authenticated SPA OAuth start boundary, signed browser-bound callback state, encrypted connector-secret token storage, dedicated Drive token-manager boundary, provider-neutral `remote_container_id` / `remote_container_label` schema evolution, root-only `My Drive` scope, `drive.readonly`, Drive object exclusions, file ID + version idempotency, connector factory/registry adoption, and `RemoteObject.display_name` for non-path-based connectors. `WORKSTREAMS.md` updated so P7-002 is the current planned workstream, and `DECISION_LOG.md` now includes ADR-021 through ADR-025.
+- **2026-04-05:** P7-002 (Google Drive Connector, root-only) planned. `docs/planning/P7-002_plan.md` created to lock the authenticated SPA OAuth start boundary, signed browser-bound callback state, encrypted connector-secret token storage, dedicated Drive token-manager boundary, provider-neutral `remote_container_id` / `remote_container_label` schema evolution, root-only `My Drive` scope, `drive.readonly`, Drive object exclusions, file ID + version idempotency, connector factory/registry adoption, and `RemoteObject.display_name` for non-path-based connectors. At that time, `WORKSTREAMS.md` was updated so P7-002 became the planned approval gate, and `DECISION_LOG.md` recorded ADR-021 through ADR-025.
 
 - **2026-04-04:** P6-001 (Google SSO) **completed**. Alembic migration `a3b4c5d6e7f8` adds `oauth_accounts` and `google_completion_records` tables. `GoogleAuthConfig` added to `config.py` with `ENABLE_GOOGLE_SSO` gate and four supporting env vars. `src/auth/google_oauth.py` provides HMAC-SHA256 signed state, nonce, Authlib OIDC token exchange. Three SSO endpoints added (`/google/start`, `/google/callback`, `/google/exchange`) plus `/auth/config` feature-flag endpoint. Account resolution: provider-link-first → email fallback → create new user. Frontend: `GoogleAuthCallbackPage.tsx`, Google buttons in Login/Register, `loginWithGoogle` in `AuthContext`, standalone `/auth/google/callback` route in `App.tsx`. 20 new tests, all passing. See `IMPLEMENTATION_STATUS.md` for full details.
 
@@ -127,12 +133,12 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 
 ## Notes for Next Session
 
-- **P7-002 is active.** Engineer should implement `docs/planning/P7-002_plan.md` exactly as approved, preserving the locked OAuth boundary, provider-neutral schema evolution, reconnect rules, redirect contract, and connector factory/token-manager architecture.
+- **P7-004 is the current approval gate.** Review and approve `docs/planning/P7-004_plan.md` before any Engineer work begins on the storage pivot. The completion-state contract now requires `fully_applied`, `pending_writeback`, and `blocked_writeback` outcomes rather than treating analysis success as terminal completion.
 - **SES activation (when AWS approves):** `ssh -i "C:\Code\AWS\media-indexing-key.pem" ubuntu@vyzindex.com "echo 'EMAIL_FROM=noreply@vyzindex.com' >> ~/media_indexing_engine/.env && docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build backend"`
-- **Immediate implementation target:** start with the provider-neutral connector schema migration, then add the Drive OAuth/token modules, connector factory, Drive connector, callback flow, frontend integration, and tests in the step order defined by `docs/planning/P7-002_plan.md`.
+- **Immediate planning target:** after approval, implement completion-state data model changes, mutation-history tracking, Google Drive writable-scope re-consent plus rewrite/reupload write-back orchestration, browser local working-folder mutation handling, and the required Connections/item-detail mutation-state UX in the order defined by `docs/planning/P7-004_plan.md`.
 - **AWS deploy command:** `ssh -i "C:\Code\AWS\media-indexing-key.pem" ubuntu@vyzindex.com "cd ~/media_indexing_engine && git pull && docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build"`
 - **HTTPS is live:** `https://vyzindex.com` — Caddy handles TLS automatically. compose files: `docker-compose.yml` + `docker-compose.beta.yml`. SSH key: `C:\Code\AWS\media-indexing-key.pem`, user `ubuntu`.
 - **Stripe note:** All billing runs in dev/test mode. To enable: set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_ADVANCED`, `STRIPE_PRICE_ID_PREMIUM` on the server.
 - **Before inviting broader beta users:** rotate the `ANTHROPIC_API_KEY`, `POSTGRES_PASSWORD`, and `AUTH_SECRET_KEY`.
 - **Schema changes** require `alembic revision --autogenerate` + review + `alembic upgrade head`. Back up AWS DB before any migration deploy.
-- **Test status:** 229/229 pass. Tests run from `c:\AI Engineering\Projects\media_indexing_engine` with `.venv\Scripts\python.exe -m pytest tests/ -q --tb=short`.
+- **Test status:** 258/258 pass. Tests run from `c:\AI Engineering\Projects\media_indexing_engine` with `.venv\Scripts\python.exe -m pytest tests/ -q --tb=short`.

@@ -143,7 +143,7 @@ async def upsert_s3_connector(
 
     await db.commit()
     await db.refresh(connector)
-    return ConnectorResponse.model_validate(connector)
+    return ConnectorResponse.from_connector(connector)
 
 
 # ---------------------------------------------------------------------------
@@ -169,7 +169,7 @@ async def get_connector(
     if connector is None:
         raise HTTPException(status_code=404, detail="No connector configured for this source")
 
-    return ConnectorResponse.model_validate(connector)
+    return ConnectorResponse.from_connector(connector)
 
 
 # ---------------------------------------------------------------------------
