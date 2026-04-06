@@ -3029,8 +3029,8 @@ input:focus {
   text-transform: capitalize;
 }
 .role-badge--admin {
-  background: rgba(139, 92, 246, 0.15);
-  color: #a78bfa;
+  background: rgba(245, 158, 11, 0.15);
+  color: #fcd34d;
 }
 .role-badge--user {
   background: rgba(156, 163, 175, 0.12);
