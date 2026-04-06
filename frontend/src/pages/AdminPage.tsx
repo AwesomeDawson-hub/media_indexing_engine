@@ -157,7 +157,6 @@ function UsersTab() {
                 <th>Name</th>
                 <th>Role</th>
                 <th>Plan</th>
-                <th>Limit</th>
                 <th>Status</th>
                 <th>Joined</th>
                 <th></th>
@@ -168,9 +167,8 @@ function UsersTab() {
                 <tr key={u.id} className={u.disabled_at ? 'row-disabled' : ''}>
                   <td>{u.email}</td>
                   <td>{u.display_name}</td>
-                  <td>{u.role}</td>
-                  <td>{u.plan_name}</td>
-                  <td>{u.monthly_limit}</td>
+                  <td><span className={`role-badge role-badge--${u.role}`}>{u.role}</span></td>
+                  <td><span className="plan-cell">{u.plan_name}</span><span className="plan-limit">{u.monthly_limit.toLocaleString()}/mo</span></td>
                   <td>{u.disabled_at ? <span className="badge-disabled">Disabled</span> : <span className="badge-active">Active</span>}</td>
                   <td>{new Date(u.created_at).toLocaleDateString()}</td>
                   <td><button className="btn btn-sm btn-secondary" onClick={() => openEdit(u)}>Edit</button></td>

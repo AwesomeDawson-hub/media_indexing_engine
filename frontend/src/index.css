@@ -2873,3 +2873,177 @@ input:focus {
 .drive-configure-collection label {
   color: var(--text-muted);
 }
+
+/* ── Admin page ─────────────────────────────────────────────────────────── */
+.admin-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+.admin-page h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 1.25rem;
+  color: var(--text);
+}
+
+/* Tab bar */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.5rem;
+}
+.tab-btn {
+  background: none;
+  border: none;
+  padding: 0.55rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.tab-btn:hover {
+  color: var(--text);
+}
+.tab-btn.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+/* Search / filter bar */
+.admin-tab .search-bar {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+.admin-tab .search-bar input {
+  flex: 1;
+  min-width: 220px;
+  max-width: 380px;
+  padding: 0.45rem 0.75rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+.admin-tab .search-bar input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+/* Result count */
+.result-count {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+/* Users table */
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.admin-table th {
+  text-align: left;
+  padding: 0.55rem 0.75rem;
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.admin-table td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.admin-table tbody tr:hover {
+  background: var(--bg-elevated);
+}
+.admin-table .row-disabled td {
+  opacity: 0.5;
+}
+.admin-table .audit-detail {
+  white-space: normal;
+  max-width: 320px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+.admin-table code {
+  font-size: 0.8rem;
+  background: var(--bg-elevated);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  color: var(--primary);
+}
+
+/* Status badges */
+.badge-active {
+  display: inline-block;
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border-radius: 99px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.badge-disabled {
+  display: inline-block;
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border-radius: 99px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* Pagination */
+.admin-tab .pagination {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* Role badge */
+.role-badge {
+  display: inline-block;
+  border-radius: 99px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.role-badge--admin {
+  background: rgba(139, 92, 246, 0.15);
+  color: #a78bfa;
+}
+.role-badge--user {
+  background: rgba(156, 163, 175, 0.12);
+  color: var(--text-muted);
+}
+
+/* Plan cell */
+.plan-cell {
+  font-weight: 500;
+  text-transform: capitalize;
+  margin-right: 0.35rem;
+}
+.plan-limit {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
