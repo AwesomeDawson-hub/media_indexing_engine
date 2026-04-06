@@ -9,14 +9,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import settings
 from src.database import create_tables, run_migrations, async_session
-from src.models import User
+from src.models import User, QuotaEvent, MediaItem
 from src.api.dependencies import DEV_USER_ID
 from src.api.routes import upload, media, analysis, search, auth, download, health, quota, sources, admin, billing, connectors, google_auth, collections, google_drive_connector
 from src.api.error_handlers import register_error_handlers
 from src.analysis.processor import analyze_media_item
 from src.ingestion.job_manager import get_pending_jobs
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,42 @@ async def lifespan(app: FastAPI):
 
     if upload._vision_provider is not None:
         async with async_session() as db:
+            # Release orphaned 'reserved' quota events for media items that are
+            # already completed or errored (left over from interrupted container runs).
+            orphan_result = await db.execute(
+                update(QuotaEvent)
+                .where(
+                    QuotaEvent.event_type == "reserved",
+                    QuotaEvent.media_item_id.in_(
+                        select(MediaItem.id).where(
+                            MediaItem.status.in_(["completed", "error"])
+                        )
+                    ),
+                )
+                .values(event_type="released")
+            )
+            orphaned = orphan_result.rowcount
+            if orphaned:
+                await db.commit()
+                logger.info("Released %d orphaned quota reservation(s) on startup", orphaned)
+
             pending_jobs = await get_pending_jobs(db, limit=1000, statuses=("pending", "running"))
+
+            # Look up reserved quota events for each resuming job so they are
+            # properly consumed/released by the processor (not left dangling).
+            job_reservations: dict[str, str | None] = {}
+            for job in pending_jobs:
+                res = await db.execute(
+                    select(QuotaEvent.id)
+                    .where(
+                        QuotaEvent.media_item_id == job.media_item_id,
+                        QuotaEvent.event_type == "reserved",
+                    )
+                    .order_by(QuotaEvent.created_at.desc())
+                    .limit(1)
+                )
+                row = res.scalar_one_or_none()
+                job_reservations[job.id] = str(row) if row else None
 
         for job in pending_jobs:
             asyncio.create_task(
@@ -53,6 +88,7 @@ async def lifespan(app: FastAPI):
                     upload._vision_provider,
                     upload._file_store,
                     upload._indexing_service,
+                    reservation_id=job_reservations[job.id],
                 )
             )
 
