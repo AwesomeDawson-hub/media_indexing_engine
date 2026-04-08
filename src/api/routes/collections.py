@@ -74,7 +74,7 @@ def _media_item_to_response(item: MediaItem) -> MediaItemResponse:
         id=item.id,
         content_hash=item.content_hash,
         original_filename=item.original_filename,
-        display_name=item.display_name,
+        display_name=item.original_filename,
         file_size=item.file_size,
         mime_type=item.mime_type,
         status=item.status,

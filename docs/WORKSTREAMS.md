@@ -85,6 +85,14 @@ _No workstreams currently in progress._
 - **Plan:** `docs/planning/P7-002_plan.md`
 - **Summary:** `IMPLEMENTATION_STATUS.md` — P7-002 entry
 
+### P7-001: Collections
+- **Objective:** Allow users to organise media items into named collections (albums). A collection is a user-owned, named group of media items with an optional description. Items can belong to multiple collections.
+- **Phase:** Phase 7 — Post-Phase 6 User-Value Features
+- **Status:** Completed — 2026-04-06
+- **Size:** Medium
+- **Plan:** `docs/planning/P7-001_plan.md`
+- **Summary:** `IMPLEMENTATION_STATUS.md` — P7-001 entry
+
 ---
 
 

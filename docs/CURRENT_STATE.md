@@ -8,7 +8,7 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | **Current Phase** | Phase 7 — Post-Phase 6 User-Value Features |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | None — P7-004 completed 2026-04-06 |
+| **Active Workstream** | None — P7-001 closed out 2026-04-06 |
 | **Last Updated** | 2026-04-06 |
 | **Updated By** | AI — Architect |
 
@@ -22,13 +22,15 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 | Registry complete | Yes |
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
-| Test status | 285/285 pass (258 pre-P7-004 + 27 new P7-004 tests; 3 Drive connector tests updated for scope change) |
-| Active workstream | None — P7-004 completed 2026-04-06 |
-| Last governance audit | 2026-04-06 — P7-004 completed; WORKSTREAMS.md, CURRENT_STATE.md, IMPLEMENTATION_STATUS.md updated |
+| Test status | 321/321 pass (285 pre-P7-001 closeout + 36 new P7-001 tests) |
+| Active workstream | None — P7-001 closed out 2026-04-06 |
+| Last governance audit | 2026-04-06 — P7-001 closed out; WORKSTREAMS.md, IMPLEMENTATION_STATUS.md, P7-001_plan.md, CURRENT_STATE.md updated |
 
 ## Recent Activity
 
 - **2026-04-05:** P7-004 plan revised after Auditor findings. The storage-pivot artifacts now explicitly reconcile the completed P7-002 Google Drive read-only foundation with the P7-004 mutation contract: P7-004 includes a writable-scope Drive re-consent path plus rewrite-and-reupload metadata mutation, and existing `drive.readonly` connectors are `blocked_writeback` until reauthorized. The docs also now lock the storage-pivot ADR, prohibit silent permanent AWS-original fallback for browser/local flows, and define the operator-approved cloud metadata fallback rule for providers where embedded mutation is impossible, lossy, or intentionally deferred.
+
+- **2026-04-06:** P7-001 (Collections) **closed out**. Workstream was fully implemented (backend, frontend, migration) but never formally closed: no tests existed, WORKSTREAMS.md lacked the entry, and IMPLEMENTATION_STATUS.md had no P7-001 section. Closeout adds 36 new tests in `tests/test_collections.py` (all 7 endpoints, IDOR protection, limits, idempotency, cover URL) + bug fix in `collections.py` (`item.display_name` → `item.original_filename`). All docs updated. New total: 321/321 pass.
 
 - **2026-04-06:** P7-004 (Source Mutation Completion States) **completed**. All five implementation steps delivered: (1) `MediaItem` + `SourceConnector` + `SourceMutationHistory` data model + Alembic migration `f8a9b0c1d2e3`; (2) `google_drive_oauth.py` writable-scope upgrade (`DRIVE_SCOPE_READWRITE`), 4-part signed state with `mode`, `scope_has_write()`, new `upgrade-scope/start` endpoint; (3) `drive_mutation_service.py` — post-analysis Drive PATCH rename with `fully_applied` / `pending_writeback` / `blocked_writeback` state transitions + history; (4) `POST /media/{id}/mutation-result` for browser local flow; (5) frontend: mutation-state banner in `MediaDetailPage.tsx`, scope-upgrade warning + button in `SourcesPage.tsx`, `upgradeGoogleDriveScope()` + `reportLocalMutationResult()` in `client.ts`, new TypeScript types, CSS. 27 new tests + 3 Drive connector test updates. `WORKSTREAMS.md` and `IMPLEMENTATION_STATUS.md` updated.
 

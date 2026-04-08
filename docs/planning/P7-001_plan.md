@@ -1,7 +1,7 @@
 # P7-001 — Collections
 
 **Phase:** 7 (Post-Phase 6 user-value features)
-**Status:** In Progress
+**Status:** Completed — 2026-04-06
 **Created:** 2026-04-05
 
 ## Objective

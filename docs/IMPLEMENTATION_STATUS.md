@@ -31,6 +31,24 @@ Each completed workstream gets one entry in the log below, following this struct
 
 ## Completed Workstream Log
 
+### P7-001: Collections
+- **Phase:** Phase 7 — Post-Phase 6 User-Value Features
+- **Completed:** 2026-04-06
+- **Objective:** Allow users to organise media items into named collections (albums). Collections are user-owned, named groups of media items with an optional description. Items can belong to multiple collections.
+- **Outcome:** Full collections feature delivered across data model, backend API, and frontend.
+  - **Data model:** `collections` table (id, user_id FK, name VARCHAR(200), description VARCHAR(1000), created_at, UNIQUE(user_id, name)) and `collection_items` join table (id, collection_id FK, media_item_id FK, added_at, UNIQUE(collection_id, media_item_id)). Alembic migration `c0d1e2f3a4b5`. `Collection` and `CollectionItem` ORM models added to `src/models.py`.
+  - **Backend API:** 7 endpoints in `src/api/routes/collections.py` registered at `/api/v1/collections`. `POST /api/v1/collections` (create, 201, enforces 100-collection-per-user limit, 409 on duplicate name). `GET /api/v1/collections` (list, user-scoped, includes item_count and cover_url per collection). `GET /api/v1/collections/{id}` (detail with full items list). `PATCH /api/v1/collections/{id}` (rename/update description). `DELETE /api/v1/collections/{id}` (204, cascades collection_items without deleting media items). `POST /api/v1/collections/{id}/items` (batch add, max 500 items, skips cross-user and duplicate items). `DELETE /api/v1/collections/{id}/items` (batch remove). All endpoints enforce ownership — other users' collections return 404.
+  - **Schemas:** `CollectionCreateRequest`, `CollectionUpdateRequest`, `CollectionResponse` (with item_count, cover_url), `CollectionListResponse`, `CollectionDetailResponse` (with items list), `CollectionItemsRequest`, `CollectionItemsModifiedResponse` added to `src/api/schemas.py`.
+  - **Frontend:** `CollectionsPage.tsx` at `/collections` — grid of collection cards (cover thumbnail, name, item count). `CollectionDetailPage.tsx` at `/collections/:id` — full item grid with back button, edit/delete controls. "Add to Collection" button and collection picker in `MediaDetailPage.tsx`. `listCollections`, `getCollection`, `createCollection`, `updateCollection`, `deleteCollection`, `addItemsToCollection`, `removeItemsFromCollection` in `client.ts`. TypeScript interfaces in `api.ts`. Nav link to Collections in `Layout.tsx`.
+  - **Bug fix:** `_media_item_to_response` helper in `collections.py` used `item.display_name` (not an ORM attribute); corrected to `item.original_filename`.
+  - **Tests:** 36 new tests in `tests/test_collections.py` covering all 7 endpoints, user isolation (IDOR protection), limits, idempotency, cascade behavior, and cover URL.
+- **Key decisions:**
+  - Collections are purely organisational — no re-analysis or re-index on add/remove.
+  - Cover image auto-selects the earliest-added item's thumbnail; no manual override in this phase.
+  - Deleting a collection never deletes the underlying media items.
+  - Cross-user media items submitted to `add_items` are silently skipped (no 404 enumeration leak).
+- **Lessons learned:** `MediaItem` ORM model does not have a `display_name` attribute — it is derived from `MediaMetadata.title` in `media.py`. Collection item responses must use `item.original_filename` as the display name fallback.
+
 ### P7-004: Source Mutation Completion States
 - **Phase:** Phase 7 — Post-Phase 6 User-Value Features
 - **Completed:** 2026-04-06
