@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, Link, useLocation } from 'react-router-dom';
 import * as api from '../api/client';
-import { getMediaFileUrl } from '../api/client';
+import { getMediaThumbnailUrl } from '../api/client';
 import type { SearchFilters } from '../api/client';
 import type { MediaItemResponse, SearchResultItem, SourceResponse } from '../types/api';
 import MediaCard from '../components/MediaCard';
@@ -25,7 +25,7 @@ function SearchListRow({ item, selected, onSelect, fromPath, ids }: {
   fromPath: string;
   ids: string[];
 }) {
-  const imgSrc = useAuthImage(getMediaFileUrl(item.media_item.id));
+  const imgSrc = useAuthImage(getMediaThumbnailUrl(item.media_item.id));
   return (
     <div className="media-list-row">
       <label className="media-list-checkbox">
@@ -707,7 +707,7 @@ export default function GalleryPage() {
                       <div className="search-result-thumb">
                         {r.media_item.mime_type.startsWith('image/') ? (
                           <AuthImage
-                            src={getMediaFileUrl(r.media_item.id)}
+                            src={getMediaThumbnailUrl(r.media_item.id)}
                             alt={r.metadata.title}
                             loading="lazy"
                           />

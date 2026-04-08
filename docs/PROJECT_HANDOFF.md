@@ -8,11 +8,11 @@ _Update this document at the end of every session and at every workstream transi
 
 | Field | Value |
 |---|---|
-| **Current Phase** | Phase 7 — Post-Phase 6 User-Value Features |
-| **Current Workstream** | None — `P7-004` planned and awaiting approval |
-| **Last Completed Work** | P7-003 (Navigation & UX Redesign) completed; P7-004 was then revised after Auditor findings to remove handoff blockers before Engineer starts (2026-04-05) |
-| **Next Task** | Review and approve the revised `P7-004 — Source Mutation Completion States` using `docs/planning/P7-004_plan.md` |
-| **Next Step Requested** | Operator reviews the completion-state contract before Engineer begins any storage-pivot implementation |
+| **Current Phase** | Phase 8 — Reference-Mode Storage Pivot |
+| **Current Workstream** | None — `P8-001` planned and awaiting approval |
+| **Last Completed Work** | P7-006 (Auto-sync Scheduler) completed; Phase 8 planning is now active and P8-001 is the new storage-pivot implementation gate (2026-04-08) |
+| **Next Task** | Review and approve `P8-001 — Reference-Mode Storage Pivot (Slice A+B)` using `docs/planning/P8-001_plan.md` |
+| **Next Step Requested** | Operator reviews the Phase 8 Slice A+B storage-pivot plan before Engineer begins implementation |
 
 ## Required Reading
 
@@ -27,7 +27,7 @@ If implementation is underway, also read:
 5. **`docs/PROJECT_MAP.md`** — codebase structure
 6. **`docs/PROJECT_PLAYBOOK.md`** — safety practices and common tasks
 7. **`docs/planning/ARCH-002-reference-mode-storage.md`** — approved architectural basis for the storage pivot
-8. **`docs/planning/P7-004_plan.md`** — current approval-gate plan for completion-state and source-mutation behavior
+8. **`docs/planning/P8-001_plan.md`** — current approval-gate plan for Phase 8 reference-mode storage Slice A+B
 
 ## System Summary
 
@@ -95,6 +95,12 @@ When suggesting code changes:
 - Hardcoding credentials or configuration
 
 ## Recent Session Activity
+
+- **P8-001 planning activation (2026-04-08):**
+  - Phase 8 planning is now active for the reference-mode storage pivot.
+  - `docs/planning/P8-001_plan.md` is the current operator approval gate for Slice A+B.
+  - `docs/planning/ARCH-002-reference-mode-storage.md` remains the approved architecture basis, but no longer references the old P7-004 gate.
+  - `P8-001_plan.md` now includes explicit rollout sequencing, post-deploy validation, rollback posture for synchronous deletion of retained originals on newly connector-synced items, and clear wording that the retained 800px JPEG is the preview-class derivative for this slice.
 
 - **P7-004 revision after Auditor findings (2026-04-05):**
   - `docs/planning/P7-004_plan.md` and `docs/planning/ARCH-002-reference-mode-storage.md` were revised to resolve the critical contradiction between the mandatory source-mutation contract and the completed P7-002 `drive.readonly` Google Drive foundation.
@@ -267,7 +273,7 @@ When suggesting code changes:
 
 - No application blockers.
 - Operational limitation remains: AWS SES production access is still pending for live password reset email sending, but this does not block Phase 5 planning.
-- Workflow gate: no Phase 7 implementation workstream is active yet. `P7-004` is the current approval gate and is awaiting operator approval after the Auditor-requested design reconciliation.
+- Workflow gate: no Phase 8 implementation workstream is active yet. `P8-001` is the current approval gate and is awaiting operator approval before Engineer begins the Slice A+B storage-pivot implementation.
 
 ## Document Ownership Note
 

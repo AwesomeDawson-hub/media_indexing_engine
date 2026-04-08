@@ -34,6 +34,16 @@ class FileStore(ABC):
         ...
 
     @abstractmethod
+    async def save_thumbnail(
+        self, user_id: str, content_hash: str, thumbnail_bytes: bytes
+    ) -> str:
+        """Save JPEG thumbnail bytes and return the relative storage path.
+
+        Storage key: thumbnails/{user_id}/{content_hash}/thumb.jpg
+        """
+        ...
+
+    @abstractmethod
     async def read(self, storage_path: str) -> bytes:
         """Read file bytes from storage."""
         ...
@@ -66,6 +76,15 @@ class LocalFileStore(FileStore):
         full_path.parent.mkdir(parents=True, exist_ok=True)
         full_path.write_bytes(file_bytes)
 
+        return relative_path
+
+    async def save_thumbnail(
+        self, user_id: str, content_hash: str, thumbnail_bytes: bytes
+    ) -> str:
+        relative_path = f"thumbnails/{user_id}/{content_hash}/thumb.jpg"
+        full_path = self._root / relative_path
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        full_path.write_bytes(thumbnail_bytes)
         return relative_path
 
     async def read(self, storage_path: str) -> bytes:
@@ -122,6 +141,21 @@ class S3FileStore(FileStore):
 
         def _put() -> None:
             self._client().put_object(Bucket=self._bucket, Key=key, Body=file_bytes)
+
+        await asyncio.get_event_loop().run_in_executor(None, _put)
+        return storage_path
+
+    async def save_thumbnail(
+        self, user_id: str, content_hash: str, thumbnail_bytes: bytes
+    ) -> str:
+        storage_path = f"thumbnails/{user_id}/{content_hash}/thumb.jpg"
+        key = self._key(storage_path)
+
+        def _put() -> None:
+            self._client().put_object(
+                Bucket=self._bucket, Key=key, Body=thumbnail_bytes,
+                ContentType="image/jpeg",
+            )
 
         await asyncio.get_event_loop().run_in_executor(None, _put)
         return storage_path

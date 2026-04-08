@@ -2,7 +2,7 @@
 
 import io
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from PIL import Image
 from sqlalchemy.exc import IntegrityError
@@ -17,6 +17,23 @@ from src.storage.file_store import FileStore
 
 logger = logging.getLogger(__name__)
 
+# Thumbnail generation constants (ADR-028 / P8-001)
+_THUMB_MAX_PX = 800
+_THUMB_QUALITY = 85
+
+
+def _generate_thumbnail(file_bytes: bytes) -> bytes:
+    """Generate an 800px max-dimension JPEG thumbnail and return the bytes.
+
+    Raises on unsupported image types or corrupted input.
+    """
+    img = Image.open(io.BytesIO(file_bytes))
+    img = img.convert("RGB")
+    img.thumbnail((_THUMB_MAX_PX, _THUMB_MAX_PX), Image.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=_THUMB_QUALITY)
+    return buf.getvalue()
+
 
 @dataclass
 class UploadResult:
@@ -24,6 +41,7 @@ class UploadResult:
     is_duplicate: bool = False
     media_item: MediaItem | None = None
     processing_job_id: str | None = None
+    thumbnail_path: str | None = None
     error: str | None = None
 
 
@@ -65,13 +83,26 @@ class UploadService:
         # 4. Detect MIME type
         mime_type = detect_mime_type(file_bytes) or "application/octet-stream"
 
-        # 5. Extract image dimensions
+        # 5. Extract image dimensions + generate thumbnail
         width, height = None, None
+        thumbnail_path: str | None = None
         try:
             img = Image.open(io.BytesIO(file_bytes))
             width, height = img.size
         except Exception:
             pass  # Non-image or corrupted — dimensions stay None
+
+        try:
+            thumb_bytes = _generate_thumbnail(file_bytes)
+            thumbnail_path = await self._file_store.save_thumbnail(user_id, content_hash, thumb_bytes)
+        except Exception as exc:
+            logger.warning(
+                "Thumbnail generation failed for user=%s hash=%s: %s",
+                user_id,
+                content_hash,
+                exc,
+            )
+            thumbnail_path = None
 
         # 6. Store file
         storage_path = await self._file_store.save(user_id, content_hash, filename, file_bytes)
@@ -85,6 +116,8 @@ class UploadService:
                 file_size=len(file_bytes),
                 mime_type=mime_type,
                 storage_path=storage_path,
+                storage_mode="full",
+                thumbnail_path=thumbnail_path,
                 status="uploaded",
                 width=width,
                 height=height,
@@ -104,9 +137,11 @@ class UploadService:
             await db.commit()
         except IntegrityError:
             # Concurrent upload of identical content beat us to the commit.
-            # Roll back, clean up the stored file, then re-query for the winner.
+            # Roll back, clean up the stored file (and thumbnail), then re-query for the winner.
             await db.rollback()
             await self._file_store.delete(storage_path)
+            if thumbnail_path:
+                await self._file_store.delete(thumbnail_path)
             existing = await check_duplicate(db, user_id, content_hash)
             if existing is not None:
                 return UploadResult(success=True, is_duplicate=True, media_item=existing)
@@ -114,8 +149,10 @@ class UploadService:
             raise
         except Exception:
             await db.rollback()
-            # Clean up stored file on DB failure
+            # Clean up stored file (and thumbnail) on DB failure
             await self._file_store.delete(storage_path)
+            if thumbnail_path:
+                await self._file_store.delete(thumbnail_path)
             raise
 
         # 8. Compute perceptual hash — non-fatal; failure leaves phash columns NULL
@@ -134,7 +171,13 @@ class UploadService:
                 exc,
             )
 
-        return UploadResult(success=True, is_duplicate=False, media_item=media_item, processing_job_id=job_id)
+        return UploadResult(
+            success=True,
+            is_duplicate=False,
+            media_item=media_item,
+            processing_job_id=job_id,
+            thumbnail_path=thumbnail_path,
+        )
 
     async def process_batch(
         self,

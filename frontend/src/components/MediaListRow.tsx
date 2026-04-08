@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { getMediaFileUrl } from '../api/client';
+import { getMediaThumbnailUrl } from '../api/client';
 import { useAuthImage } from '../api/useAuthImage';
 import StatusBadge from './StatusBadge';
 
@@ -19,7 +19,7 @@ interface MediaListRowProps {
 export default function MediaListRow({
   id, filename, status, mimeType, fileSize, createdAt, selected, onSelect, fromPath, ids,
 }: MediaListRowProps) {
-  const imgSrc = useAuthImage(getMediaFileUrl(id));
+  const imgSrc = useAuthImage(getMediaThumbnailUrl(id));
 
   function formatSize(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;

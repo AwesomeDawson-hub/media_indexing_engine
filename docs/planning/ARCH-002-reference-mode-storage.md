@@ -3,7 +3,7 @@
 **Project:** Media Indexing Engine  
 **Author:** Architect  
 **Date:** 2026-04-05  
-**Status:** Approved architectural basis for P7-004 planning; Engineer implementation remains gated by operator approval of `P7-004_plan.md`
+**Status:** Approved architectural basis for the reference-mode storage pivot; current implementation gate is operator approval of `P8-001_plan.md` for Slice A+B
 
 ---
 

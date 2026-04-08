@@ -263,6 +263,10 @@ export function getMediaFileUrl(id: string): string {
   return `/api/v1/media/${id}/file`;
 }
 
+export function getMediaThumbnailUrl(id: string): string {
+  return `/api/v1/media/${id}/thumbnail`;
+}
+
 export async function getAnalysis(id: string): Promise<AnalysisResponse> {
   const cached = fromCache<AnalysisResponse>(`analysis:${id}`);
   if (cached) return cached;

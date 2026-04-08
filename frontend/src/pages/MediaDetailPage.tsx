@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import * as api from '../api/client';
-import { getMediaFileUrl } from '../api/client';
+import { getMediaThumbnailUrl } from '../api/client';
 import { useAuthImage, prefetchAuthImage } from '../api/useAuthImage';
 import type { MediaItemResponse, AnalysisResponse, SimilarItemsResponse, CollectionResponse } from '../types/api';
 import StatusBadge from '../components/StatusBadge';
@@ -31,7 +31,7 @@ export default function MediaDetailPage() {
   const [converting, setConverting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval>>();
-  const imgSrc = useAuthImage(id ? getMediaFileUrl(id) : '');
+  const imgSrc = useAuthImage(id ? getMediaThumbnailUrl(id) : '');
 
   // Add to Collection
   const [showCollectionPicker, setShowCollectionPicker] = useState(false);
@@ -57,8 +57,8 @@ export default function MediaDetailPage() {
 
   // Warm the image cache for neighbours so arrow/swipe navigation feels instant
   useEffect(() => {
-    if (prevId) prefetchAuthImage(getMediaFileUrl(prevId));
-    if (nextId) prefetchAuthImage(getMediaFileUrl(nextId));
+    if (prevId) prefetchAuthImage(getMediaThumbnailUrl(prevId));
+    if (nextId) prefetchAuthImage(getMediaThumbnailUrl(nextId));
   }, [prevId, nextId]);
 
   function goToId(targetId: string) {
@@ -610,7 +610,7 @@ export default function MediaDetailPage() {
                 >
                   {similar.anchor_is_best_pick && <span className="best-pick-crown" title="Best pick">👑</span>}
                   <AuthImage
-                    src={getMediaFileUrl(id!)}
+                    src={getMediaThumbnailUrl(id!)}
                     alt="Current photo"
                     className="similar-item-thumb"
                   />
@@ -636,7 +636,7 @@ export default function MediaDetailPage() {
                   >
                     {s.is_best_pick && <span className="best-pick-crown" title="Best pick">👑</span>}
                     <AuthImage
-                      src={getMediaFileUrl(s.id)}
+                      src={getMediaThumbnailUrl(s.id)}
                       alt={s.media_item.display_name || s.media_item.original_filename}
                       className="similar-item-thumb"
                     />

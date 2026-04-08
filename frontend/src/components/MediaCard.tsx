@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { getMediaFileUrl } from '../api/client';
+import { getMediaThumbnailUrl } from '../api/client';
 import { useAuthImage } from '../api/useAuthImage';
 import StatusBadge from './StatusBadge';
 
@@ -22,7 +22,7 @@ function truncate(str: string, max: number): string {
 
 export default function MediaCard({ id, filename, status, mimeType, fromPath, ids, hasSimilar, similarCount, selected, onSelect }: MediaCardProps) {
   const isImage = mimeType.startsWith('image/');
-  const imgSrc = useAuthImage(getMediaFileUrl(id));
+  const imgSrc = useAuthImage(getMediaThumbnailUrl(id));
 
   return (
     <div className={`media-card-wrapper${selected ? ' media-card-wrapper--selected' : ''}`}>

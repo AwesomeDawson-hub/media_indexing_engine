@@ -27,6 +27,14 @@ This document tracks all work items for the Media Indexing Engine through their 
 
 _Post-Phase 6 workstreams are being planned incrementally as the beta product expands beyond identity and the initial connector foundation._
 
+### P8-001: Reference-Mode Storage Pivot (Slice A+B)
+- **Objective:** Deliver the first implementation slice of the reference-mode storage pivot by adding retained preview infrastructure and then stopping retention of full-resolution originals for newly connector-synced items after successful analysis and confirmed thumbnail storage.
+- **Phase:** Phase 8 — Reference-Mode Storage Pivot
+- **Status:** Planned
+- **Size:** Large
+- **Architect review:** Complete — awaiting operator approval
+- **Plan:** `docs/planning/P8-001_plan.md`
+
 ---
 
 ## Future

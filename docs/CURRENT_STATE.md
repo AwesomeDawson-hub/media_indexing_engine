@@ -6,10 +6,10 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 
 | Field | Value |
 |---|---|
-| **Current Phase** | Phase 7 — Post-Phase 6 User-Value Features |
+| **Current Phase** | Phase 8 — Reference-Mode Storage Pivot |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | None — P7-006 closed out 2026-04-07 |
-| **Last Updated** | 2026-04-07 |
+| **Active Workstream** | None — P8-001 planned and awaiting approval |
+| **Last Updated** | 2026-04-08 |
 | **Updated By** | AI — Architect |
 
 ## System Health
@@ -18,15 +18,17 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | Docs aligned | Yes |
 | Drift detected | No |
-| All docs in sync | Yes — updated 2026-04-05 for the P7-004 approval gate |
+| All docs in sync | Yes — updated 2026-04-08 for the P8-001 approval gate |
 | Registry complete | Yes |
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
 | Test status | 333/333 pass (327 pre-P7-006 + 6 new P7-006 tests) |
-| Active workstream | None — P7-006 completed 2026-04-07 |
-| Last governance audit | 2026-04-07 — P7-006 completed; WORKSTREAMS.md, IMPLEMENTATION_STATUS.md, CURRENT_STATE.md updated |
+| Active workstream | None — P8-001 planned and awaiting approval |
+| Last governance audit | 2026-04-08 — Phase 8 planning activated and P8-001 set as current approval gate |
 
 ## Recent Activity
+
+- **2026-04-08:** P8-001 (Reference-Mode Storage Pivot, Slice A+B) prepared for operator review. Governance docs now show Phase 8 planning active with P8-001 as the current approval gate. `ARCH-002-reference-mode-storage.md` now reflects that it remains the approved architecture basis while `P8-001_plan.md` is the current implementation gate. `P8-001_plan.md` was also revised to add explicit rollout sequencing, post-deploy validation steps, rollback posture for synchronous original deletion, and clearer language that the retained 800px JPEG is the preview-class derivative for this slice.
 
 - **2026-04-07:** P7-006 (Auto-sync Scheduler) **completed**. Adds background sync scheduling so users no longer have to click "Sync now" manually. Delivers: (1) `auto_sync_enabled` + `auto_sync_interval_minutes` on `SourceConnector` + Alembic migration `a0b1c2d3e4f5`; (2) `PATCH /sources/{id}/connector/auto-sync` endpoint with 15-min/1440-min guards; (3) `trigger_type` parameter on `trigger_sync()`; (4) `_auto_sync_loop()` scheduler launched from `lifespan()` — wakes every 60 s, fires per-source background tasks for due connectors, skips in-progress runs; (5) frontend checkbox + interval selector in Drive connector summary view; (6) 6 new connector tests. New total: 333/333 pass.
 
@@ -139,12 +141,12 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 
 ## Notes for Next Session
 
-- **P7-004 is the current approval gate.** Review and approve `docs/planning/P7-004_plan.md` before any Engineer work begins on the storage pivot. The completion-state contract now requires `fully_applied`, `pending_writeback`, and `blocked_writeback` outcomes rather than treating analysis success as terminal completion.
+- **P8-001 is the current approval gate.** Review and approve `docs/planning/P8-001_plan.md` before any Engineer work begins on the Phase 8 reference-mode storage pivot. Slice A+B establishes retained preview infrastructure and the first connector `preview_only` retention transition.
 - **SES activation (when AWS approves):** `ssh -i "C:\Code\AWS\media-indexing-key.pem" ubuntu@vyzindex.com "echo 'EMAIL_FROM=noreply@vyzindex.com' >> ~/media_indexing_engine/.env && docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build backend"`
-- **Immediate planning target:** after approval, implement completion-state data model changes, mutation-history tracking, Google Drive writable-scope re-consent plus rewrite/reupload write-back orchestration, browser local working-folder mutation handling, and the required Connections/item-detail mutation-state UX in the order defined by `docs/planning/P7-004_plan.md`.
+- **Immediate planning target:** after approval, implement P8-001 Slice A+B in the order defined by `docs/planning/P8-001_plan.md`: schema evolution for `thumbnail_path` and `storage_mode`, thumbnail generation and serving, retention-aware `/file` behavior, connector sync transition to `preview_only`, and frontend switch to `/thumbnail` for display.
 - **AWS deploy command:** `ssh -i "C:\Code\AWS\media-indexing-key.pem" ubuntu@vyzindex.com "cd ~/media_indexing_engine && git pull && docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build"`
 - **HTTPS is live:** `https://vyzindex.com` — Caddy handles TLS automatically. compose files: `docker-compose.yml` + `docker-compose.beta.yml`. SSH key: `C:\Code\AWS\media-indexing-key.pem`, user `ubuntu`.
 - **Stripe note:** All billing runs in dev/test mode. To enable: set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_ADVANCED`, `STRIPE_PRICE_ID_PREMIUM` on the server.
 - **Before inviting broader beta users:** rotate the `ANTHROPIC_API_KEY`, `POSTGRES_PASSWORD`, and `AUTH_SECRET_KEY`.
 - **Schema changes** require `alembic revision --autogenerate` + review + `alembic upgrade head`. Back up AWS DB before any migration deploy.
-- **Test status:** 258/258 pass. Tests run from `c:\AI Engineering\Projects\media_indexing_engine` with `.venv\Scripts\python.exe -m pytest tests/ -q --tb=short`.
+- **Test status:** 333/333 pass. Tests run from `c:\AI Engineering\Projects\media_indexing_engine` with `.venv\Scripts\python.exe -m pytest tests/ -q --tb=short`.

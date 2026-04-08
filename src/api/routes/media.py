@@ -262,7 +262,11 @@ async def get_media_file(
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
 ) -> Response:
-    """Serve the raw image file for display."""
+    """Serve the raw original file.
+
+    Returns 404 with error_code='original_not_retained' when the item has been
+    transitioned to preview_only storage mode (Slice B connector items).
+    """
     result = await db.execute(
         select(MediaItem).where(
             MediaItem.id == media_id,
@@ -273,8 +277,56 @@ async def get_media_file(
     if item is None:
         raise HTTPException(status_code=404, detail="Media item not found")
 
+    if item.storage_mode == "preview_only" or not item.storage_path:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error_code": "original_not_retained",
+                "message": "Original is at the source. Use the source connector to access it.",
+            },
+        )
+
     file_bytes = await _file_store.read(item.storage_path)
     return Response(content=file_bytes, media_type=item.mime_type)
+
+
+@router.get("/media/{media_id}/thumbnail")
+async def get_media_thumbnail(
+    media_id: str,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+) -> Response:
+    """Serve the thumbnail for a media item.
+
+    - When thumbnail_path is set: serves the stored JPEG thumbnail.
+    - When thumbnail_path is NULL and storage_mode='full': falls back to the original file.
+    - When neither is available (preview_only, no thumbnail): returns 404.
+    """
+    result = await db.execute(
+        select(MediaItem).where(
+            MediaItem.id == media_id,
+            MediaItem.user_id == user_id,
+        )
+    )
+    item = result.scalar_one_or_none()
+    if item is None:
+        raise HTTPException(status_code=404, detail="Media item not found")
+
+    if item.thumbnail_path:
+        thumb_bytes = await _file_store.read(item.thumbnail_path)
+        return Response(content=thumb_bytes, media_type="image/jpeg")
+
+    if item.storage_mode == "full" and item.storage_path:
+        file_bytes = await _file_store.read(item.storage_path)
+        return Response(content=file_bytes, media_type=item.mime_type)
+
+    raise HTTPException(
+        status_code=404,
+        detail={
+            "error_code": "preview_unavailable",
+            "message": "No thumbnail available for this item.",
+        },
+    )
 
 
 @router.get("/media/{media_id}/similar")
