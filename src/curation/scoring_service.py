@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.analysis.image_prep import prepare_image
@@ -250,7 +251,9 @@ async def score_group(
     """
     # Load anchor
     anchor_result = await db.execute(
-        select(MediaItem).where(
+        select(MediaItem)
+        .options(selectinload(MediaItem.analysis_metadata))
+        .where(
             MediaItem.id == anchor_id,
             MediaItem.user_id == user_id,
         )
@@ -275,7 +278,9 @@ async def score_group(
         if similar_pairs:
             similar_ids = [sid for sid, _ in similar_pairs]
             items_result = await db.execute(
-                select(MediaItem).where(
+                select(MediaItem)
+                .options(selectinload(MediaItem.analysis_metadata))
+                .where(
                     MediaItem.id.in_(similar_ids),
                     MediaItem.user_id == user_id,
                 )

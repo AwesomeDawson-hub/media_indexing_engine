@@ -12,6 +12,7 @@ from src.database import Base
 from src.models import User
 from src.api import dependencies as deps
 from src.api.routes import upload as upload_mod
+from src.api.routes import media as media_mod
 from src.storage.file_store import LocalFileStore
 from src.ingestion.upload_service import UploadService
 from src.config import settings
@@ -89,6 +90,9 @@ async def client(db_engine, db_session_factory, seed_users, tmp_storage):
     upload_service = UploadService(file_store)
     upload_mod._file_store = file_store
     upload_mod._upload_service = upload_service
+    # media.py imports _file_store from upload at module-level, so patch it separately
+    original_media_file_store = media_mod._file_store
+    media_mod._file_store = file_store
 
     # Inject mock vision provider (no real API calls in tests)
     from src.analysis.mock_provider import MockVisionProvider
@@ -128,6 +132,7 @@ async def client(db_engine, db_session_factory, seed_users, tmp_storage):
     upload_mod._vision_provider = original_provider
     upload_mod._indexing_service = original_indexing
     search_mod._search_service = original_search
+    media_mod._file_store = original_media_file_store
 
 
 @pytest_asyncio.fixture

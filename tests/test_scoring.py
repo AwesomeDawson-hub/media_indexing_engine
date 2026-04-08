@@ -211,14 +211,14 @@ async def test_score_group_endpoint_scores_group(
         "/api/v1/upload",
         files={"file": ("anchor.jpg", anchor_bytes, "image/jpeg")},
     )
-    assert upload_resp.status_code == 200
+    assert upload_resp.status_code == 201
     anchor_id = upload_resp.json()["id"]
 
     upload_resp2 = await client.post(
         "/api/v1/upload",
         files={"file": ("near.jpg", near_bytes, "image/jpeg")},
     )
-    assert upload_resp2.status_code == 200
+    assert upload_resp2.status_code == 201
     near_id = upload_resp2.json()["id"]
 
     # Manually set identical pHashes so they form a group
@@ -271,7 +271,7 @@ async def test_score_group_endpoint_is_idempotent(
         "/api/v1/upload",
         files={"file": ("item.jpg", _make_jpeg(), "image/jpeg")},
     )
-    assert upload_resp.status_code == 200
+    assert upload_resp.status_code == 201
     item_id = upload_resp.json()["id"]
 
     async with db_session_factory() as sess:
@@ -333,7 +333,7 @@ async def test_similar_endpoint_scores_included_when_gate_on(
 
     r1 = await client.post("/api/v1/upload", files={"file": ("a.jpg", a_bytes, "image/jpeg")})
     r2 = await client.post("/api/v1/upload", files={"file": ("b.jpg", b_bytes, "image/jpeg")})
-    assert r1.status_code == 200 and r2.status_code == 200
+    assert r1.status_code == 201 and r2.status_code == 201
     id_a = r1.json()["id"]
     id_b = r2.json()["id"]
 

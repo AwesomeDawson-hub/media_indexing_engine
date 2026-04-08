@@ -265,18 +265,29 @@ async def test_similar_endpoint_gate_off_returns_404(client):
 
 
 @pytest.mark.asyncio
-async def test_similar_endpoint_gate_on_returns_results(client, monkeypatch):
+async def test_similar_endpoint_gate_on_returns_results(client, db_session_factory, monkeypatch):
     """GET /media/{id}/similar returns near-duplicates when gate is ON."""
     from src.config import settings as cfg
+    from sqlalchemy import select as _select
+    from src.models import MediaItem as _MI
     monkeypatch.setattr(cfg.curation, "enable_duplicate_detection", True)
 
-    # Upload two near-identical images
-    img1_bytes = _make_jpeg(color="darkblue", size=(200, 200))
+    # Use different colors so byte-level dedup doesn't collapse them into one item
+    img1_bytes = _make_jpeg(color="navy", size=(200, 200))
     img2_bytes = _make_jpeg(color="darkblue", size=(200, 200))
 
     up1 = await client.post("/api/v1/upload", files={"file": ("img1.jpg", img1_bytes, "image/jpeg")})
     up2 = await client.post("/api/v1/upload", files={"file": ("img2.jpg", img2_bytes, "image/jpeg")})
     id1 = up1.json()["id"]
+    id2 = up2.json()["id"]
+    assert id1 != id2, "images must be distinct (byte-level dedup would collapse them)"
+
+    # Manually set identical pHashes so they are near-duplicates
+    async with db_session_factory() as sess:
+        res = await sess.execute(_select(_MI).where(_MI.id.in_([id1, id2])))
+        for item in res.scalars().all():
+            item.perceptual_hash = "0000000000000000"
+        await sess.commit()
 
     resp = await client.get(f"/api/v1/media/{id1}/similar")
     assert resp.status_code == 200
@@ -284,7 +295,7 @@ async def test_similar_endpoint_gate_on_returns_results(client, monkeypatch):
     assert data["anchor_id"] == id1
     # Both images should be near-duplicates of each other
     similar_ids = [s["id"] for s in data["similar"]]
-    assert up2.json()["id"] in similar_ids
+    assert id2 in similar_ids
 
 
 @pytest.mark.asyncio

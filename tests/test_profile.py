@@ -15,7 +15,10 @@ from src.api.rate_limit import login_limiter, register_limiter
 # ---------------------------------------------------------------------------
 
 @pytest_asyncio.fixture
-async def auth_client():
+async def auth_client(monkeypatch):
+    import src.config as cfg_mod
+    monkeypatch.setattr(cfg_mod.settings.auth, "dev_mode", True)
+
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
