@@ -19,6 +19,7 @@ import GoogleAuthCallbackPage from './pages/GoogleAuthCallbackPage';
 import CollectionsPage from './pages/CollectionsPage';
 import CollectionDetailPage from './pages/CollectionDetailPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
+import SyncRunsPage from './pages/SyncRunsPage';
 
 export default function App() {
   return (
@@ -51,6 +52,7 @@ export default function App() {
             <Route path="/admin" element={<AdminPage />} />
             <Route path="/collections" element={<CollectionsPage />} />
             <Route path="/collections/:id" element={<CollectionDetailPage />} />
+            <Route path="/sync-runs" element={<SyncRunsPage />} />
           </Route>
         </Route>
       </Routes>

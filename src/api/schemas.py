@@ -568,6 +568,8 @@ class SyncRunResponse(BaseModel):
     failed_count: int = 0
     error_summary: str | None = None
     created_at: datetime
+    # Populated by the cross-source list endpoint (P7-008)
+    source_name: str | None = None
 
     model_config = {"from_attributes": True}
 

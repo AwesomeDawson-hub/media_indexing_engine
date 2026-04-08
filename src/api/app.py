@@ -244,6 +244,7 @@ def create_app() -> FastAPI:
     app.include_router(quota.router)
     app.include_router(sources.router)
     app.include_router(connectors.router)
+    app.include_router(connectors.global_router)
     app.include_router(admin.router)
     app.include_router(billing.router)
     app.include_router(google_auth.router)

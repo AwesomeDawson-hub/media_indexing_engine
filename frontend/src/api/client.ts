@@ -549,6 +549,15 @@ export async function listSyncRuns(
   );
 }
 
+export async function listAllSyncRuns(
+  page = 1,
+  perPage = 50,
+): Promise<SyncRunsResponse> {
+  return request<SyncRunsResponse>(
+    `/api/v1/sync-runs?page=${page}&per_page=${perPage}`,
+  );
+}
+
 export async function getQuotaStatus(): Promise<QuotaStatus> {
   return request<QuotaStatus>('/api/v1/quota/status');
 }

@@ -65,6 +65,7 @@ export default function Layout() {
             <GalleryNavLink />
             <NavLink to="/add-media" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Add Media</NavLink>
             <NavLink to="/sources" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Connections</NavLink>
+            <NavLink to="/sync-runs" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Sync History</NavLink>
             <NavLink to="/collections" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Collections</NavLink>
             <NavLink to="/billing" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Billing</NavLink>
             <NavLink to="/profile" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Profile</NavLink>

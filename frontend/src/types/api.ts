@@ -309,6 +309,8 @@ export interface SyncRunResponse {
   failed_count: number;
   error_summary?: string | null;
   created_at: string;
+  // Populated by the cross-source endpoint (P7-008)
+  source_name?: string | null;
 }
 
 export interface SyncRunsResponse {

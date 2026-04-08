@@ -1,10 +1,11 @@
-"""Connector and sync API endpoints (P5-003).
+"""Connector and sync API endpoints (P5-003, P7-008).
 
 Endpoints:
   POST   /api/v1/sources/{source_id}/connector/s3      — create or replace S3-compatible connector config
   GET    /api/v1/sources/{source_id}/connector         — get current connector config (no secrets)
   POST   /api/v1/sources/{source_id}/sync              — manual sync trigger
-  GET    /api/v1/sources/{source_id}/sync-runs         — recent sync run history
+  GET    /api/v1/sources/{source_id}/sync-runs         — recent sync run history (per-source)
+  GET    /api/v1/sync-runs                             — cross-source sync run history (P7-008)
 
 All endpoints enforce DB-layer user_id scoping. Secret fields are never returned.
 Connector operations fail closed when CONNECTOR_CREDENTIALS_KEY is not configured.
@@ -39,6 +40,8 @@ from src.config import settings
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/sources", tags=["connectors"])
+# Second router for cross-source endpoints that do not scope to a specific source
+global_router = APIRouter(prefix="/api/v1", tags=["connectors"])
 
 _file_store = get_file_store(settings.storage)
 _upload_service = UploadService(_file_store)
@@ -340,3 +343,45 @@ async def list_sync_runs(
         runs=[SyncRunResponse.model_validate(r) for r in runs],
         total=total,
     )
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/sync-runs  (cross-source — P7-008)
+# ---------------------------------------------------------------------------
+
+@global_router.get("/sync-runs")
+async def list_all_sync_runs(
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=50, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+) -> SyncRunsResponse:
+    """Return paginated sync run history across ALL sources for the current user.
+
+    Rows are ordered newest first and include the source name so the caller
+    does not need a separate source lookup.  Results are strictly scoped to
+    the authenticated user and never expose another user's data.
+    """
+    total_result = await db.execute(
+        select(func.count()).select_from(SyncRun).where(SyncRun.user_id == user_id)
+    )
+    total = total_result.scalar_one()
+
+    offset = (page - 1) * per_page
+    rows_result = await db.execute(
+        select(SyncRun, Source.name)
+        .join(Source, SyncRun.source_id == Source.id)
+        .where(SyncRun.user_id == user_id)
+        .order_by(SyncRun.created_at.desc())
+        .offset(offset)
+        .limit(per_page)
+    )
+    rows = rows_result.all()
+
+    run_responses: list[SyncRunResponse] = []
+    for sync_run, source_name in rows:
+        resp = SyncRunResponse.model_validate(sync_run)
+        resp.source_name = source_name
+        run_responses.append(resp)
+
+    return SyncRunsResponse(runs=run_responses, total=total)

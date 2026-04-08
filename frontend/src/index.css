@@ -3118,3 +3118,90 @@ input:focus {
 .connector-scope-upgrade-btn:hover {
   background: rgba(234, 179, 8, 0.28);
 }
+
+/* ── Sync Runs Page (P7-008) ─────────────────────────────────────────────── */
+
+.sync-runs-table-wrap {
+  overflow-x: auto;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
+
+.sync-runs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  background: var(--card-bg);
+}
+
+.sync-runs-table th {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.sync-runs-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: middle;
+}
+
+.sync-runs-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.sync-runs-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.sync-runs-row--failed td {
+  background: rgba(239, 68, 68, 0.04);
+}
+
+.sync-runs-th-num,
+.sync-runs-td-num {
+  text-align: right;
+}
+
+.sync-runs-td-failed {
+  color: var(--danger-color, #ef4444);
+}
+
+.sync-runs-td-ts {
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: 0.775rem;
+}
+
+.sync-runs-td-source {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sync-runs-source-link {
+  color: var(--text-primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.sync-runs-source-link:hover {
+  text-decoration: underline;
+}
+
+.sync-runs-td-error {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sync-runs-error-text {
+  color: var(--danger-color, #ef4444);
+  font-size: 0.775rem;
+}
+

@@ -874,3 +874,87 @@ async def test_update_auto_sync_wrong_source_404(client_with_key, client_user2_w
         json={"enabled": True, "interval_minutes": 60},
     )
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# 10. Cross-source sync-run dashboard (P7-008)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_list_all_sync_runs_includes_source_name(client_with_key, db_session_factory):
+    """GET /api/v1/sync-runs returns sync runs with source_name populated."""
+    from src.models import SyncRun as _SR
+    from datetime import datetime, timezone
+
+    source = await _create_source(client_with_key, "Dashboard Source")
+    await client_with_key.post(
+        f"/api/v1/sources/{source['id']}/connector/s3", json=_S3_CONFIG
+    )
+
+    # Insert a completed run directly (no real network call needed)
+    async with db_session_factory() as db:
+        run = _SR(
+            source_id=source["id"],
+            user_id=DEV_USER_1,
+            connector_type="s3_compatible",
+            trigger_type="manual",
+            status="completed",
+            started_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(timezone.utc),
+            discovered_count=2,
+            imported_count=2,
+        )
+        db.add(run)
+        await db.commit()
+
+    resp = await client_with_key.get("/api/v1/sync-runs")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "runs" in body
+    assert "total" in body
+    assert body["total"] >= 1
+    run = body["runs"][0]
+    assert run["source_name"] == "Dashboard Source"
+    assert "status" in run
+    assert "created_at" in run
+
+
+@pytest.mark.asyncio
+async def test_list_all_sync_runs_empty_for_new_user(client):
+    """GET /api/v1/sync-runs returns empty list when user has no runs."""
+    resp = await client.get("/api/v1/sync-runs")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["runs"] == []
+    assert body["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_list_all_sync_runs_user_scoped(client_with_key, client_user2_with_key, db_session_factory):
+    """GET /api/v1/sync-runs only returns the current user's sync runs."""
+    from src.models import SyncRun as _SR
+    from datetime import datetime, timezone
+
+    # User 1: create source + insert a run
+    source1 = await _create_source(client_with_key, "User1 Dashboard Source")
+    async with db_session_factory() as db:
+        db.add(_SR(
+            source_id=source1["id"],
+            user_id=DEV_USER_1,
+            connector_type="s3_compatible",
+            trigger_type="manual",
+            status="completed",
+            started_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(timezone.utc),
+        ))
+        await db.commit()
+
+    # User 2 should see 0 runs (no sources/runs for user 2)
+    resp2 = await client_user2_with_key.get("/api/v1/sync-runs")
+    assert resp2.status_code == 200
+    assert resp2.json()["total"] == 0
+
+    # User 1 sees their own run
+    resp1 = await client_with_key.get("/api/v1/sync-runs")
+    assert resp1.json()["total"] >= 1
+
