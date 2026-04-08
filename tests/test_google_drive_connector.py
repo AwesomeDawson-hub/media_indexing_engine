@@ -822,3 +822,368 @@ async def test_drive_reconnect_different_account_purges_source_objects(drive_cli
         objects = result.scalars().all()
 
     assert len(objects) == 0
+
+
+# ---------------------------------------------------------------------------
+# 14. Folder-scoped recursive listing (P7-007)
+# ---------------------------------------------------------------------------
+
+def _make_file_item(file_id: str, name: str) -> dict:
+    return {
+        "id": file_id,
+        "name": name,
+        "version": "1",
+        "mimeType": "image/jpeg",
+        "size": "1024",
+        "modifiedTime": "2024-06-01T10:00:00Z",
+    }
+
+
+def _make_drive_resp(files: list[dict], next_page_token: str | None = None) -> MagicMock:
+    mock = MagicMock()
+    mock.status_code = 200
+    payload: dict = {"files": files}
+    if next_page_token:
+        payload["nextPageToken"] = next_page_token
+    mock.json.return_value = payload
+    mock.raise_for_status = MagicMock()
+    return mock
+
+
+@pytest.mark.asyncio
+async def test_list_objects_no_folder_uses_flat_query():
+    """list_objects with no folder scoping uses the base flat query (unchanged from P7-002)."""
+    from src.connectors.google_drive_connector import GoogleDriveConnector, _BASE_QUERY
+
+    mock_tm = MagicMock()
+    mock_tm.get_access_token = AsyncMock(return_value="at")
+    connector = GoogleDriveConnector(token_manager=mock_tm)  # no folder_id
+
+    img_resp = _make_drive_resp([_make_file_item("img-root", "photo.jpg")])
+
+    captured_params: list[dict] = []
+
+    async def fake_get(url, params=None, headers=None, **kwargs):
+        captured_params.append(dict(params or {}))
+        return img_resp
+
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock, side_effect=fake_get):
+        objects = await connector.list_objects(max_keys=10)
+
+    assert len(objects) == 1
+    assert objects[0].key == "img-root"
+    # No 'in parents' filter for the root case
+    assert "in parents" not in captured_params[0]["q"]
+    assert _BASE_QUERY in captured_params[0]["q"]
+
+
+@pytest.mark.asyncio
+async def test_list_objects_with_folder_recurses_into_subfolders():
+    """list_objects with folder_id recurses into direct sub-folders (P7-007).
+
+    Drive layout:
+      photos-folder/
+        root-img.jpg          ← returned in first images call
+        events/               ← sub-folder returned by subfolder query
+          event-img.jpg       ← returned in recursive images call
+          (no sub-sub-folders)
+    """
+    from src.connectors.google_drive_connector import GoogleDriveConnector
+
+    mock_tm = MagicMock()
+    mock_tm.get_access_token = AsyncMock(return_value="at")
+    connector = GoogleDriveConnector(token_manager=mock_tm, folder_id="photos-folder")
+
+    # Call 1: images directly in "photos-folder" → 1 image
+    images_in_root = _make_drive_resp([_make_file_item("img-root", "root-img.jpg")])
+    # Call 2: sub-folders of "photos-folder" → 1 sub-folder "events"
+    subfolders_root = MagicMock()
+    subfolders_root.status_code = 200
+    subfolders_root.json.return_value = {"files": [{"id": "events", "name": "Events"}]}
+    subfolders_root.raise_for_status = MagicMock()
+    # Call 3: images directly in "events" → 1 image
+    images_in_events = _make_drive_resp([_make_file_item("img-event", "event-img.jpg")])
+    # Call 4: sub-folders of "events" → none
+    subfolders_events = MagicMock()
+    subfolders_events.status_code = 200
+    subfolders_events.json.return_value = {"files": []}
+    subfolders_events.raise_for_status = MagicMock()
+
+    call_responses = [images_in_root, subfolders_root, images_in_events, subfolders_events]
+
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock, side_effect=call_responses):
+        objects = await connector.list_objects(max_keys=100)
+
+    assert len(objects) == 2
+    keys = {o.key for o in objects}
+    assert "img-root" in keys
+    assert "img-event" in keys
+
+
+@pytest.mark.asyncio
+async def test_list_objects_recursive_respects_max_keys():
+    """list_objects stops collecting after max_keys is reached during recursion."""
+    from src.connectors.google_drive_connector import GoogleDriveConnector
+
+    mock_tm = MagicMock()
+    mock_tm.get_access_token = AsyncMock(return_value="at")
+    connector = GoogleDriveConnector(token_manager=mock_tm, folder_id="parent-folder")
+
+    # Images directly in parent — 3 images, but max_keys=2
+    images_in_parent = _make_drive_resp([
+        _make_file_item("img-1", "a.jpg"),
+        _make_file_item("img-2", "b.jpg"),
+        _make_file_item("img-3", "c.jpg"),
+    ])
+    # Sub-folder query (should not be reached since max_keys hit)
+    subfolders_parent = MagicMock()
+    subfolders_parent.status_code = 200
+    subfolders_parent.json.return_value = {"files": [{"id": "sub", "name": "Sub"}]}
+    subfolders_parent.raise_for_status = MagicMock()
+
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock,
+               side_effect=[images_in_parent, subfolders_parent]):
+        objects = await connector.list_objects(max_keys=2)
+
+    assert len(objects) == 2
+
+
+@pytest.mark.asyncio
+async def test_list_objects_depth_limit_stops_infinite_recursion():
+    """_collect_recursive honours _MAX_FOLDER_DEPTH and stops at the limit."""
+    from src.connectors.google_drive_connector import GoogleDriveConnector, _MAX_FOLDER_DEPTH
+
+    mock_tm = MagicMock()
+    mock_tm.get_access_token = AsyncMock(return_value="at")
+    connector = GoogleDriveConnector(token_manager=mock_tm, folder_id="root-f")
+
+    no_images = _make_drive_resp([])
+    one_subfolder = MagicMock()
+    one_subfolder.status_code = 200
+    one_subfolder.json.return_value = {"files": [{"id": "child-f", "name": "Child"}]}
+    one_subfolder.raise_for_status = MagicMock()
+
+    # Alternate no_images / one_subfolder for _MAX_FOLDER_DEPTH+2 levels ×2
+    side_effects = []
+    for _ in range(_MAX_FOLDER_DEPTH + 2):
+        side_effects.append(no_images)  # image query
+        side_effects.append(one_subfolder)  # subfolder query
+
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock, side_effect=side_effects):
+        objects = await connector.list_objects(max_keys=100)
+
+    # Should complete without stack overflow or infinite recursion
+    assert objects == []
+
+
+# ---------------------------------------------------------------------------
+# 15. google_drive_configure endpoint (P7-007)
+# ---------------------------------------------------------------------------
+
+async def _connect_drive_source(
+    client: AsyncClient,
+    db_session_factory,
+    source_id: str,
+    monkeypatch,
+) -> None:
+    """Helper: run the OAuth callback flow to create a Drive connector row."""
+    import src.config as cfg_mod
+    from src.auth.google_drive_oauth import sign_state, generate_nonce
+
+    nonce = generate_nonce()
+    signed_state = sign_state(DEV_USER_1, source_id, nonce, _TEST_SECRET_KEY)
+
+    with patch(
+        "src.api.routes.google_drive_connector.exchange_code",
+        new_callable=AsyncMock,
+        return_value={
+            "access_token": "at",
+            "refresh_token": "rt",
+            "granted_scopes": ["https://www.googleapis.com/auth/drive.readonly"],
+            "expires_in": 3600,
+        },
+    ), patch(
+        "src.api.routes.google_drive_connector.fetch_account_snapshot",
+        new_callable=AsyncMock,
+        return_value={
+            "provider_id": "pid",
+            "email": "user@example.com",
+            "display_name": "User",
+        },
+    ):
+        resp = await client.get(
+            "/api/v1/connectors/google-drive/callback",
+            params={"code": "auth-code", "state": signed_state},
+            cookies={"gdrive_connector_state": nonce},
+            follow_redirects=False,
+        )
+    assert resp.status_code == 302
+
+
+@pytest.mark.asyncio
+async def test_drive_configure_sets_folder(drive_client, db_session_factory, monkeypatch):
+    """POST configure sets target_folder_id and target_folder_label on the connector."""
+    from src.models import SourceConnector
+    from sqlalchemy import select
+
+    source = await _create_source(drive_client, "FolderScope Test")
+    await _connect_drive_source(drive_client, db_session_factory, source["id"], monkeypatch)
+
+    resp = await drive_client.post(
+        f"/api/v1/sources/{source['id']}/connector/google-drive/configure",
+        json={
+            "target_folder_id": "folder-abc",
+            "target_folder_label": "My Photos",
+            "target_collection_id": None,
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["target_folder_id"] == "folder-abc"
+    assert body["target_folder_label"] == "My Photos"
+    assert body["target_collection_id"] is None
+
+    # Verify persisted in DB
+    async with db_session_factory() as db:
+        result = await db.execute(
+            select(SourceConnector).where(SourceConnector.source_id == source["id"])
+        )
+        connector = result.scalar_one_or_none()
+
+    assert connector is not None
+    assert connector.target_folder_id == "folder-abc"
+    assert connector.target_folder_label == "My Photos"
+
+
+@pytest.mark.asyncio
+async def test_drive_configure_resets_to_root(drive_client, db_session_factory, monkeypatch):
+    """POST configure with target_folder_id=null resets to My Drive root."""
+    from src.models import SourceConnector
+    from sqlalchemy import select
+
+    source = await _create_source(drive_client, "FolderScope Reset")
+    await _connect_drive_source(drive_client, db_session_factory, source["id"], monkeypatch)
+
+    # First set a folder
+    await drive_client.post(
+        f"/api/v1/sources/{source['id']}/connector/google-drive/configure",
+        json={"target_folder_id": "folder-xyz", "target_folder_label": "Old Folder"},
+    )
+
+    # Now reset to root
+    resp = await drive_client.post(
+        f"/api/v1/sources/{source['id']}/connector/google-drive/configure",
+        json={"target_folder_id": None, "target_folder_label": None},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["target_folder_id"] is None
+    assert resp.json()["target_folder_label"] is None
+
+    async with db_session_factory() as db:
+        result = await db.execute(
+            select(SourceConnector).where(SourceConnector.source_id == source["id"])
+        )
+        connector = result.scalar_one_or_none()
+    assert connector.target_folder_id is None
+
+
+@pytest.mark.asyncio
+async def test_drive_configure_no_connector_404(drive_client):
+    """POST configure returns 404 when no Drive connector exists."""
+    source = await _create_source(drive_client, "NoConnector Configure")
+    resp = await drive_client.post(
+        f"/api/v1/sources/{source['id']}/connector/google-drive/configure",
+        json={"target_folder_id": "folder-abc"},
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_drive_configure_invalid_collection_404(drive_client, db_session_factory, monkeypatch):
+    """POST configure with non-existent collection_id returns 404."""
+    source = await _create_source(drive_client, "InvalidCollection Configure")
+    await _connect_drive_source(drive_client, db_session_factory, source["id"], monkeypatch)
+
+    resp = await drive_client.post(
+        f"/api/v1/sources/{source['id']}/connector/google-drive/configure",
+        json={
+            "target_folder_id": None,
+            "target_collection_id": "non-existent-collection-id",
+        },
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_drive_configure_wrong_user_404(
+    drive_client, db_session_factory, monkeypatch,
+    db_engine, tmp_storage,
+):
+    """POST configure by a different user returns 404 (user scoping)."""
+    import src.config as cfg_mod
+    from src.api.app import create_app
+    from src.api import dependencies as deps
+    from src.api.routes import upload as upload_mod
+    from src.storage.file_store import LocalFileStore
+    from src.ingestion.upload_service import UploadService
+    from src.analysis.mock_provider import MockVisionProvider
+    import src.ingestion.job_manager as jm_mod
+    import src.analysis.processor as proc_mod
+    from src.api.routes import search as search_mod
+    import tempfile as _tf2
+    from src.search.embedder import Embedder
+    from src.search.chromadb_store import ChromaDBVectorStore
+    from src.search.indexing_service import IndexingService
+    from src.search.search_service import SearchService
+
+    source = await _create_source(drive_client, "UserScope Configure")
+    await _connect_drive_source(drive_client, db_session_factory, source["id"], monkeypatch)
+
+    # Build a second client authenticated as DEV_USER_2 sharing the same DB
+    test_sf = db_session_factory
+
+    async def override_get_db2():
+        async with test_sf() as session:
+            yield session
+
+    async def override_user2():
+        return DEV_USER_2
+
+    app2 = create_app()
+    app2.dependency_overrides[deps.get_db] = override_get_db2
+    app2.dependency_overrides[deps.get_current_user_id] = override_user2
+
+    fs2 = LocalFileStore(tmp_storage)
+    upload_mod._file_store = fs2
+    upload_mod._upload_service = UploadService(fs2)
+    original_prov = upload_mod._vision_provider
+    upload_mod._vision_provider = MockVisionProvider()
+
+    _cd = _tf2.mkdtemp()
+    _vs2 = ChromaDBVectorStore(persist_directory=_cd, collection_name="cfg_user2")
+    _is2 = IndexingService(Embedder(), _vs2)
+    _ss2 = SearchService(Embedder(), _vs2)
+    original_indexing = upload_mod._indexing_service
+    original_search = search_mod._search_service
+    upload_mod._indexing_service = _is2
+    search_mod._search_service = _ss2
+    orig_jm = jm_mod.async_session
+    orig_proc = proc_mod.async_session
+    jm_mod.async_session = test_sf
+    proc_mod.async_session = test_sf
+
+    from httpx import ASGITransport, AsyncClient as _AC
+    transport2 = ASGITransport(app=app2)
+    async with _AC(transport=transport2, base_url="http://test") as client2:
+        resp = await client2.post(
+            f"/api/v1/sources/{source['id']}/connector/google-drive/configure",
+            json={"target_folder_id": "hacker-folder"},
+        )
+
+    jm_mod.async_session = orig_jm
+    proc_mod.async_session = orig_proc
+    upload_mod._vision_provider = original_prov
+    upload_mod._indexing_service = original_indexing
+    search_mod._search_service = original_search
+
+    assert resp.status_code == 404
