@@ -31,6 +31,26 @@ Each completed workstream gets one entry in the log below, following this struct
 
 ## Completed Workstream Log
 
+### P7-006: Auto-sync Scheduler
+- **Phase:** Phase 7 — Post-Phase 6 User-Value Features
+- **Completed:** 2026-04-07
+- **Objective:** Let users configure a source connector to sync automatically on a schedule, removing the need to click "Sync now" manually.
+- **Outcome:** Full auto-sync feature delivered across data model, migration, backend API, scheduler, and frontend.
+  - **Data model:** Added `auto_sync_enabled: bool = False` and `auto_sync_interval_minutes: int = 60` to `SourceConnector` in `src/models.py`. Alembic migration `a0b1c2d3e4f5` (revises `f8a9b0c1d2e3`).
+  - **Schema:** `AutoSyncUpdateRequest(enabled: bool, interval_minutes: int ge=15 le=1440)` added to `src/api/schemas.py`. `ConnectorResponse` extended with `auto_sync_enabled` and `auto_sync_interval_minutes`.
+  - **Backend endpoint:** `PATCH /api/v1/sources/{source_id}/connector/auto-sync` in `src/api/routes/connectors.py`. Guards: 404 if source not owned or no connector exists. Sets fields, commits, returns `ConnectorResponse.from_connector()`.
+  - **Sync service:** `trigger_sync()` in `src/connectors/sync_service.py` now accepts `trigger_type: str = "manual"` and passes it to `SyncRun`, enabling the scheduler to set `trigger_type="auto"`.
+  - **Scheduler:** `_auto_sync_task()` opens its own `async_session` and calls `trigger_sync(..., trigger_type="auto")`. `_auto_sync_loop()` wakes every 60 s, queries connectors with `auto_sync_enabled=True` joined to non-archived sources, skips sources with an in-progress `SyncRun`, fires a background task per due source. Loop started via `asyncio.create_task()` in `lifespan()` just before `yield`; task is cancelled and awaited on shutdown.
+  - **Frontend API:** `updateConnectorAutoSync(sourceId, enabled, intervalMinutes)` added to `frontend/src/api/client.ts`. `ConnectorResponse` type extended with `auto_sync_enabled?` and `auto_sync_interval_minutes?` in `frontend/src/types/api.ts`.
+  - **Frontend UI:** Auto-sync row added to the Drive connector summary view in `SourcesPage.tsx` — checkbox toggle (On/Off) plus interval `<select>` that is only visible when auto-sync is enabled. Both controls call `updateConnectorAutoSync` and update local state via `setConnector(updated)`.
+  - **Tests:** 6 new tests appended to `tests/test_connectors.py` (total 24): enable, disable, invalid interval (422), max interval (1440), no connector (404), wrong user (404).
+- **Key decisions:**
+  - Minimum interval 15 minutes to avoid hammering the Google Drive API; maximum 1440 minutes (24 h) to cover daily-sync use cases.
+  - The scheduler loop fires background tasks per source rather than running sync inline, matching the pattern set by `_retry_writeback_task` (isolated sessions, no task blocking the loop tick).
+  - `_auto_sync_loop` handles `asyncio.CancelledError` with a `break` so shutdown is clean.
+  - `_file_store` and `_upload_service` are constructed inside `_auto_sync_task` using the same factory functions used at startup — avoids coupling to module-level state from `connectors.py`.
+- **Lessons learned:** Module-level service instances from route modules should not be imported in background tasks; construct fresh from config instead.
+
 ### P7-005: Pending Write-back Retry Job
 - **Phase:** Phase 7 — Post-Phase 6 User-Value Features
 - **Completed:** 2026-04-07

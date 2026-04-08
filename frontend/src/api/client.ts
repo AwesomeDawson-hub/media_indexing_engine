@@ -528,6 +528,17 @@ export async function triggerSync(sourceId: string): Promise<TriggerSyncResponse
   return request<TriggerSyncResponse>(`/api/v1/sources/${sourceId}/sync`, { method: 'POST' });
 }
 
+export async function updateConnectorAutoSync(
+  sourceId: string,
+  enabled: boolean,
+  intervalMinutes: number,
+): Promise<ConnectorResponse> {
+  return request<ConnectorResponse>(`/api/v1/sources/${sourceId}/connector/auto-sync`, {
+    method: 'PATCH',
+    body: JSON.stringify({ enabled, interval_minutes: intervalMinutes }),
+  });
+}
+
 export async function listSyncRuns(
   sourceId: string,
   page = 1,

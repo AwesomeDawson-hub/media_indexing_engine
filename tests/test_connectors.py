@@ -775,3 +775,102 @@ async def test_archived_source_sync_rejected(db_session_factory, seed_users, tmp
                 file_store=file_store,
                 upload_service=upload_service,
             )
+
+
+# ---------------------------------------------------------------------------
+# P7-006: PATCH /sources/{id}/connector/auto-sync
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_update_auto_sync_enable(client_with_key):
+    """PATCH auto-sync returns 200 and sets auto_sync_enabled=True."""
+    source = await _create_source(client_with_key, "AutoSync Enable Test")
+    await client_with_key.post(
+        f"/api/v1/sources/{source['id']}/connector/s3", json=_S3_CONFIG
+    )
+    resp = await client_with_key.patch(
+        f"/api/v1/sources/{source['id']}/connector/auto-sync",
+        json={"enabled": True, "interval_minutes": 60},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["auto_sync_enabled"] is True
+    assert body["auto_sync_interval_minutes"] == 60
+
+
+@pytest.mark.asyncio
+async def test_update_auto_sync_disable(client_with_key):
+    """PATCH auto-sync can disable auto-sync after it was enabled."""
+    source = await _create_source(client_with_key, "AutoSync Disable Test")
+    await client_with_key.post(
+        f"/api/v1/sources/{source['id']}/connector/s3", json=_S3_CONFIG
+    )
+    # Enable first
+    await client_with_key.patch(
+        f"/api/v1/sources/{source['id']}/connector/auto-sync",
+        json={"enabled": True, "interval_minutes": 30},
+    )
+    # Then disable
+    resp = await client_with_key.patch(
+        f"/api/v1/sources/{source['id']}/connector/auto-sync",
+        json={"enabled": False, "interval_minutes": 30},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["auto_sync_enabled"] is False
+
+
+@pytest.mark.asyncio
+async def test_update_auto_sync_invalid_interval(client_with_key):
+    """PATCH auto-sync with interval < 15 returns 422."""
+    source = await _create_source(client_with_key, "AutoSync Bad Interval")
+    await client_with_key.post(
+        f"/api/v1/sources/{source['id']}/connector/s3", json=_S3_CONFIG
+    )
+    resp = await client_with_key.patch(
+        f"/api/v1/sources/{source['id']}/connector/auto-sync",
+        json={"enabled": True, "interval_minutes": 5},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_auto_sync_max_interval(client_with_key):
+    """PATCH auto-sync with interval_minutes=1440 (24 h) returns 200."""
+    source = await _create_source(client_with_key, "AutoSync Max Interval")
+    await client_with_key.post(
+        f"/api/v1/sources/{source['id']}/connector/s3", json=_S3_CONFIG
+    )
+    resp = await client_with_key.patch(
+        f"/api/v1/sources/{source['id']}/connector/auto-sync",
+        json={"enabled": True, "interval_minutes": 1440},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["auto_sync_interval_minutes"] == 1440
+
+
+@pytest.mark.asyncio
+async def test_update_auto_sync_no_connector_404(client_with_key):
+    """PATCH auto-sync returns 404 when no connector has been configured."""
+    source = await _create_source(client_with_key, "AutoSync No Connector")
+    resp = await client_with_key.patch(
+        f"/api/v1/sources/{source['id']}/connector/auto-sync",
+        json={"enabled": True, "interval_minutes": 60},
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_update_auto_sync_wrong_source_404(client_with_key, client_user2_with_key):
+    """PATCH auto-sync on another user's source returns 404."""
+    # User 1 creates + configures a source
+    source = await _create_source(client_with_key, "AutoSync Scoped Source")
+    await client_with_key.post(
+        f"/api/v1/sources/{source['id']}/connector/s3", json=_S3_CONFIG
+    )
+    # User 2 tries to set auto-sync on it
+    resp = await client_user2_with_key.patch(
+        f"/api/v1/sources/{source['id']}/connector/auto-sync",
+        json={"enabled": True, "interval_minutes": 60},
+    )
+    assert resp.status_code == 404

@@ -27,6 +27,7 @@ from src.api.schemas import (
     SyncRunResponse,
     SyncRunsResponse,
     TriggerSyncResponse,
+    AutoSyncUpdateRequest,
 )
 from src.connectors.secrets import encrypt_credentials, MissingEncryptionKeyError
 from src.connectors.sync_service import trigger_sync
@@ -169,6 +170,41 @@ async def get_connector(
     if connector is None:
         raise HTTPException(status_code=404, detail="No connector configured for this source")
 
+    return ConnectorResponse.from_connector(connector)
+
+
+# ---------------------------------------------------------------------------
+# POST /sources/{source_id}/sync
+# ---------------------------------------------------------------------------
+
+@router.patch("/{source_id}/connector/auto-sync", status_code=200)
+async def update_auto_sync(
+    source_id: str,
+    body: AutoSyncUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+) -> ConnectorResponse:
+    """Enable or disable the auto-sync scheduler for a source connector (P7-006).
+
+    ``interval_minutes`` must be between 15 and 1440 (1 day).
+    """
+    await _require_owned_source(source_id, user_id, db)
+
+    result = await db.execute(
+        select(SourceConnector).where(
+            SourceConnector.source_id == source_id,
+            SourceConnector.user_id == user_id,
+        )
+    )
+    connector = result.scalar_one_or_none()
+    if connector is None:
+        raise HTTPException(status_code=404, detail="No connector configured for this source")
+
+    connector.auto_sync_enabled = body.enabled
+    connector.auto_sync_interval_minutes = body.interval_minutes
+    connector.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(connector)
     return ConnectorResponse.from_connector(connector)
 
 

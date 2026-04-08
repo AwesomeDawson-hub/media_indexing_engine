@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import settings
 from src.database import create_tables, run_migrations, async_session
-from src.models import User, QuotaEvent, MediaItem
+from src.models import User, QuotaEvent, MediaItem, Source, SourceConnector, SyncRun
 from src.api.dependencies import DEV_USER_ID
 from src.api.routes import upload, media, analysis, search, auth, download, health, quota, sources, admin, billing, connectors, google_auth, collections, google_drive_connector
 from src.api.error_handlers import register_error_handlers
@@ -18,6 +18,7 @@ from src.analysis.drive_mutation_service import attempt_drive_rename_after_analy
 from src.ingestion.job_manager import get_pending_jobs
 
 from sqlalchemy import select, update
+from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,85 @@ async def _retry_writeback_task(media_item_id: str) -> None:
             await db.commit()
     except Exception:
         logger.exception("Startup writeback retry failed for item %s", media_item_id)
+
+
+async def _auto_sync_task(source_id: str, user_id: str) -> None:
+    """Background task: run one scheduled auto-sync for a source (P7-006)."""
+    try:
+        from src.connectors.sync_service import trigger_sync
+        from src.storage.file_store import get_file_store
+        from src.ingestion.upload_service import UploadService
+
+        file_store = get_file_store(settings.storage)
+        upload_service = UploadService(file_store)
+
+        async with async_session() as db:
+            await trigger_sync(
+                source_id=source_id,
+                user_id=user_id,
+                db=db,
+                file_store=file_store,
+                upload_service=upload_service,
+                trigger_type="auto",
+            )
+    except Exception:
+        logger.exception("Auto-sync task failed for source %s", source_id)
+
+
+async def _auto_sync_loop() -> None:
+    """Periodically fire auto-sync for sources with the scheduler enabled (P7-006).
+
+    Wakes every 60 seconds, queries connectors with ``auto_sync_enabled=True``,
+    and fires a background task for each source whose next-sync time has passed.
+    Sources with an in-progress sync run are skipped.
+    """
+    while True:
+        try:
+            await asyncio.sleep(60)
+            from datetime import datetime, timezone
+
+            now = datetime.now(timezone.utc)
+
+            async with async_session() as db:
+                # Load all auto-sync-enabled connectors joined with their source
+                result = await db.execute(
+                    select(SourceConnector, Source)
+                    .join(Source, SourceConnector.source_id == Source.id)
+                    .where(
+                        SourceConnector.auto_sync_enabled.is_(True),
+                        Source.archived_at.is_(None),
+                    )
+                )
+                rows = result.all()
+
+            for connector_row, source in rows:
+                # Decide if it's time to sync
+                interval = timedelta(minutes=connector_row.auto_sync_interval_minutes)
+                if source.last_synced_at is not None and now - source.last_synced_at < interval:
+                    continue  # Not due yet
+
+                # Skip if a sync is already running for this source
+                async with async_session() as db:
+                    overlap = await db.execute(
+                        select(SyncRun).where(
+                            SyncRun.source_id == source.id,
+                            SyncRun.status.in_(["pending", "running"]),
+                        )
+                    )
+                    if overlap.scalar_one_or_none() is not None:
+                        continue
+
+                logger.info(
+                    "Auto-sync: scheduling source %s (interval=%dm)",
+                    source.id,
+                    connector_row.auto_sync_interval_minutes,
+                )
+                asyncio.create_task(_auto_sync_task(source.id, source.user_id))
+
+        except asyncio.CancelledError:
+            break
+        except Exception:
+            logger.exception("Auto-sync loop encountered an unexpected error")
 
 
 @asynccontextmanager
@@ -127,7 +207,17 @@ async def lifespan(app: FastAPI):
             for wb_item in writeback_items:
                 asyncio.create_task(_retry_writeback_task(wb_item.id))
 
+    # Start the auto-sync scheduler loop (P7-006)
+    scheduler_task = asyncio.create_task(_auto_sync_loop())
+    logger.info("Auto-sync scheduler started")
+
     yield
+
+    scheduler_task.cancel()
+    try:
+        await scheduler_task
+    except asyncio.CancelledError:
+        pass
 
 
 def create_app() -> FastAPI:

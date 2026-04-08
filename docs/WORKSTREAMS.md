@@ -51,6 +51,14 @@ _No workstreams currently in progress._
 
 ## Completed (Phase 7)
 
+### P7-006: Auto-sync Scheduler
+- **Objective:** Remove the need for users to click "Sync now" manually. Adds two new fields to `SourceConnector` (`auto_sync_enabled`, `auto_sync_interval_minutes`), a `PATCH /sources/{id}/connector/auto-sync` endpoint, a long-lived background scheduler loop in `app.py`, and a frontend toggle + interval selector in `SourcesPage`. Minimum interval 15 minutes, maximum 24 hours.
+- **Phase:** Phase 7 — Post-Phase 6 User-Value Features
+- **Status:** Completed — 2026-04-07
+- **Size:** Medium
+- **Plan:** (incremental, no separate plan file)
+- **Summary:** `IMPLEMENTATION_STATUS.md` — P7-006 entry
+
 ### P7-005: Pending Write-back Retry Job
 - **Objective:** Close the open loop from P7-004: items stuck in `pending_writeback` (transient Drive 5xx / network errors) were never retried. Adds a `POST /api/v1/media/{id}/retry-writeback` endpoint for manual on-demand retry, a startup sweep that fires background retry tasks for all `pending_writeback` items, and a "Retry now" button in the `MediaDetailPage` mutation-state banner. Only `pending_writeback` items may be retried; `blocked_writeback` items require explicit user action.
 - **Phase:** Phase 7 — Post-Phase 6 User-Value Features

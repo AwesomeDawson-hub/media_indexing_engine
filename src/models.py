@@ -262,6 +262,9 @@ class SourceConnector(Base):
     # Stored as space-separated scope string (matches OAuth standard format).
     # NULL means pre-P7-004 connector authorized before this field was added.
     granted_scopes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Auto-sync scheduler (P7-006)
+    auto_sync_enabled: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
+    auto_sync_interval_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=60)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
 

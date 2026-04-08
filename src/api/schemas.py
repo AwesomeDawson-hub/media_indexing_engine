@@ -474,6 +474,12 @@ class ConnectorS3ConfigRequest(BaseModel):
     prefix: str | None = Field(default=None, max_length=500)
 
 
+class AutoSyncUpdateRequest(BaseModel):
+    """Body for PATCH /sources/{id}/connector/auto-sync (P7-006)."""
+    enabled: bool
+    interval_minutes: int = Field(default=60, ge=15, le=1440)
+
+
 class ConnectorResponse(BaseModel):
     """Connector configuration response — never exposes secrets."""
     id: str
@@ -498,6 +504,9 @@ class ConnectorResponse(BaseModel):
     updated_at: datetime
     # Scope capability summary (P7-004) — True when writable Drive scope is granted
     has_write_scope: bool = False
+    # Auto-sync scheduler (P7-006)
+    auto_sync_enabled: bool = False
+    auto_sync_interval_minutes: int = 60
 
     model_config = {"from_attributes": True}
 

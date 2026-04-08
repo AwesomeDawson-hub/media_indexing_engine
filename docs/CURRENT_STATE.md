@@ -8,8 +8,8 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | **Current Phase** | Phase 7 — Post-Phase 6 User-Value Features |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | None — P7-001 closed out 2026-04-06 |
-| **Last Updated** | 2026-04-06 |
+| **Active Workstream** | None — P7-006 closed out 2026-04-07 |
+| **Last Updated** | 2026-04-07 |
 | **Updated By** | AI — Architect |
 
 ## System Health
@@ -22,11 +22,13 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 | Registry complete | Yes |
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
-| Test status | 327/327 pass (321 pre-P7-005 + 6 new P7-005 tests) |
-| Active workstream | None — P7-005 completed 2026-04-07 |
-| Last governance audit | 2026-04-07 — P7-005 completed; WORKSTREAMS.md, IMPLEMENTATION_STATUS.md, CURRENT_STATE.md updated |
+| Test status | 333/333 pass (327 pre-P7-006 + 6 new P7-006 tests) |
+| Active workstream | None — P7-006 completed 2026-04-07 |
+| Last governance audit | 2026-04-07 — P7-006 completed; WORKSTREAMS.md, IMPLEMENTATION_STATUS.md, CURRENT_STATE.md updated |
 
 ## Recent Activity
+
+- **2026-04-07:** P7-006 (Auto-sync Scheduler) **completed**. Adds background sync scheduling so users no longer have to click "Sync now" manually. Delivers: (1) `auto_sync_enabled` + `auto_sync_interval_minutes` on `SourceConnector` + Alembic migration `a0b1c2d3e4f5`; (2) `PATCH /sources/{id}/connector/auto-sync` endpoint with 15-min/1440-min guards; (3) `trigger_type` parameter on `trigger_sync()`; (4) `_auto_sync_loop()` scheduler launched from `lifespan()` — wakes every 60 s, fires per-source background tasks for due connectors, skips in-progress runs; (5) frontend checkbox + interval selector in Drive connector summary view; (6) 6 new connector tests. New total: 333/333 pass.
 
 - **2026-04-07:** P7-005 (Pending Write-back Retry Job) **completed**. Closes the open loop from P7-004: items stuck in `pending_writeback` were never retried. Delivers: (1) `POST /api/v1/media/{id}/retry-writeback` endpoint (422 guards for non-pending states, 404 for wrong user, calls `attempt_drive_rename_after_analysis` + commit); (2) startup sweep in `app.py` lifespan — queries all `pending_writeback` items on boot and fires `_retry_writeback_task` background coroutines; (3) "Retry now" button in `MediaDetailPage.tsx` `pending_writeback` banner + `retryWriteback()` in `client.ts`. 6 new tests appended to `test_mutation_completion.py`. `WORKSTREAMS.md` and `IMPLEMENTATION_STATUS.md` updated. New total: 327/327 pass.
 

@@ -63,6 +63,7 @@ async def trigger_sync(
     db: AsyncSession,
     file_store: FileStore,
     upload_service: UploadService,
+    trigger_type: str = "manual",
 ) -> SyncRunResult:
     """Trigger a manual sync for a connected source.
 
@@ -109,7 +110,7 @@ async def trigger_sync(
         source_id=source_id,
         user_id=user_id,
         connector_type=connector_row.connector_type,
-        trigger_type="manual",
+        trigger_type=trigger_type,
         status="running",
         started_at=now,
     )

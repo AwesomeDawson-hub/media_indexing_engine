@@ -268,6 +268,9 @@ export interface ConnectorResponse {
   updated_at: string;
   // P7-004: true when the connector was authorised with writable Drive scope
   has_write_scope?: boolean;
+  // P7-006: auto-sync scheduler
+  auto_sync_enabled?: boolean;
+  auto_sync_interval_minutes?: number;
 }
 
 export interface ConnectorDriveStartResponse {

@@ -568,6 +568,54 @@ function ConnectorPanel({
                         </span>
                       </div>
                     )}
+                    {/* P7-006: auto-sync toggle */}
+                    <div className="connector-drive-meta-row">
+                      <span className="connector-drive-meta-label">Auto-sync</span>
+                      <span className="connector-drive-meta-value auto-sync-control">
+                        <label className="auto-sync-toggle">
+                          <input
+                            type="checkbox"
+                            checked={connector.auto_sync_enabled ?? false}
+                            onChange={async (e) => {
+                              const enabled = e.target.checked;
+                              try {
+                                const updated = await api.updateConnectorAutoSync(
+                                  source.id,
+                                  enabled,
+                                  connector.auto_sync_interval_minutes ?? 60,
+                                );
+                                setConnector(updated);
+                              } catch {
+                                // silent — user can retry
+                              }
+                            }}
+                          />
+                          {connector.auto_sync_enabled ? 'On' : 'Off'}
+                        </label>
+                        {connector.auto_sync_enabled && (
+                          <select
+                            className="auto-sync-interval-select"
+                            value={connector.auto_sync_interval_minutes ?? 60}
+                            onChange={async (e) => {
+                              const mins = Number(e.target.value);
+                              try {
+                                const updated = await api.updateConnectorAutoSync(source.id, true, mins);
+                                setConnector(updated);
+                              } catch {
+                                // silent
+                              }
+                            }}
+                          >
+                            <option value={15}>Every 15 min</option>
+                            <option value={30}>Every 30 min</option>
+                            <option value={60}>Every hour</option>
+                            <option value={120}>Every 2 hours</option>
+                            <option value={360}>Every 6 hours</option>
+                            <option value={1440}>Every 24 hours</option>
+                          </select>
+                        )}
+                      </span>
+                    </div>
                   </div>
                 </>
               ) : (
