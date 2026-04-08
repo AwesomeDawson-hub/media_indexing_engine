@@ -354,7 +354,7 @@ async def test_pivot_local_folder_no_fingerprint_stays_full(db_session_factory, 
 
 @pytest.mark.asyncio
 async def test_sync_connector_pivot_regression(db_session_factory, seed_users, tmp_storage, monkeypatch):
-    """After P8-002 refactor, connector sync still transitions items to preview_only."""
+    """After P9-001, connector sync creates reference-mode items (no transient S3 write)."""
     import src.config as cfg_mod
     import src.analysis.processor as processor_mod
     monkeypatch.setattr(cfg_mod.settings.connector, "credentials_key", _TEST_FERNET_KEY)
@@ -425,14 +425,10 @@ async def test_sync_connector_pivot_regression(db_session_factory, seed_users, t
             item = result_q.scalar_one_or_none()
 
         assert item is not None
-        # Item should be preview_only if analysis + thumbnail succeeded
-        if item.thumbnail_path is not None:
-            assert item.storage_mode == "preview_only", (
-                f"Expected preview_only but got {item.storage_mode!r}"
-            )
-        else:
-            # No thumbnail means no pivot — full retention is correct
-            assert item.storage_mode == "full"
+        # P9-001: connector items are always reference mode — no original stored in app storage
+        assert item.storage_mode == "reference", (
+            f"Expected reference but got {item.storage_mode!r}"
+        )
 
     finally:
         processor_mod.async_session = original_proc_session

@@ -6,10 +6,10 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 
 | Field | Value |
 |---|---|
-| **Current Phase** | Phase 8 — Reference-Mode Storage Pivot |
+| **Current Phase** | Phase 9 — ARCH-002 Gap Remediation |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | None — Phase 8 complete |
-| **Last Updated** | 2026-04-08 |
+| **Active Workstream** | None — P9-001 completed; P9-002 is next |
+| **Last Updated** | 2026-04-09 |
 | **Updated By** | AI — Engineer |
 
 ## System Health
@@ -18,19 +18,23 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | Docs aligned | Yes |
 | Drift detected | No |
-| All docs in sync | Yes — updated 2026-04-08 for P8-003 completion |
+| All docs in sync | Yes — updated 2026-04-09 for P9-001 completion |
 | Registry complete | Yes |
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
-| Test status | 386/386 pass (374 pre-P8-003 + 12 new P8-003 tests) |
+| Test status | 394/394 pass (386 pre-P9-001 + 8 new P9-001 tests), 1 skipped |
 | Active workstream | None |
-| Last governance audit | 2026-04-08 — P8-003 implementation complete |
+| Last governance audit | 2026-04-09 — P9-001 completed; P9-002 next |
 
 ## Recent Activity
 
+- **2026-04-09:** P9-001 (Zero-Transient Connector Ingestion) **completed**. Closes the ARCH-002 transient-write gap: connector-synced originals are no longer written to app storage even transiently. Delivers: (1) `src/ingestion/connector_ingest.py` — new `process_connector_import()` bypasses `file_store.save()` entirely; pipeline is validate → hash → dedup → MIME → dimensions → thumbnail-only → `MediaItem(storage_mode='reference', storage_path=None)` + `ProcessingJob`; (2) `analyze_connector_item()` in `processor.py` — single-attempt synchronous analysis from caller-provided bytes, no `file_store.read()` call, no `_attempt_preview_pivot` (item already reference mode per ADR-031); (3) `sync_service.py` — `trigger_sync` now calls `process_connector_import` + `analyze_connector_item` (upload_service parameter kept for backward compat but no longer used internally); (4) `test_preview_pivot.py` test 10 updated to assert `storage_mode='reference'`; (5) 8 new tests in `tests/test_connector_ingest.py` covering all P9-001 paths. 394/394 pass (1 skipped).
+
+- **2026-04-08:** Phase 9 (ARCH-002 Gap Remediation) **activated**. Operator approved the new remediation direction in `docs/planning/PHASE_9_arch002_gap_remediation_plan.md`: (1) close the transient connector-original write gap now; (2) use source re-fetch as the long-term retry contract while allowing synchronous sync-flow analysis as a short-term rollout tactic if needed; (3) use controlled source-aware errors first for storage-assuming features unless on-demand source fetch is already cheap and reliable enough; (4) use additive evolution rather than a big-bang `MediaItem` rewrite; (5) include operational audit/cleanup of already-retained connector originals. `P9-001 — Zero-Transient Connector Ingestion` is now the next approved workstream.
+
 - **2026-04-08:** P8-003 (Historical Connector Preview-Only Migration) **completed**. Delivers a one-time standalone migration script `scripts/migrate_historical_preview_only.py` that converts existing connector-synced MediaItems from `storage_mode='full'` to `preview_only`. Key properties: (1) thumbnail backfill — if `thumbnail_path` is NULL, reads the original file, runs `_generate_thumbnail()`, persists the thumbnail via `file_store.save_thumbnail()`, then commits before pivoting; (2) exclusive delegation to `_attempt_preview_pivot()` — no custom deletion logic; (3) candidate query joins to `SourceConnector` so only connector-backed items are targeted; (4) hard idempotency — already-`preview_only` items are filtered at the query level; `storage_path=None` items also excluded by the query; (5) operator controls: `--dry-run`, `--batch-size`, `--stop-after`, `--user-id`, `--source-id`, `--sleep-seconds`; (6) exits with code 1 when any item fails so operators can re-run. 12 new tests in `tests/test_historical_migration.py`. New total: 386/386 pass.
 
-- **2026-04-08:** P8-003 (Historical Connector Preview-Only Migration) **planned** and is now the current Phase 8 approval gate. `docs/planning/P8-003_plan.md` was created to define the historical connector-item conversion path: a one-time operational script, in-scope thumbnail backfill for eligible historical connector items, direct reuse of `_attempt_preview_pivot()` as the only deletion / `preview_only` transition path, conservative batch controls, rerun-safe idempotency, and log-based operator visibility.
+- **2026-04-08:** P8-003 (Historical Connector Preview-Only Migration) **planned** and became the Phase 8 approval gate at that time. `docs/planning/P8-003_plan.md` was created to define the historical connector-item conversion path: a one-time operational script, in-scope thumbnail backfill for eligible historical connector items, direct reuse of `_attempt_preview_pivot()` as the only deletion / `preview_only` transition path, conservative batch controls, rerun-safe idempotency, and log-based operator visibility. That planning state is now historical because P8-003 completed and Phase 9 has promoted `P9-001` as the next approved workstream.
 
 - **2026-04-08:** P8-002 (Browser-Upload Preview-Only Pivot) **completed**. Centralizes preview-only pivot logic in `analyze_media_item` via a new `_attempt_preview_pivot` helper that reads eligibility entirely from persisted DB state (replay-safe). Connector items eligible when a committed `SourceObject` exists for the media item; `source_type='local_folder'` items eligible when `source_file_fingerprint` is persisted; `__uploads__` source and other unknown source types never eligible. Sync-service Slice B deletion block removed — `_upsert_source_object("imported")` now committed before `analyze_media_item` so processor can verify the connector safety contract. 11 new tests in `tests/test_preview_pivot.py`. New total: 374/374 pass.
 
@@ -147,12 +151,13 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 
 ## Notes for Next Session
 
-- **P8-003 is the current approval gate.** Review and approve `docs/planning/P8-003_plan.md` before any Engineer work begins on the historical connector preview-only migration.
-- **Immediate planning target:** after approval, implement P8-003 in the order defined by `docs/planning/P8-003_plan.md`: add the standalone migration script, define the historical connector candidate query, backfill missing thumbnails where needed, delegate the actual deletion/state transition to `_attempt_preview_pivot()`, and validate the staged migration rollout with dry-run plus sample batches.
+- **Phase 9 is now active.** Use `docs/planning/PHASE_9_arch002_gap_remediation_plan.md` as the approved architecture baseline.
+- **Immediate execution target:** prepare the Engineer handoff for `P9-001 — Zero-Transient Connector Ingestion` and implement the ingestion-boundary fix before any deeper domain-model cleanup.
+- **Locked rollout rules:** long-term connector retry uses source re-fetch; synchronous sync-flow analysis is allowed only as a short-term rollout tactic if needed. Storage-assuming features should return controlled source-aware errors first unless cheap, reliable on-demand source fetch is already available for that surface.
 - **SES activation (when AWS approves):** `ssh -i "C:\Code\AWS\media-indexing-key.pem" ubuntu@vyzindex.com "echo 'EMAIL_FROM=noreply@vyzindex.com' >> ~/media_indexing_engine/.env && docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build backend"`
 - **AWS deploy command:** `ssh -i "C:\Code\AWS\media-indexing-key.pem" ubuntu@vyzindex.com "cd ~/media_indexing_engine && git pull && docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build"`
 - **HTTPS is live:** `https://vyzindex.com` — Caddy handles TLS automatically. compose files: `docker-compose.yml` + `docker-compose.beta.yml`. SSH key: `C:\Code\AWS\media-indexing-key.pem`, user `ubuntu`.
 - **Stripe note:** All billing runs in dev/test mode. To enable: set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_ADVANCED`, `STRIPE_PRICE_ID_PREMIUM` on the server.
 - **Before inviting broader beta users:** rotate the `ANTHROPIC_API_KEY`, `POSTGRES_PASSWORD`, and `AUTH_SECRET_KEY`.
 - **Schema changes** require `alembic revision --autogenerate` + review + `alembic upgrade head`. Back up AWS DB before any migration deploy.
-- **Test status:** 374/374 pass. Tests run from `c:\AI Engineering\Projects\media_indexing_engine` with `.venv\Scripts\python.exe -m pytest tests/ -q --tb=short`.
+- **Test status:** 386/386 pass. Tests run from `c:\AI Engineering\Projects\media_indexing_engine` with `.venv\Scripts\python.exe -m pytest tests/ -q --tb=short`.

@@ -29,6 +29,45 @@ _Post-Phase 6 workstreams are being planned incrementally as the beta product ex
 
 ---
 
+## Completed (Phase 9)
+
+### P9-001: Zero-Transient Connector Ingestion
+- **Objective:** Refactor connector ingestion so connector-synced originals are never written to app storage, even transiently. Introduce `storage_mode='reference'` as a new MediaItem class for connector-ingested items. Add `analyze_connector_item()` to the processor so analysis runs from caller-provided bytes with no `file_store.read()` dependency.
+- **Phase:** Phase 9 — ARCH-002 Gap Remediation
+- **Status:** Completed — 2026-04-09
+- **Size:** Large
+- **Plan:** `docs/planning/PHASE_9_arch002_gap_remediation_plan.md`
+- **Summary:** `IMPLEMENTATION_STATUS.md` — P9-001 entry
+
+---
+
+## Planned
+
+_Post-Phase 9 workstreams are being planned incrementally._
+
+### P9-002: Source-Aware Original Access Hardening
+- **Objective:** Audit and harden every subsystem that still assumes `storage_path` means the original is readable from app storage. Controlled source-aware errors are the default interim behavior unless on-demand source fetch is already cheap and reliable enough for the specific surface.
+- **Phase:** Phase 9 — ARCH-002 Gap Remediation
+- **Status:** Planned
+- **Size:** Medium-Large
+- **Plan:** `docs/planning/PHASE_9_arch002_gap_remediation_plan.md`
+
+### P9-003: Additive Origin/Preview Domain Split
+- **Objective:** Add first-class origin and preview models behind the existing `MediaItem` aggregate so origin identity and retained preview assets stop being represented through loosely related fields.
+- **Phase:** Phase 9 — ARCH-002 Gap Remediation
+- **Status:** Planned
+- **Size:** Large
+- **Plan:** `docs/planning/PHASE_9_arch002_gap_remediation_plan.md`
+
+### P9-004: Source Capability and Durable Write-Back Operations
+- **Objective:** Make source capability state and write-back intent durable first-class subsystems after origin references and source-aware original access semantics are stable.
+- **Phase:** Phase 9 — ARCH-002 Gap Remediation
+- **Status:** Planned
+- **Size:** Large
+- **Plan:** `docs/planning/PHASE_9_arch002_gap_remediation_plan.md`
+
+---
+
 ## Future
 
 ### Future: Dropbox Connector

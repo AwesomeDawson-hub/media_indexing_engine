@@ -203,8 +203,9 @@ async def _run_sync(
 
     # Import via quota service (imported inline to avoid circular at module level)
     from src.quota.quota_service import QuotaService, QuotaExceededError
-    from src.analysis.processor import analyze_media_item
+    from src.analysis.processor import analyze_connector_item
     from src.analysis.anthropic_provider import AnthropicVisionProvider, AnalysisError
+    from src.ingestion.connector_ingest import process_connector_import
     from src.search.embedder import Embedder
     from src.search.chromadb_store import ChromaDBVectorStore
     from src.search.indexing_service import IndexingService
@@ -243,14 +244,15 @@ async def _run_sync(
             await db.commit()
             continue
 
-        # Import via existing upload service
+        # P9-001: Zero-transient import — no file_store.save() call
         try:
-            upload_result = await upload_service.process_upload(
+            upload_result = await process_connector_import(
                 db=db,
                 user_id=user_id,
                 filename=filename,
                 file_bytes=file_bytes,
                 source_id=source.id,
+                file_store=file_store,
             )
         except Exception as exc:
             logger.warning("Upload failed for %s: %s", remote_obj.key, exc)
@@ -318,34 +320,23 @@ async def _run_sync(
         sync_run.imported_count = result.imported_count
         await db.commit()
 
-        # Run or enqueue analysis.  The processor now owns the preview-only pivot.
+        # P9-001: Run analysis synchronously with caller-provided bytes.
+        # No thumbnail check needed — analyze_connector_item never reads from storage.
         if vision_provider is not None and upload_result.processing_job_id and reservation_id is not None:
-            if upload_result.thumbnail_path:
-                # Run synchronously so the pivot can complete before this sync run returns.
-                try:
-                    await analyze_media_item(
-                        upload_result.processing_job_id,
-                        vision_provider,
-                        file_store,
-                        indexing_service,
-                        reservation_id,
-                    )
-                except Exception as analysis_exc:
-                    logger.warning(
-                        "Sync: analysis raised for media_item=%s (non-fatal): %s",
-                        media_item.id,
-                        analysis_exc,
-                    )
-            else:
-                import asyncio
-                asyncio.create_task(
-                    analyze_media_item(
-                        upload_result.processing_job_id,
-                        vision_provider,
-                        file_store,
-                        indexing_service,
-                        reservation_id,
-                    )
+            try:
+                await analyze_connector_item(
+                    upload_result.processing_job_id,
+                    file_bytes,
+                    vision_provider,
+                    file_store,
+                    indexing_service,
+                    reservation_id,
+                )
+            except Exception as analysis_exc:
+                logger.warning(
+                    "Sync: analysis raised for media_item=%s (non-fatal): %s",
+                    media_item.id,
+                    analysis_exc,
                 )
 
         # Auto-add to target collection if configured

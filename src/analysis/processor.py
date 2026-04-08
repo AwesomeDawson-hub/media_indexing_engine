@@ -342,3 +342,155 @@ async def analyze_media_item(
             return
 
         await asyncio.sleep(retry_delay)
+
+
+async def analyze_connector_item(
+    job_id: str,
+    file_bytes: bytes,
+    vision_provider: VisionProvider,
+    file_store: FileStore,
+    indexing_service: "IndexingService | None" = None,
+    reservation_id: str | None = None,
+    hint: str | None = None,
+) -> None:
+    """Synchronous single-attempt analysis for connector-ingested reference-mode items.
+
+    Uses caller-provided bytes directly — no file_store.read() and no storage_path
+    dependency.  Does not call _attempt_preview_pivot because the item was created
+    in storage_mode='reference' and no original was ever stored.
+
+    No retry loop (ADR-031: first zero-transient slice; long-term retry contract is
+    source re-fetch from the connector, not app-retained originals).
+    """
+    async with async_session() as db:
+        job_result = await db.execute(
+            select(ProcessingJob).where(ProcessingJob.id == job_id)
+        )
+        job = job_result.scalar_one_or_none()
+        if job is None:
+            logger.error("analyze_connector_item: job %s not found", job_id)
+            return
+
+        item_result = await db.execute(
+            select(MediaItem).where(MediaItem.id == job.media_item_id)
+        )
+        media_item = item_result.scalar_one_or_none()
+        if media_item is None:
+            logger.error(
+                "analyze_connector_item: MediaItem %s not found for job %s",
+                job.media_item_id,
+                job_id,
+            )
+            job.status = "failed"
+            job.error_message = f"MediaItem {job.media_item_id} not found"
+            await db.commit()
+            return
+
+        if job.status == "completed":
+            return
+
+        now = datetime.now(timezone.utc)
+        job.status = "running"
+        job.started_at = now
+        job.attempts += 1
+        media_item.status = "processing"
+        await db.commit()
+        logger.info(
+            "analyze_connector_item: job %s started for reference item %s",
+            job_id,
+            media_item.id,
+        )
+
+        try:
+            image_base64, media_type = prepare_image(file_bytes, media_item.mime_type)
+
+            async with _analysis_semaphore:
+                metadata_result = await vision_provider.analyze_image(
+                    image_base64, media_type, hint=hint
+                )
+
+            ocr_text = ocr_extract_text(file_bytes, media_item.mime_type)
+            if ocr_text:
+                logger.info(
+                    "OCR extracted %d chars for connector item %s",
+                    len(ocr_text),
+                    media_item.id,
+                )
+
+            await _upsert_metadata(
+                db,
+                media_item.id,
+                metadata_result,
+                provider=settings.analysis.provider,
+                model=settings.analysis.model,
+                ocr_text=ocr_text,
+            )
+
+            if indexing_service is not None:
+                try:
+                    indexing_service.index_media_item(
+                        media_item_id=media_item.id,
+                        user_id=media_item.user_id,
+                        original_filename=media_item.original_filename,
+                        metadata_result=metadata_result,
+                        ocr_text=ocr_text,
+                    )
+                except Exception as idx_err:
+                    logger.warning(
+                        "Indexing failed for connector item %s (non-fatal): %s",
+                        media_item.id,
+                        idx_err,
+                    )
+
+            try:
+                await attempt_drive_rename_after_analysis(db, media_item)
+            except Exception as mut_err:
+                logger.warning(
+                    "Drive mutation raised unexpectedly for connector item %s (non-fatal): %s",
+                    media_item.id,
+                    mut_err,
+                )
+
+            media_item.status = "completed"
+            job.status = "completed"
+            job.completed_at = datetime.now(timezone.utc)
+            await db.commit()
+            logger.info(
+                "analyze_connector_item: job %s completed for reference item %s",
+                job_id,
+                media_item.id,
+            )
+
+            if reservation_id:
+                async with async_session() as quota_db:
+                    await _quota_service.consume(quota_db, reservation_id)
+
+            # No _attempt_preview_pivot: item is storage_mode='reference',
+            # the original was never stored in app storage.
+
+        except Exception as exc:
+            await db.rollback()
+            logger.warning(
+                "analyze_connector_item: job %s failed (non-retryable per ADR-031): %s",
+                job_id,
+                exc,
+            )
+            # Re-query after rollback to get fresh DB state
+            job_r = await db.execute(
+                select(ProcessingJob).where(ProcessingJob.id == job_id)
+            )
+            job = job_r.scalar_one()
+            item_r = await db.execute(
+                select(MediaItem).where(MediaItem.id == job.media_item_id)
+            )
+            media_item = item_r.scalar_one()
+
+            job.status = "failed"
+            job.error_message = str(exc)
+            job.completed_at = datetime.now(timezone.utc)
+            media_item.status = "error"
+            await db.commit()
+
+            if reservation_id:
+                async with async_session() as quota_db:
+                    await _quota_service.release(quota_db, reservation_id)

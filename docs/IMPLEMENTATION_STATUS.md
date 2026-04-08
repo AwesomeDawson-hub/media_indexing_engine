@@ -31,6 +31,24 @@ Each completed workstream gets one entry in the log below, following this struct
 
 ## Completed Workstream Log
 
+### P9-001: Zero-Transient Connector Ingestion
+- **Phase:** Phase 9 — ARCH-002 Gap Remediation
+- **Completed:** 2026-04-09
+- **Objective:** Close the ARCH-002 gap where connector-synced originals were written to app storage transiently (even briefly) before being deleted by `_attempt_preview_pivot`. Connector-ingested files should never touch app storage for the original.
+- **Outcome:** Full zero-transient path implemented. Connector items are now created with `storage_mode='reference'` and `storage_path=None`. Only derived thumbnails are persisted. Analysis proceeds synchronously from the in-memory download bytes. No DDL migration required (`storage_mode` was already `String(20)`).
+  - **New file:** `src/ingestion/connector_ingest.py` — `process_connector_import()` implements the full preparation pipeline (validate → hash → dedup → MIME → dimensions → thumbnail-only → reference-mode DB records → pHash) without calling `file_store.save()`.
+  - **Modified:** `src/analysis/processor.py` — new `analyze_connector_item()` function; single-attempt synchronous analysis from caller bytes; no `file_store.read()`; no `_attempt_preview_pivot` call; quota consume/release paths preserved.
+  - **Modified:** `src/connectors/sync_service.py` — `_run_sync` now calls `process_connector_import` → `analyze_connector_item` instead of `upload_service.process_upload` → conditional `analyze_media_item`. `upload_service` parameter kept in `trigger_sync` signature for backward compatibility.
+  - **Modified:** `tests/test_preview_pivot.py` — test 10 (`test_sync_connector_pivot_regression`) updated to assert `storage_mode='reference'` (was `preview_only`/`full`).
+  - **New file:** `tests/test_connector_ingest.py` — 8 tests covering happy-path reference mode creation, duplicate detection, validation failure, thumbnail failure graceful recovery, analysis success, analysis error graceful recovery, full `trigger_sync` reference-mode assertion with `file_store.save()` call interception, and re-sync duplicate detection.
+- **Key decisions:**
+  - ADR-031: synchronous analysis within the sync flow is allowed for the P9-001 first slice. No retry loop for connector items — failed items stay `reference/error` and long-term retry uses source re-fetch from the connector.
+  - `storage_mode='reference'` is the new type for connector items where no original was ever stored. Distinct from `preview_only` (was stored, then deleted) and `full` (browser uploads, permanently kept).
+  - `_attempt_preview_pivot` guard `if media_item.storage_mode != "full": return` already handles `reference` mode correctly — no code change needed.
+  - `/file` endpoint guard `not item.storage_path` already handles `reference` items since `storage_path=None` — no logic change, docstring-only update.
+- **Test count delta:** 386 → 394 (8 new P9-001 tests, +1 test updated).
+- **Lessons learned:** The "backward-compatible parameter kept in signature" pattern (keeping `upload_service` in `trigger_sync`) avoids breaking all existing tests while transitioning the internal implementation — useful whenever a function's callers are numerous but a parameter is being deprecated.
+
 ### P8-003: Historical Connector Preview-Only Migration
 - **Phase:** Phase 8 — Reference-Mode Storage Pivot
 - **Completed:** 2026-04-08
