@@ -780,3 +780,10 @@ export async function reportLocalMutationResult(
     body: JSON.stringify(body),
   });
 }
+
+// Drive write-back retry (P7-005)
+export async function retryWriteback(mediaId: string): Promise<MutationStateResponse> {
+  return request<MutationStateResponse>(`/api/v1/media/${mediaId}/retry-writeback`, {
+    method: 'POST',
+  });
+}

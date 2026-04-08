@@ -31,6 +31,22 @@ Each completed workstream gets one entry in the log below, following this struct
 
 ## Completed Workstream Log
 
+### P7-005: Pending Write-back Retry Job
+- **Phase:** Phase 7 — Post-Phase 6 User-Value Features
+- **Completed:** 2026-04-07
+- **Objective:** Close the open loop from P7-004: items stuck in `mutation_state = 'pending_writeback'` (transient Drive 5xx / network errors) were never retried automatically, and the UI offered no manual retry path.
+- **Outcome:** On-demand retry endpoint, startup sweep, and frontend retry button delivered.
+  - **Backend endpoint:** `POST /api/v1/media/{id}/retry-writeback` in `src/api/routes/media.py`. Guards: 404 if item not found or belongs to another user; 422 if `mutation_state != 'pending_writeback'` (blocked items must not be silently retried). Calls `attempt_drive_rename_after_analysis(db, item)`, commits, returns `MutationStateResponse`.
+  - **Startup sweep:** `_retry_writeback_task(media_item_id)` module-level coroutine in `src/api/app.py` opens its own `async_session`, loads the item fresh, calls the mutation service, commits. Added to `lifespan()` after the analysis-job resume block: queries all `pending_writeback` items and fires a background task per item.
+  - **Frontend API:** `retryWriteback(mediaId)` added to `frontend/src/api/client.ts`.
+  - **Frontend UI:** `retrying` / `retryError` state vars added to `MediaDetailPage.tsx`. "Retry now" button in the `pending_writeback` mutation-state banner; shows "Retrying…" while in flight, displays error message on failure, updates `media.mutation_state` from the response on success.
+  - **Tests:** 6 new tests appended to `tests/test_mutation_completion.py` (total 33 tests in that file): `fully_applied` on mocked Drive 200, 422 on NULL state, 422 on `blocked_writeback` state, 404 on unknown item, 404 on wrong user, response stays `pending_writeback` on mocked Drive 5xx failure.
+- **Key decisions:**
+  - `blocked_writeback` items are explicitly rejected with 422 — they require user action (re-auth, folder access), not silent retry.
+  - The startup sweep fires background tasks independently of the analysis job sweep — `_retry_writeback_task` opens its own session to avoid session lifetime issues.
+  - The retry endpoint returns `MutationStateResponse` regardless of outcome — the caller can read the resulting state and decide what to show.
+- **Lessons learned:** Startup background tasks that touch the DB must open their own async session; passing the lifespan session into a `create_task` coroutine causes `DetachedInstanceError` after the lifespan block exits.
+
 ### P7-001: Collections
 - **Phase:** Phase 7 — Post-Phase 6 User-Value Features
 - **Completed:** 2026-04-06

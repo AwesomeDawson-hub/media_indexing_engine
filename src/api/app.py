@@ -14,11 +14,28 @@ from src.api.dependencies import DEV_USER_ID
 from src.api.routes import upload, media, analysis, search, auth, download, health, quota, sources, admin, billing, connectors, google_auth, collections, google_drive_connector
 from src.api.error_handlers import register_error_handlers
 from src.analysis.processor import analyze_media_item
+from src.analysis.drive_mutation_service import attempt_drive_rename_after_analysis
 from src.ingestion.job_manager import get_pending_jobs
 
 from sqlalchemy import select, update
 
 logger = logging.getLogger(__name__)
+
+
+async def _retry_writeback_task(media_item_id: str) -> None:
+    """Background task: open a fresh session and retry a pending_writeback item."""
+    try:
+        async with async_session() as db:
+            result = await db.execute(
+                select(MediaItem).where(MediaItem.id == media_item_id)
+            )
+            item = result.scalar_one_or_none()
+            if item is None or item.mutation_state != "pending_writeback":
+                return
+            await attempt_drive_rename_after_analysis(db, item)
+            await db.commit()
+    except Exception:
+        logger.exception("Startup writeback retry failed for item %s", media_item_id)
 
 
 @asynccontextmanager
@@ -94,6 +111,21 @@ async def lifespan(app: FastAPI):
 
         if pending_jobs:
             logger.info("Resumed %d pending analysis job(s) on startup", len(pending_jobs))
+
+        # Retry pending_writeback items on startup (P7-005)
+        async with async_session() as db:
+            writeback_result = await db.execute(
+                select(MediaItem).where(MediaItem.mutation_state == "pending_writeback")
+            )
+            writeback_items = writeback_result.scalars().all()
+
+        if writeback_items:
+            logger.info(
+                "Scheduling startup retry for %d pending_writeback item(s)",
+                len(writeback_items),
+            )
+            for wb_item in writeback_items:
+                asyncio.create_task(_retry_writeback_task(wb_item.id))
 
     yield
 

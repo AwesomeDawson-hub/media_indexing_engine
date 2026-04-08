@@ -40,6 +40,10 @@ export default function MediaDetailPage() {
   const [addingToCollection, setAddingToCollection] = useState(false);
   const [collectionMsg, setCollectionMsg] = useState('');
 
+  // Drive write-back retry (P7-005)
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState('');
+
   // Swipe / gesture state
   const swipeWrapRef = useRef<HTMLDivElement>(null);
   const gestureStateRef = useRef({ startX: 0, startY: 0, axis: null as 'h' | null, active: false, tx: 0 });
@@ -130,6 +134,20 @@ export default function MediaDetailPage() {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Re-analyze failed');
       setReanalyzing(false);
+    }
+  }
+
+  async function handleRetryWriteback() {
+    if (!id) return;
+    setRetrying(true);
+    setRetryError('');
+    try {
+      const result = await api.retryWriteback(id);
+      setMedia((prev) => prev ? { ...prev, mutation_state: result.mutation_state } : prev);
+    } catch (err: unknown) {
+      setRetryError(err instanceof Error ? err.message : 'Retry failed');
+    } finally {
+      setRetrying(false);
     }
   }
 
@@ -464,7 +482,19 @@ export default function MediaDetailPage() {
                 <span>✓ Source file updated — filename and metadata applied at source</span>
               )}
               {media.mutation_state === 'pending_writeback' && (
-                <span>⏳ Write-back pending — source file update in progress</span>
+                <>
+                  <span>⏳ Write-back pending — source file update in progress</span>
+                  <button
+                    className="btn btn-sm btn-secondary mutation-retry-btn"
+                    onClick={handleRetryWriteback}
+                    disabled={retrying}
+                  >
+                    {retrying ? 'Retrying…' : 'Retry now'}
+                  </button>
+                  {retryError && (
+                    <span className="mutation-action-hint mutation-retry-error"> {retryError}</span>
+                  )}
+                </>
               )}
               {media.mutation_state === 'blocked_writeback' && (
                 <>

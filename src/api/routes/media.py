@@ -15,6 +15,7 @@ from src.api.schemas import (
     ScoreGroupResponse, LocalMutationResultRequest, MutationStateResponse,
 )
 from src.api.routes.upload import _file_store
+from src.analysis.drive_mutation_service import attempt_drive_rename_after_analysis
 from src.config import settings
 from src.curation.phash_service import find_similar, PHASH_THRESHOLD
 from src.curation.scoring_service import load_scores_for_items, find_best_pick, score_group
@@ -518,6 +519,52 @@ async def report_local_mutation_result(
         )
 
     db.add(history)
+    await db.commit()
+
+    return MutationStateResponse(
+        media_item_id=item.id,
+        mutation_state=item.mutation_state,
+        first_seen_source_filename=item.first_seen_source_filename,
+        prior_source_filename=item.prior_source_filename,
+        source_filename_applied_at=item.source_filename_applied_at,
+        last_mutation_error_code=item.last_mutation_error_code,
+        last_mutation_error_message=item.last_mutation_error_message,
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /media/{id}/retry-writeback  — server-side Drive retry (P7-005)
+# ---------------------------------------------------------------------------
+
+@router.post("/media/{media_id}/retry-writeback", status_code=200)
+async def retry_writeback(
+    media_id: str,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+) -> MutationStateResponse:
+    """Retry a previously failed Drive write-back for a media item (P7-005).
+
+    Only items with ``mutation_state == 'pending_writeback'`` (transient
+    failures) can be retried.  Items in ``blocked_writeback`` require user
+    action (e.g. re-authorising Drive) and must not be silently retried.
+    """
+    result = await db.execute(
+        select(MediaItem).where(
+            MediaItem.id == media_id,
+            MediaItem.user_id == user_id,
+        )
+    )
+    item = result.scalar_one_or_none()
+    if item is None:
+        raise HTTPException(status_code=404, detail="Media item not found")
+
+    if item.mutation_state != "pending_writeback":
+        raise HTTPException(
+            status_code=422,
+            detail="Only items in 'pending_writeback' state can be retried.",
+        )
+
+    await attempt_drive_rename_after_analysis(db, item)
     await db.commit()
 
     return MutationStateResponse(

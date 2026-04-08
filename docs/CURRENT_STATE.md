@@ -22,11 +22,13 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 | Registry complete | Yes |
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
-| Test status | 321/321 pass (285 pre-P7-001 closeout + 36 new P7-001 tests) |
-| Active workstream | None — P7-001 closed out 2026-04-06 |
-| Last governance audit | 2026-04-06 — P7-001 closed out; WORKSTREAMS.md, IMPLEMENTATION_STATUS.md, P7-001_plan.md, CURRENT_STATE.md updated |
+| Test status | 327/327 pass (321 pre-P7-005 + 6 new P7-005 tests) |
+| Active workstream | None — P7-005 completed 2026-04-07 |
+| Last governance audit | 2026-04-07 — P7-005 completed; WORKSTREAMS.md, IMPLEMENTATION_STATUS.md, CURRENT_STATE.md updated |
 
 ## Recent Activity
+
+- **2026-04-07:** P7-005 (Pending Write-back Retry Job) **completed**. Closes the open loop from P7-004: items stuck in `pending_writeback` were never retried. Delivers: (1) `POST /api/v1/media/{id}/retry-writeback` endpoint (422 guards for non-pending states, 404 for wrong user, calls `attempt_drive_rename_after_analysis` + commit); (2) startup sweep in `app.py` lifespan — queries all `pending_writeback` items on boot and fires `_retry_writeback_task` background coroutines; (3) "Retry now" button in `MediaDetailPage.tsx` `pending_writeback` banner + `retryWriteback()` in `client.ts`. 6 new tests appended to `test_mutation_completion.py`. `WORKSTREAMS.md` and `IMPLEMENTATION_STATUS.md` updated. New total: 327/327 pass.
 
 - **2026-04-05:** P7-004 plan revised after Auditor findings. The storage-pivot artifacts now explicitly reconcile the completed P7-002 Google Drive read-only foundation with the P7-004 mutation contract: P7-004 includes a writable-scope Drive re-consent path plus rewrite-and-reupload metadata mutation, and existing `drive.readonly` connectors are `blocked_writeback` until reauthorized. The docs also now lock the storage-pivot ADR, prohibit silent permanent AWS-original fallback for browser/local flows, and define the operator-approved cloud metadata fallback rule for providers where embedded mutation is impossible, lossy, or intentionally deferred.
 

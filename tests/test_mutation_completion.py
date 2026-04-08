@@ -16,6 +16,12 @@ Coverage:
   - POST /media/{id}/mutation-result succeeded=False → blocked_writeback
   - POST /media/{id}/mutation-result history row persisted
   - POST /media/{id}/mutation-result 404 for unknown item
+  - POST /media/{id}/retry-writeback pending_writeback → fully_applied (mocked Drive 200)
+  - POST /media/{id}/retry-writeback non-pending state → 422
+  - POST /media/{id}/retry-writeback blocked_writeback → 422
+  - POST /media/{id}/retry-writeback unknown item → 404
+  - POST /media/{id}/retry-writeback wrong user → 404
+  - POST /media/{id}/retry-writeback stays pending_writeback on transient Drive failure
 """
 
 from __future__ import annotations
@@ -33,7 +39,7 @@ from cryptography.fernet import Fernet
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from tests.conftest import DEV_USER_1, JPEG_BYTES
+from tests.conftest import DEV_USER_1, DEV_USER_2, JPEG_BYTES
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -849,3 +855,152 @@ async def test_local_mutation_result_source_fingerprint_stored(client, db_sessio
         item = result.scalar_one()
 
     assert item.source_file_fingerprint == fingerprint
+
+
+# ---------------------------------------------------------------------------
+# 6. API endpoint tests — POST /media/{id}/retry-writeback (P7-005)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_retry_writeback_pending_item_fully_applied(client, db_session_factory):
+    """POST retry-writeback transitions pending_writeback → fully_applied on Drive 200 (mocked)."""
+    from src.models import MediaItem
+
+    upload_resp = await client.post(
+        "/api/v1/upload",
+        files={"file": ("drive.jpg", JPEG_BYTES, "image/jpeg")},
+    )
+    assert upload_resp.status_code == 201
+    item_id = upload_resp.json()["id"]
+
+    # Manually set mutation_state to pending_writeback
+    async with db_session_factory() as session:
+        result = await session.execute(select(MediaItem).where(MediaItem.id == item_id))
+        item = result.scalar_one()
+        item.mutation_state = "pending_writeback"
+        item.last_mutation_error_code = "drive_api_error"
+        await session.commit()
+
+    # Mock attempt_drive_rename_after_analysis to simulate Drive 200 success
+    async def _mock_attempt(db, media_item):
+        media_item.mutation_state = "fully_applied"
+        media_item.last_mutation_error_code = None
+        media_item.last_mutation_error_message = None
+
+    with patch(
+        "src.api.routes.media.attempt_drive_rename_after_analysis",
+        side_effect=_mock_attempt,
+    ):
+        resp = await client.post(f"/api/v1/media/{item_id}/retry-writeback")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["mutation_state"] == "fully_applied"
+    assert data["media_item_id"] == item_id
+    assert data["last_mutation_error_code"] is None
+
+
+@pytest.mark.asyncio
+async def test_retry_writeback_null_state_returns_422(client):
+    """POST retry-writeback returns 422 when mutation_state is NULL (no pending retry needed)."""
+    upload_resp = await client.post(
+        "/api/v1/upload",
+        files={"file": ("notpending.jpg", JPEG_BYTES, "image/jpeg")},
+    )
+    assert upload_resp.status_code == 201
+    item_id = upload_resp.json()["id"]
+
+    # Item has mutation_state = NULL by default after upload
+    resp = await client.post(f"/api/v1/media/{item_id}/retry-writeback")
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_retry_writeback_blocked_state_returns_422(client, db_session_factory):
+    """POST retry-writeback returns 422 when item is in blocked_writeback (user action required)."""
+    from src.models import MediaItem
+
+    upload_resp = await client.post(
+        "/api/v1/upload",
+        files={"file": ("blocked.jpg", JPEG_BYTES, "image/jpeg")},
+    )
+    assert upload_resp.status_code == 201
+    item_id = upload_resp.json()["id"]
+
+    async with db_session_factory() as session:
+        result = await session.execute(select(MediaItem).where(MediaItem.id == item_id))
+        item = result.scalar_one()
+        item.mutation_state = "blocked_writeback"
+        await session.commit()
+
+    resp = await client.post(f"/api/v1/media/{item_id}/retry-writeback")
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_retry_writeback_unknown_item_returns_404(client):
+    """POST retry-writeback returns 404 for a non-existent media_id."""
+    resp = await client.post(f"/api/v1/media/{_new_id()}/retry-writeback")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_retry_writeback_wrong_user_returns_404(client, db_session_factory):
+    """POST retry-writeback returns 404 when item belongs to a different user."""
+    from src.models import MediaItem
+
+    # Create item directly as DEV_USER_2; client authenticates as DEV_USER_1
+    item_id = _new_id()
+    async with db_session_factory() as session:
+        session.add(MediaItem(
+            id=item_id,
+            user_id=DEV_USER_2,
+            content_hash="wronguser456",
+            original_filename="secret.jpg",
+            file_size=1000,
+            mime_type="image/jpeg",
+            storage_path="/tmp/secret.jpg",
+            status="completed",
+            mutation_state="pending_writeback",
+        ))
+        await session.commit()
+
+    resp = await client.post(f"/api/v1/media/{item_id}/retry-writeback")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_retry_writeback_stays_pending_on_transient_drive_failure(client, db_session_factory):
+    """POST retry-writeback returns 200 but leaves mutation_state=pending_writeback on Drive 5xx."""
+    from src.models import MediaItem
+
+    upload_resp = await client.post(
+        "/api/v1/upload",
+        files={"file": ("transient.jpg", JPEG_BYTES, "image/jpeg")},
+    )
+    assert upload_resp.status_code == 201
+    item_id = upload_resp.json()["id"]
+
+    async with db_session_factory() as session:
+        result = await session.execute(select(MediaItem).where(MediaItem.id == item_id))
+        item = result.scalar_one()
+        item.mutation_state = "pending_writeback"
+        await session.commit()
+
+    # Mock another Drive 5xx — service sets state back to pending_writeback
+    async def _mock_still_pending(db, media_item):
+        media_item.mutation_state = "pending_writeback"
+        media_item.last_mutation_error_code = "drive_api_error"
+        media_item.last_mutation_error_message = "Service unavailable"
+
+    with patch(
+        "src.api.routes.media.attempt_drive_rename_after_analysis",
+        side_effect=_mock_still_pending,
+    ):
+        resp = await client.post(f"/api/v1/media/{item_id}/retry-writeback")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["mutation_state"] == "pending_writeback"
+    assert data["last_mutation_error_code"] == "drive_api_error"
+
