@@ -22,6 +22,7 @@ import type {
   CheckoutSessionResponse,
   PortalSessionResponse,
   ConnectorS3ConfigRequest,
+  ConnectorS3UpdateRequest,
   ConnectorResponse,
   ConnectorDriveStartResponse,
   DriveFoldersResponse,
@@ -464,6 +465,16 @@ export async function configureS3Connector(
   return request<ConnectorResponse>(`/api/v1/sources/${sourceId}/connector/s3`, {
     method: 'POST',
     body: JSON.stringify(config),
+  });
+}
+
+export async function updateS3Connector(
+  sourceId: string,
+  update: ConnectorS3UpdateRequest,
+): Promise<ConnectorResponse> {
+  return request<ConnectorResponse>(`/api/v1/sources/${sourceId}/connector/s3`, {
+    method: 'PATCH',
+    body: JSON.stringify(update),
   });
 }
 

@@ -958,3 +958,87 @@ async def test_list_all_sync_runs_user_scoped(client_with_key, client_user2_with
     resp1 = await client_with_key.get("/api/v1/sync-runs")
     assert resp1.json()["total"] >= 1
 
+
+# ---------------------------------------------------------------------------
+# 11. PATCH /sources/{id}/connector/s3 — S3 re-configuration (P7-009)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_patch_s3_connector_updates_bucket(client_with_key):
+    """PATCH updates the bucket name in place without touching credentials."""
+    source = await _create_source(client_with_key, "S3 Patch Bucket")
+    await client_with_key.post(
+        f"/api/v1/sources/{source['id']}/connector/s3", json=_S3_CONFIG
+    )
+    resp = await client_with_key.patch(
+        f"/api/v1/sources/{source['id']}/connector/s3",
+        json={"bucket_name": "updated-bucket"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["remote_container_id"] == "updated-bucket"
+    assert body["region"] == _S3_CONFIG["region"]
+
+
+@pytest.mark.asyncio
+async def test_patch_s3_connector_updates_credentials(client_with_key):
+    """PATCH re-encrypts credentials when both access_key_id + secret are provided."""
+    source = await _create_source(client_with_key, "S3 Patch Creds")
+    await client_with_key.post(
+        f"/api/v1/sources/{source['id']}/connector/s3", json=_S3_CONFIG
+    )
+    resp = await client_with_key.patch(
+        f"/api/v1/sources/{source['id']}/connector/s3",
+        json={
+            "access_key_id": "NEW_KEY_ID",
+            "secret_access_key": "NEW_SECRET",
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    # Bucket unchanged
+    assert body["remote_container_id"] == _S3_CONFIG["bucket_name"]
+    # Secrets are never returned
+    assert "access_key_id" not in body
+    assert "secret_access_key" not in body
+
+
+@pytest.mark.asyncio
+async def test_patch_s3_connector_partial_credentials_422(client_with_key):
+    """PATCH with only one credential field returns 422."""
+    source = await _create_source(client_with_key, "S3 Patch Half Creds")
+    await client_with_key.post(
+        f"/api/v1/sources/{source['id']}/connector/s3", json=_S3_CONFIG
+    )
+    resp = await client_with_key.patch(
+        f"/api/v1/sources/{source['id']}/connector/s3",
+        json={"access_key_id": "ONLY_KEY_ID"},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_patch_s3_connector_no_connector_404(client_with_key):
+    """PATCH returns 404 when no connector has been configured yet."""
+    source = await _create_source(client_with_key, "S3 Patch No Connector")
+    resp = await client_with_key.patch(
+        f"/api/v1/sources/{source['id']}/connector/s3",
+        json={"bucket_name": "anything"},
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_patch_s3_connector_user_scoped(client_with_key, client_user2_with_key):
+    """PATCH on another user's source returns 404."""
+    source = await _create_source(client_with_key, "S3 Patch Scope")
+    await client_with_key.post(
+        f"/api/v1/sources/{source['id']}/connector/s3", json=_S3_CONFIG
+    )
+    resp = await client_user2_with_key.patch(
+        f"/api/v1/sources/{source['id']}/connector/s3",
+        json={"bucket_name": "hacked"},
+    )
+    assert resp.status_code == 404
+
+

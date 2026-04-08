@@ -1,7 +1,8 @@
-"""Connector and sync API endpoints (P5-003, P7-008).
+"""Connector and sync API endpoints (P5-003, P7-008, P7-009).
 
 Endpoints:
   POST   /api/v1/sources/{source_id}/connector/s3      — create or replace S3-compatible connector config
+  PATCH  /api/v1/sources/{source_id}/connector/s3      — partial update of existing S3 connector (P7-009)
   GET    /api/v1/sources/{source_id}/connector         — get current connector config (no secrets)
   POST   /api/v1/sources/{source_id}/sync              — manual sync trigger
   GET    /api/v1/sources/{source_id}/sync-runs         — recent sync run history (per-source)
@@ -25,6 +26,7 @@ from src.api.schemas import (
     ConnectorDriveStartResponse,
     ConnectorResponse,
     ConnectorS3ConfigRequest,
+    ConnectorS3UpdateRequest,
     SyncRunResponse,
     SyncRunsResponse,
     TriggerSyncResponse,
@@ -143,6 +145,84 @@ async def upsert_s3_connector(
     # Update source to reflect connected state
     source.source_type = "s3_compatible"
     source.connector_status = "configured"
+    source.updated_at = now
+
+    await db.commit()
+    await db.refresh(connector)
+    return ConnectorResponse.from_connector(connector)
+
+
+# ---------------------------------------------------------------------------
+# PATCH /sources/{source_id}/connector/s3  (P7-009)
+# ---------------------------------------------------------------------------
+
+@router.patch("/{source_id}/connector/s3", status_code=200)
+async def update_s3_connector(
+    source_id: str,
+    body: ConnectorS3UpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+) -> ConnectorResponse:
+    """Partially update an existing S3-compatible connector configuration.
+
+    Only the fields included in the request body are changed.  Omitted fields
+    are left unchanged.  Credentials are only re-encrypted when both
+    access_key_id and secret_access_key are provided; omitting both keeps the
+    existing encrypted value.  Returns 404 when no connector is configured.
+    """
+    _check_encryption_key()
+    source = await _require_owned_source(source_id, user_id, db)
+    if source.archived_at is not None:
+        raise HTTPException(status_code=409, detail="Cannot update a connector on an archived source")
+
+    # Validate credentials pair: must supply both or neither
+    has_key = bool(body.access_key_id)
+    has_secret = bool(body.secret_access_key)
+    if has_key != has_secret:
+        raise HTTPException(
+            status_code=422,
+            detail="Provide both access_key_id and secret_access_key together, or omit both to keep existing credentials.",
+        )
+
+    result = await db.execute(
+        select(SourceConnector).where(
+            SourceConnector.source_id == source_id,
+            SourceConnector.user_id == user_id,
+        )
+    )
+    connector = result.scalar_one_or_none()
+    if connector is None:
+        raise HTTPException(status_code=404, detail="No connector configured for this source")
+
+    now = datetime.now(timezone.utc)
+
+    if body.bucket_name is not None:
+        connector.remote_container_id = body.bucket_name
+        connector.remote_container_label = body.bucket_name
+
+    if body.region is not None:
+        connector.region = body.region or None
+
+    if body.endpoint_url is not None:
+        connector.endpoint_url = body.endpoint_url or None
+
+    if body.prefix is not None:
+        connector.prefix = body.prefix or None
+
+    # Only re-encrypt when both credential fields are supplied
+    if body.access_key_id and body.secret_access_key:
+        try:
+            credentials_payload = {
+                "access_key_id": body.access_key_id,
+                "secret_access_key": body.secret_access_key,
+            }
+            connector.credentials_encrypted = encrypt_credentials(credentials_payload)
+        except MissingEncryptionKeyError as exc:
+            raise HTTPException(status_code=503, detail=str(exc))
+        connector.config_validated_at = None
+        connector.last_validation_error = None
+
+    connector.updated_at = now
     source.updated_at = now
 
     await db.commit()

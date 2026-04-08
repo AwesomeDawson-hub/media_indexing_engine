@@ -248,6 +248,15 @@ export interface ConnectorS3ConfigRequest {
   prefix?: string;
 }
 
+export interface ConnectorS3UpdateRequest {
+  bucket_name?: string;
+  access_key_id?: string;
+  secret_access_key?: string;
+  region?: string;
+  endpoint_url?: string;
+  prefix?: string;
+}
+
 export interface ConnectorResponse {
   id: string;
   source_id: string;

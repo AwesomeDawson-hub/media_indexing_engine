@@ -998,6 +998,12 @@ input:focus {
   font-size: 0.8125rem;
   margin-bottom: 4px;
 }
+.connector-s3-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 480px;
+}
 .connector-drive-section {
   padding-bottom: 6px;
 }

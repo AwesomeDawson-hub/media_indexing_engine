@@ -474,6 +474,22 @@ class ConnectorS3ConfigRequest(BaseModel):
     prefix: str | None = Field(default=None, max_length=500)
 
 
+class ConnectorS3UpdateRequest(BaseModel):
+    """Request body for PATCH /sources/{id}/connector/s3 (P7-009).
+
+    All fields are optional.  Omitted fields are left unchanged.
+    Credentials are only re-encrypted when *both* access_key_id and
+    secret_access_key are supplied.  Supplying only one is rejected by the
+    endpoint with 422.
+    """
+    bucket_name: str | None = Field(default=None, min_length=1, max_length=255)
+    access_key_id: str | None = Field(default=None, min_length=1, max_length=256)
+    secret_access_key: str | None = Field(default=None, min_length=1, max_length=512)
+    region: str | None = Field(default=None, max_length=100)
+    endpoint_url: str | None = Field(default=None, max_length=500)
+    prefix: str | None = Field(default=None, max_length=500)
+
+
 class AutoSyncUpdateRequest(BaseModel):
     """Body for PATCH /sources/{id}/connector/auto-sync (P7-006)."""
     enabled: bool

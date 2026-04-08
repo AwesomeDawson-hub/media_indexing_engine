@@ -4,6 +4,7 @@ import * as api from '../api/client';
 import type {
   SourceResponse,
   ConnectorS3ConfigRequest,
+  ConnectorS3UpdateRequest,
   ConnectorResponse,
   SyncRunResponse,
   SyncRunsResponse,
@@ -290,6 +291,8 @@ function ConnectorPanel({
   const [savePending, setSavePending] = useState(false);
   const [drivePending, setDrivePending] = useState(false);
   const [showS3Form, setShowS3Form] = useState(false);
+  // true = editing existing connector via PATCH; false = creating via POST
+  const [s3EditMode, setS3EditMode] = useState(false);
   const [panelError, setPanelError] = useState('');
   const [panelInfo, setPanelInfo] = useState('');
 
@@ -342,8 +345,25 @@ function ConnectorPanel({
     setPanelInfo('');
     setSavePending(true);
     try {
-      const saved = await api.configureS3Connector(source.id, formData);
+      let saved: ConnectorResponse;
+      if (s3EditMode) {
+        // Build a partial update — only send credential fields when both are non-empty
+        const update: ConnectorS3UpdateRequest = {
+          bucket_name: formData.bucket_name || undefined,
+          region: formData.region || undefined,
+          endpoint_url: formData.endpoint_url || undefined,
+          prefix: formData.prefix || undefined,
+        };
+        if (formData.access_key_id && formData.secret_access_key) {
+          update.access_key_id = formData.access_key_id;
+          update.secret_access_key = formData.secret_access_key;
+        }
+        saved = await api.updateS3Connector(source.id, update);
+      } else {
+        saved = await api.configureS3Connector(source.id, formData);
+      }
       setConnector(saved);
+      setS3EditMode(false);
       if (onSourceUpdate) {
         onSourceUpdate({ ...source, connector_status: 'configured', source_type: 's3_compatible' });
       }
@@ -708,63 +728,92 @@ function ConnectorPanel({
               )}
             </div>
           ) : connector?.connector_type === 's3_compatible' ? (
-            // ── S3 connected — show form to reconfigure ────────────────────
-            <form onSubmit={handleSave} className="connector-form">
-              <p className="text-muted connector-existing-note">
-                Connected: <strong>{connector.remote_container_id}</strong>
-                {connector.prefix ? `/${connector.prefix}` : ''}
-                {connector.region ? ` (${connector.region})` : ''}
-                . Enter new credentials to replace.
-              </p>
-              <label className="form-label">Bucket name *</label>
-              <input
-                className="form-input"
-                required
-                value={formData.bucket_name}
-                onChange={(e) => setFormData((p) => ({ ...p, bucket_name: e.target.value }))}
-              />
-              <label className="form-label">Access key ID *</label>
-              <input
-                className="form-input"
-                required
-                autoComplete="off"
-                value={formData.access_key_id}
-                onChange={(e) => setFormData((p) => ({ ...p, access_key_id: e.target.value }))}
-              />
-              <label className="form-label">Secret access key *</label>
-              <input
-                className="form-input"
-                type="password"
-                required
-                autoComplete="new-password"
-                value={formData.secret_access_key}
-                onChange={(e) => setFormData((p) => ({ ...p, secret_access_key: e.target.value }))}
-              />
-              <label className="form-label">Region</label>
-              <input
-                className="form-input"
-                placeholder="us-east-1"
-                value={formData.region ?? ''}
-                onChange={(e) => setFormData((p) => ({ ...p, region: e.target.value }))}
-              />
-              <label className="form-label">Endpoint URL (S3-compatible)</label>
-              <input
-                className="form-input"
-                placeholder="https://s3.example.com"
-                value={formData.endpoint_url ?? ''}
-                onChange={(e) => setFormData((p) => ({ ...p, endpoint_url: e.target.value }))}
-              />
-              <label className="form-label">Prefix (folder path)</label>
-              <input
-                className="form-input"
-                placeholder="images/"
-                value={formData.prefix ?? ''}
-                onChange={(e) => setFormData((p) => ({ ...p, prefix: e.target.value }))}
-              />
-              <button className="btn btn-primary" type="submit" disabled={savePending}>
-                {savePending ? 'Saving…' : 'Save connector'}
-              </button>
-            </form>
+            // ── S3 connected — show summary + optional edit form ───────────
+            s3EditMode ? (
+              <form onSubmit={handleSave} className="connector-form">
+                <p className="text-muted connector-existing-note">
+                  Editing S3 connector. Leave credential fields blank to keep existing keys.
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline connector-back-btn"
+                  onClick={() => { setS3EditMode(false); setFormData(prev => ({ ...prev, access_key_id: '', secret_access_key: '' })); }}
+                >
+                  ← Cancel
+                </button>
+                <label className="form-label">Bucket name</label>
+                <input
+                  className="form-input"
+                  value={formData.bucket_name}
+                  onChange={(e) => setFormData((p) => ({ ...p, bucket_name: e.target.value }))}
+                />
+                <label className="form-label">Access key ID (leave blank to keep current)</label>
+                <input
+                  className="form-input"
+                  autoComplete="off"
+                  value={formData.access_key_id}
+                  onChange={(e) => setFormData((p) => ({ ...p, access_key_id: e.target.value }))}
+                />
+                <label className="form-label">Secret access key (leave blank to keep current)</label>
+                <input
+                  className="form-input"
+                  type="password"
+                  autoComplete="new-password"
+                  value={formData.secret_access_key}
+                  onChange={(e) => setFormData((p) => ({ ...p, secret_access_key: e.target.value }))}
+                />
+                <label className="form-label">Region</label>
+                <input
+                  className="form-input"
+                  placeholder="us-east-1"
+                  value={formData.region ?? ''}
+                  onChange={(e) => setFormData((p) => ({ ...p, region: e.target.value }))}
+                />
+                <label className="form-label">Endpoint URL (S3-compatible)</label>
+                <input
+                  className="form-input"
+                  placeholder="https://s3.example.com"
+                  value={formData.endpoint_url ?? ''}
+                  onChange={(e) => setFormData((p) => ({ ...p, endpoint_url: e.target.value }))}
+                />
+                <label className="form-label">Prefix (folder path)</label>
+                <input
+                  className="form-input"
+                  placeholder="images/"
+                  value={formData.prefix ?? ''}
+                  onChange={(e) => setFormData((p) => ({ ...p, prefix: e.target.value }))}
+                />
+                <button className="btn btn-primary" type="submit" disabled={savePending}>
+                  {savePending ? 'Saving…' : 'Save changes'}
+                </button>
+              </form>
+            ) : (
+              <div className="connector-s3-summary">
+                <p className="connector-existing-note">
+                  <strong>Bucket:</strong> {connector.remote_container_id}
+                  {connector.prefix ? <span className="text-muted"> /{connector.prefix}</span> : null}
+                  {connector.region ? <span className="text-muted"> &middot; {connector.region}</span> : null}
+                  {connector.endpoint_url ? <span className="text-muted"> &middot; {connector.endpoint_url}</span> : null}
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline"
+                  onClick={() => {
+                    setFormData({
+                      bucket_name: connector.remote_container_id ?? '',
+                      access_key_id: '',
+                      secret_access_key: '',
+                      region: connector.region ?? '',
+                      endpoint_url: connector.endpoint_url ?? '',
+                      prefix: connector.prefix ?? '',
+                    });
+                    setS3EditMode(true);
+                  }}
+                >
+                  Edit settings
+                </button>
+              </div>
+            )
           ) : showS3Form ? (
             // ── S3 setup form ──────────────────────────────────────────────
             <form onSubmit={handleSave} className="connector-form">
