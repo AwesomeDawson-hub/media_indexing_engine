@@ -27,14 +27,6 @@ This document tracks all work items for the Media Indexing Engine through their 
 
 _Post-Phase 6 workstreams are being planned incrementally as the beta product expands beyond identity and the initial connector foundation._
 
-### P8-001: Reference-Mode Storage Pivot (Slice A+B)
-- **Objective:** Deliver the first implementation slice of the reference-mode storage pivot by adding retained preview infrastructure and then stopping retention of full-resolution originals for newly connector-synced items after successful analysis and confirmed thumbnail storage.
-- **Phase:** Phase 8 — Reference-Mode Storage Pivot
-- **Status:** Planned
-- **Size:** Large
-- **Architect review:** Complete — awaiting operator approval
-- **Plan:** `docs/planning/P8-001_plan.md`
-
 ---
 
 ## Future
@@ -54,6 +46,26 @@ _Post-Phase 6 workstreams are being planned incrementally as the beta product ex
 ## In Progress
 
 _No workstreams currently in progress._
+
+---
+
+## Completed (Phase 8)
+
+### P8-002: Browser-Upload Preview-Only Pivot
+- **Objective:** Extend the reference-mode storage pivot to cover all eligible intake paths: centralize preview-only eligibility in the analysis processor using persisted source state; refactor sync-service to commit SourceObject identity before analysis so the processor can verify the connector safety contract; introduce `source_type='local_folder'` as the P8-002 eligibility class for browser-local working-folder items; keep `__uploads__` items permanently out of preview-only deletion.
+- **Phase:** Phase 8 — Reference-Mode Storage Pivot
+- **Status:** Completed — 2026-04-08
+- **Size:** Medium-Large
+- **Plan:** `docs/planning/P8-002_plan.md`
+- **Summary:** `IMPLEMENTATION_STATUS.md` — P8-002 entry
+
+### P8-001: Reference-Mode Storage Pivot (Slice A+B)
+- **Objective:** Deliver the first implementation slice of the reference-mode storage pivot by adding retained preview infrastructure and then stopping retention of full-resolution originals for newly connector-synced items after successful analysis and confirmed thumbnail storage.
+- **Phase:** Phase 8 — Reference-Mode Storage Pivot
+- **Status:** Completed — 2026-04-08
+- **Size:** Large
+- **Plan:** `docs/planning/P8-001_plan.md`
+- **Summary:** `IMPLEMENTATION_STATUS.md` — P8-001 entry
 
 ---
 

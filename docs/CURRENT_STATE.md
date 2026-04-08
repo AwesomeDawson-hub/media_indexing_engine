@@ -8,9 +8,9 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | **Current Phase** | Phase 8 — Reference-Mode Storage Pivot |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | None — P8-001 planned and awaiting approval |
+| **Active Workstream** | None — P8-002 completed |
 | **Last Updated** | 2026-04-08 |
-| **Updated By** | AI — Architect |
+| **Updated By** | AI — Engineer |
 
 ## System Health
 
@@ -18,17 +18,19 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | Docs aligned | Yes |
 | Drift detected | No |
-| All docs in sync | Yes — updated 2026-04-08 for the P8-001 approval gate |
+| All docs in sync | Yes — updated 2026-04-08 post P8-002 completion |
 | Registry complete | Yes |
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
-| Test status | 333/333 pass (327 pre-P7-006 + 6 new P7-006 tests) |
-| Active workstream | None — P8-001 planned and awaiting approval |
-| Last governance audit | 2026-04-08 — Phase 8 planning activated and P8-001 set as current approval gate |
+| Test status | 374/374 pass (363 pre-P8-002 + 11 new P8-002 tests) |
+| Active workstream | None |
+| Last governance audit | 2026-04-08 — P8-002 completed |
 
 ## Recent Activity
 
-- **2026-04-08:** P8-001 (Reference-Mode Storage Pivot, Slice A+B) prepared for operator review. Governance docs now show Phase 8 planning active with P8-001 as the current approval gate. `ARCH-002-reference-mode-storage.md` now reflects that it remains the approved architecture basis while `P8-001_plan.md` is the current implementation gate. `P8-001_plan.md` was also revised to add explicit rollout sequencing, post-deploy validation steps, rollback posture for synchronous original deletion, and clearer language that the retained 800px JPEG is the preview-class derivative for this slice.
+- **2026-04-08:** P8-002 (Browser-Upload Preview-Only Pivot) **completed**. Centralizes preview-only pivot logic in `analyze_media_item` via a new `_attempt_preview_pivot` helper that reads eligibility entirely from persisted DB state (replay-safe). Connector items eligible when a committed `SourceObject` exists for the media item; `source_type='local_folder'` items eligible when `source_file_fingerprint` is persisted; `__uploads__` source and other unknown source types never eligible. Sync-service Slice B deletion block removed — `_upsert_source_object("imported")` now committed before `analyze_media_item` so processor can verify the connector safety contract. 11 new tests in `tests/test_preview_pivot.py`. New total: 374/374 pass.
+
+- **2026-04-08:** P8-001 (Reference-Mode Storage Pivot, Slice A+B) **completed**. Committed as `c11e8c8`, deployed to EC2. Delivers: thumbnail infrastructure (800px JPEG q85, `save_thumbnail()` on both `LocalFileStore` and `S3FileStore`); `MediaItem.thumbnail_path` + `MediaItem.storage_mode` schema + Alembic migration `a1b2c3d4e5f7`; `GET /thumbnail` endpoint with backward-compatible fallback; `GET /file` returns `original_not_retained` 404 for `preview_only` items; connector Slice B: synchronous analysis + original deletion after confirmed success. Frontend switched to `/thumbnail` for all display usages. 11 new tests in `tests/test_storage_pivot.py`. Total: 363/363 pass.
 
 - **2026-04-07:** P7-006 (Auto-sync Scheduler) **completed**. Adds background sync scheduling so users no longer have to click "Sync now" manually. Delivers: (1) `auto_sync_enabled` + `auto_sync_interval_minutes` on `SourceConnector` + Alembic migration `a0b1c2d3e4f5`; (2) `PATCH /sources/{id}/connector/auto-sync` endpoint with 15-min/1440-min guards; (3) `trigger_type` parameter on `trigger_sync()`; (4) `_auto_sync_loop()` scheduler launched from `lifespan()` — wakes every 60 s, fires per-source background tasks for due connectors, skips in-progress runs; (5) frontend checkbox + interval selector in Drive connector summary view; (6) 6 new connector tests. New total: 333/333 pass.
 

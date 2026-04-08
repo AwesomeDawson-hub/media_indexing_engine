@@ -284,43 +284,11 @@ async def _run_sync(
             await db.commit()
             continue
 
-        # New import — reserve quota and run/enqueue analysis
-        enqueued = False
+        # New import — reserve quota
         reservation_id = None
         if vision_provider is not None and upload_result.processing_job_id:
             try:
                 reservation_id = await quota_service.reserve(db, user_id, media_item.id)
-                if upload_result.thumbnail_path:
-                    # Slice B: await analysis synchronously so we can transition to
-                    # preview_only immediately after confirming success (ADR-028 / P8-001).
-                    # Wrap in try-except: a transient failure must not crash the sync run.
-                    try:
-                        await analyze_media_item(
-                            upload_result.processing_job_id,
-                            vision_provider,
-                            file_store,
-                            indexing_service,
-                            reservation_id,
-                        )
-                    except Exception as analysis_exc:
-                        logger.warning(
-                            "Slice B: analysis raised during sync for media_item=%s (non-fatal): %s",
-                            media_item.id,
-                            analysis_exc,
-                        )
-                    enqueued = True
-                else:
-                    import asyncio
-                    asyncio.create_task(
-                        analyze_media_item(
-                            upload_result.processing_job_id,
-                            vision_provider,
-                            file_store,
-                            indexing_service,
-                            reservation_id,
-                        )
-                    )
-                    enqueued = True
             except QuotaExceededError:
                 logger.warning(
                     "Quota exceeded during sync run %s at object %s — stopping ingestion",
@@ -340,39 +308,45 @@ async def _run_sync(
                 sync_run.error_summary = "Sync stopped: monthly quota exhausted"
                 break
 
-        # Slice B: attempt preview-only transition when thumbnail exists and analysis ran.
-        # Refresh media_item from DB to pick up the committed status from analyze_media_item.
-        if upload_result.thumbnail_path and enqueued:
-            await db.refresh(media_item)
-            if media_item.status == "completed":
-                try:
-                    await file_store.delete(media_item.storage_path)
-                    media_item.storage_path = None
-                    media_item.storage_mode = "preview_only"
-                    logger.info(
-                        "Slice B: transitioned media_item=%s to preview_only (source=%s)",
-                        media_item.id,
-                        source.id,
-                    )
-                except Exception as del_exc:
-                    logger.warning(
-                        "Slice B: original deletion failed for media_item=%s, staying full: %s",
-                        media_item.id,
-                        del_exc,
-                    )
-            else:
-                logger.warning(
-                    "Slice B: analysis did not complete for media_item=%s (status=%s), keeping full",
-                    media_item.id,
-                    media_item.status,
-                )
-
+        # P8-002: persist SourceObject identity BEFORE calling analyze_media_item so the
+        # processor's eligibility check can find it (Decision 9: connector safety contract).
         _upsert_source_object(
             db, so, source.id, user_id, remote_obj, sync_run.id, "imported",
             None, media_item_id=media_item.id, content_hash=media_item.content_hash,
         )
         result.imported_count += 1
         sync_run.imported_count = result.imported_count
+        await db.commit()
+
+        # Run or enqueue analysis.  The processor now owns the preview-only pivot.
+        if vision_provider is not None and upload_result.processing_job_id and reservation_id is not None:
+            if upload_result.thumbnail_path:
+                # Run synchronously so the pivot can complete before this sync run returns.
+                try:
+                    await analyze_media_item(
+                        upload_result.processing_job_id,
+                        vision_provider,
+                        file_store,
+                        indexing_service,
+                        reservation_id,
+                    )
+                except Exception as analysis_exc:
+                    logger.warning(
+                        "Sync: analysis raised for media_item=%s (non-fatal): %s",
+                        media_item.id,
+                        analysis_exc,
+                    )
+            else:
+                import asyncio
+                asyncio.create_task(
+                    analyze_media_item(
+                        upload_result.processing_job_id,
+                        vision_provider,
+                        file_store,
+                        indexing_service,
+                        reservation_id,
+                    )
+                )
 
         # Auto-add to target collection if configured
         if connector_row.target_collection_id:

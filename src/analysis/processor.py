@@ -19,7 +19,7 @@ from src.analysis.provider import VisionProvider
 from src.analysis.schemas import MediaMetadataResult
 from src.config import settings
 from src.database import async_session
-from src.models import MediaItem, MediaMetadata, ProcessingJob
+from src.models import MediaItem, MediaMetadata, ProcessingJob, Source, SourceConnector, SourceObject
 from src.ocr.ocr_service import extract_text as ocr_extract_text
 from src.quota.quota_service import QuotaService
 from src.storage.file_store import FileStore
@@ -31,6 +31,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 _analysis_semaphore = asyncio.Semaphore(max(1, settings.analysis.max_concurrent))
 _quota_service = QuotaService()
+
+# Source classification constants (P8-002)
+_UPLOADS_SOURCE_NAME = "__uploads__"
+SOURCE_TYPE_LOCAL_FOLDER = "local_folder"
 
 
 def _serialize_metadata(result: MediaMetadataResult) -> dict:
@@ -90,6 +94,105 @@ async def _upsert_metadata(
         db.add(meta)
 
     return meta
+
+
+async def _attempt_preview_pivot(
+    db: AsyncSession,
+    media_item: MediaItem,
+    file_store: FileStore,
+) -> None:
+    """Post-success pivot: delete retained original and transition to preview_only.
+
+    Eligibility is derived entirely from persisted DB state so this function is
+    replay-safe across process restarts.  Deletion failure is non-fatal — the item
+    stays in a consistent `full` state.
+
+    Eligible sources (P8-002 Decision 5):
+    - Connector-backed sources where a SourceObject already links this media_item.
+    - Local working-folder sources (source_type='local_folder') where
+      source_file_fingerprint is persisted (the re-match anchor).
+
+    Never eligible:
+    - The automatic __uploads__ system source for binary browser uploads.
+    - Any source not covered by the two cases above.
+    """
+    # Guard: already pivoted or nothing to delete
+    if media_item.storage_mode != "full":
+        return
+    if not media_item.storage_path:
+        return
+    if not media_item.thumbnail_path:
+        logger.debug(
+            "Preview pivot skipped for media_item=%s: no thumbnail_path", media_item.id
+        )
+        return
+    if not media_item.source_id:
+        return  # no source — not eligible
+
+    # Load source
+    source_result = await db.execute(
+        select(Source).where(Source.id == media_item.source_id)
+    )
+    source = source_result.scalar_one_or_none()
+    if source is None:
+        return
+
+    # __uploads__ system source is never eligible (Decision 1)
+    if source.name == _UPLOADS_SOURCE_NAME:
+        return
+
+    # Determine eligibility from persisted source contract
+    # Connector items: require a committed SourceObject pointing to this media_item (Decision 9)
+    connector_result = await db.execute(
+        select(SourceConnector).where(SourceConnector.source_id == source.id)
+    )
+    has_connector = connector_result.scalar_one_or_none() is not None
+
+    if has_connector:
+        so_result = await db.execute(
+            select(SourceObject).where(
+                SourceObject.last_imported_media_item_id == media_item.id,
+                SourceObject.source_id == media_item.source_id,
+            )
+        )
+        if so_result.scalar_one_or_none() is None:
+            logger.debug(
+                "Preview pivot skipped for media_item=%s: no SourceObject found for source=%s",
+                media_item.id,
+                media_item.source_id,
+            )
+            return
+    elif source.source_type == SOURCE_TYPE_LOCAL_FOLDER:
+        # Local working-folder: source_file_fingerprint is the durable re-match anchor
+        if not media_item.source_file_fingerprint:
+            logger.debug(
+                "Preview pivot skipped for media_item=%s: no source_file_fingerprint",
+                media_item.id,
+            )
+            return
+    else:
+        # Unknown source type or plain manual source — not eligible
+        return
+
+    # Attempt deletion (non-fatal on failure per Decision 8)
+    try:
+        await file_store.delete(media_item.storage_path)
+    except Exception as exc:
+        logger.warning(
+            "Preview pivot: original deletion failed for media_item=%s, staying full: %s",
+            media_item.id,
+            exc,
+        )
+        return
+
+    media_item.storage_path = None
+    media_item.storage_mode = "preview_only"
+    await db.commit()
+    logger.info(
+        "Preview pivot complete: media_item=%s is now preview_only (source=%s)",
+        media_item.id,
+        media_item.source_id,
+    )
 
 
 async def analyze_media_item(
@@ -191,6 +294,9 @@ async def analyze_media_item(
                 if reservation_id:
                     async with async_session() as quota_db:
                         await _quota_service.consume(quota_db, reservation_id)
+
+                # P8-002: attempt preview-only pivot from persisted source state.
+                await _attempt_preview_pivot(db, media_item, file_store)
 
                 return
 
