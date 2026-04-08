@@ -51,6 +51,14 @@ _No workstreams currently in progress._
 
 ## Completed (Phase 8)
 
+### P8-003: Historical Connector Preview-Only Migration
+- **Objective:** Convert historical connector-synced items that still retain full originals into the same `preview_only` end state used by new Phase 8 reference-mode ingestion by running a one-time operational migration that can backfill missing thumbnails and then delegates deletion/state transition to `_attempt_preview_pivot()`.
+- **Phase:** Phase 8 — Reference-Mode Storage Pivot
+- **Status:** Completed — 2026-04-08
+- **Size:** Medium
+- **Plan:** `docs/planning/P8-003_plan.md`
+- **Summary:** `IMPLEMENTATION_STATUS.md` — P8-003 entry
+
 ### P8-002: Browser-Upload Preview-Only Pivot
 - **Objective:** Extend the reference-mode storage pivot to cover all eligible intake paths: centralize preview-only eligibility in the analysis processor using persisted source state; refactor sync-service to commit SourceObject identity before analysis so the processor can verify the connector safety contract; introduce `source_type='local_folder'` as the P8-002 eligibility class for browser-local working-folder items; keep `__uploads__` items permanently out of preview-only deletion.
 - **Phase:** Phase 8 — Reference-Mode Storage Pivot

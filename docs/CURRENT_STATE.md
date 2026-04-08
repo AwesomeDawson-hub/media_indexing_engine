@@ -8,7 +8,7 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | **Current Phase** | Phase 8 — Reference-Mode Storage Pivot |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | None — P8-002 completed |
+| **Active Workstream** | None — Phase 8 complete |
 | **Last Updated** | 2026-04-08 |
 | **Updated By** | AI — Engineer |
 
@@ -18,15 +18,19 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | Docs aligned | Yes |
 | Drift detected | No |
-| All docs in sync | Yes — updated 2026-04-08 post P8-002 completion |
+| All docs in sync | Yes — updated 2026-04-08 for P8-003 completion |
 | Registry complete | Yes |
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
-| Test status | 374/374 pass (363 pre-P8-002 + 11 new P8-002 tests) |
+| Test status | 386/386 pass (374 pre-P8-003 + 12 new P8-003 tests) |
 | Active workstream | None |
-| Last governance audit | 2026-04-08 — P8-002 completed |
+| Last governance audit | 2026-04-08 — P8-003 implementation complete |
 
 ## Recent Activity
+
+- **2026-04-08:** P8-003 (Historical Connector Preview-Only Migration) **completed**. Delivers a one-time standalone migration script `scripts/migrate_historical_preview_only.py` that converts existing connector-synced MediaItems from `storage_mode='full'` to `preview_only`. Key properties: (1) thumbnail backfill — if `thumbnail_path` is NULL, reads the original file, runs `_generate_thumbnail()`, persists the thumbnail via `file_store.save_thumbnail()`, then commits before pivoting; (2) exclusive delegation to `_attempt_preview_pivot()` — no custom deletion logic; (3) candidate query joins to `SourceConnector` so only connector-backed items are targeted; (4) hard idempotency — already-`preview_only` items are filtered at the query level; `storage_path=None` items also excluded by the query; (5) operator controls: `--dry-run`, `--batch-size`, `--stop-after`, `--user-id`, `--source-id`, `--sleep-seconds`; (6) exits with code 1 when any item fails so operators can re-run. 12 new tests in `tests/test_historical_migration.py`. New total: 386/386 pass.
+
+- **2026-04-08:** P8-003 (Historical Connector Preview-Only Migration) **planned** and is now the current Phase 8 approval gate. `docs/planning/P8-003_plan.md` was created to define the historical connector-item conversion path: a one-time operational script, in-scope thumbnail backfill for eligible historical connector items, direct reuse of `_attempt_preview_pivot()` as the only deletion / `preview_only` transition path, conservative batch controls, rerun-safe idempotency, and log-based operator visibility.
 
 - **2026-04-08:** P8-002 (Browser-Upload Preview-Only Pivot) **completed**. Centralizes preview-only pivot logic in `analyze_media_item` via a new `_attempt_preview_pivot` helper that reads eligibility entirely from persisted DB state (replay-safe). Connector items eligible when a committed `SourceObject` exists for the media item; `source_type='local_folder'` items eligible when `source_file_fingerprint` is persisted; `__uploads__` source and other unknown source types never eligible. Sync-service Slice B deletion block removed — `_upsert_source_object("imported")` now committed before `analyze_media_item` so processor can verify the connector safety contract. 11 new tests in `tests/test_preview_pivot.py`. New total: 374/374 pass.
 
@@ -143,12 +147,12 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 
 ## Notes for Next Session
 
-- **P8-001 is the current approval gate.** Review and approve `docs/planning/P8-001_plan.md` before any Engineer work begins on the Phase 8 reference-mode storage pivot. Slice A+B establishes retained preview infrastructure and the first connector `preview_only` retention transition.
+- **P8-003 is the current approval gate.** Review and approve `docs/planning/P8-003_plan.md` before any Engineer work begins on the historical connector preview-only migration.
+- **Immediate planning target:** after approval, implement P8-003 in the order defined by `docs/planning/P8-003_plan.md`: add the standalone migration script, define the historical connector candidate query, backfill missing thumbnails where needed, delegate the actual deletion/state transition to `_attempt_preview_pivot()`, and validate the staged migration rollout with dry-run plus sample batches.
 - **SES activation (when AWS approves):** `ssh -i "C:\Code\AWS\media-indexing-key.pem" ubuntu@vyzindex.com "echo 'EMAIL_FROM=noreply@vyzindex.com' >> ~/media_indexing_engine/.env && docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build backend"`
-- **Immediate planning target:** after approval, implement P8-001 Slice A+B in the order defined by `docs/planning/P8-001_plan.md`: schema evolution for `thumbnail_path` and `storage_mode`, thumbnail generation and serving, retention-aware `/file` behavior, connector sync transition to `preview_only`, and frontend switch to `/thumbnail` for display.
 - **AWS deploy command:** `ssh -i "C:\Code\AWS\media-indexing-key.pem" ubuntu@vyzindex.com "cd ~/media_indexing_engine && git pull && docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build"`
 - **HTTPS is live:** `https://vyzindex.com` — Caddy handles TLS automatically. compose files: `docker-compose.yml` + `docker-compose.beta.yml`. SSH key: `C:\Code\AWS\media-indexing-key.pem`, user `ubuntu`.
 - **Stripe note:** All billing runs in dev/test mode. To enable: set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_ADVANCED`, `STRIPE_PRICE_ID_PREMIUM` on the server.
 - **Before inviting broader beta users:** rotate the `ANTHROPIC_API_KEY`, `POSTGRES_PASSWORD`, and `AUTH_SECRET_KEY`.
 - **Schema changes** require `alembic revision --autogenerate` + review + `alembic upgrade head`. Back up AWS DB before any migration deploy.
-- **Test status:** 333/333 pass. Tests run from `c:\AI Engineering\Projects\media_indexing_engine` with `.venv\Scripts\python.exe -m pytest tests/ -q --tb=short`.
+- **Test status:** 374/374 pass. Tests run from `c:\AI Engineering\Projects\media_indexing_engine` with `.venv\Scripts\python.exe -m pytest tests/ -q --tb=short`.

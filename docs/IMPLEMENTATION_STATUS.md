@@ -31,6 +31,31 @@ Each completed workstream gets one entry in the log below, following this struct
 
 ## Completed Workstream Log
 
+### P8-003: Historical Connector Preview-Only Migration
+- **Phase:** Phase 8 — Reference-Mode Storage Pivot
+- **Completed:** 2026-04-08
+- **Objective:** Convert historical connector-synced MediaItems that still hold full-resolution originals into the `preview_only` storage mode produced by live Phase 8 ingestion.
+- **Outcome:** Standalone migration script delivered. Backfills missing thumbnails, then delegates every transition to the canonical `_attempt_preview_pivot()` function. No new schema changes.
+  - **Script:** `scripts/migrate_historical_preview_only.py` — accepts `--dry-run`, `--batch-size`, `--stop-after`, `--user-id`, `--source-id`, `--sleep-seconds`. Candidate query joins `MediaItem → Source → SourceConnector` and filters `storage_mode='full'` + `storage_path IS NOT NULL`. Thumbnail backfill reads original from `file_store`, calls `_generate_thumbnail()`, persists via `file_store.save_thumbnail()`, commits, then calls `_attempt_preview_pivot()` as the sole pivot path. Exits with code 1 on any failure so re-runs are signalled.
+  - **Tests:** `tests/test_historical_migration.py` — 12 tests covering dry-run, idempotency, null-storage-path exclusion, `__uploads__` skip, with-thumbnail pivot, no-thumbnail backfill+pivot, thumbnail-generation failure, thumbnail-save failure, second-run idempotency, live-path parity, `--stop-after` limit, user-id filter.
+- **Key decisions:** Standalone script (not startup hook, not API endpoint) per the P8-003 plan; `_attempt_preview_pivot()` is the only deletion/transition path (no parallel code path); thumbnail backfill is in scope so no two-pass operator workflow is needed; candidate query is conservative (must have `SourceConnector` row); no DB audit table — structured logs + `sys.exit(1)` on failures.
+- **Artifacts produced:** `scripts/migrate_historical_preview_only.py` (new), `tests/test_historical_migration.py` (new), `docs/WORKSTREAMS.md` (P8-003 moved to Completed), `docs/CURRENT_STATE.md` (test count 386, workstream cleared).
+- **Lessons learned:** Module-global counters in test helpers (`_item_counter`, `_so_counter`) are necessary when multiple items share a source — `SourceObject.external_object_key` has a unique constraint on `(source_id, key)`. Using a sentinel value (`save_file: bool`) is cleaner than `Optional[str]` overrides when you need to express "force null rather than not provided".
+
+### P8-002: Browser-Upload Preview-Only Pivot
+- **Phase:** Phase 8 — Reference-Mode Storage Pivot
+- **Completed:** 2026-04-08
+- **Objective:** Extend preview-only pivoting to all eligible intake paths. Centralize pivot logic in `_attempt_preview_pivot()` driven entirely by persisted DB state; make `__uploads__` permanently ineligible; add `source_type='local_folder'` as an eligibility class; refactor sync-service to commit `SourceObject` before analysis.
+- **Outcome:** `_attempt_preview_pivot(db, media_item, file_store)` is now the single pivot entry point. Sync-service Slice B refactored: `_upsert_source_object("imported")` committed before `analyze_media_item`. 11 tests in `tests/test_preview_pivot.py`. Total: 374/374 pass.
+- **Artifacts produced:** `src/analysis/processor.py` (`_attempt_preview_pivot` extracted), `src/connectors/sync_service.py` (upsert-before-analyze), `tests/test_preview_pivot.py` (11 new tests).
+
+### P8-001: Reference-Mode Storage Pivot (Slice A+B)
+- **Phase:** Phase 8 — Reference-Mode Storage Pivot
+- **Completed:** 2026-04-08
+- **Objective:** Deliver thumbnail infrastructure and stop retaining full-resolution originals for newly connector-synced items after confirmed thumbnail storage.
+- **Outcome:** `MediaItem.thumbnail_path` + `MediaItem.storage_mode` added; `save_thumbnail()` on both `LocalFileStore` and `S3FileStore`; `GET /thumbnail` with graceful fallback; `GET /file` returns `original_not_retained` 404 for `preview_only` items; connector Slice B: synchronous analysis + deletion. Frontend consumes `/thumbnail`. Alembic migration `a1b2c3d4e5f7`. 11 tests in `tests/test_storage_pivot.py`. Total: 363/363 pass. Committed `c11e8c8`, deployed to EC2.
+- **Artifacts produced:** `src/models.py`, `src/storage/file_store.py`, `src/api/routes/media.py`, `src/connectors/sync_service.py`, `alembic/versions/a1b2c3d4e5f7_*.py`, `tests/test_storage_pivot.py`, frontend `client.ts` + display components.
+
 ### P7-006: Auto-sync Scheduler
 - **Phase:** Phase 7 — Post-Phase 6 User-Value Features
 - **Completed:** 2026-04-07
