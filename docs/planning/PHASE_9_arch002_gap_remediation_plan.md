@@ -223,6 +223,7 @@ Begin the ARCH-002 model cleanup without destabilizing the beta aggregate model.
 - add `PreviewAsset`
 - migrate `MediaItem` away from directly owning raw storage-path semantics for concepts that are actually origin or preview concerns
 - preserve existing behavior through additive compatibility fields during rollout
+- detailed implementation scope, table boundaries, and compatibility rules are locked in `docs/planning/P9-003_plan.md`
 
 ### Why third
 
@@ -279,9 +280,9 @@ Approved. Because some connector items can still remain `full` indefinitely afte
 ## Recommended Order of Approval
 
 1. Phase 9 direction approved.
-2. P9-001 is the immediate next workstream.
-3. Retry and interim source-aware access rules are locked.
-4. Engineer handoff can proceed without reopening these decisions.
+2. P9-001 and P9-002 have now completed in that approved order.
+3. Retry and interim source-aware access rules remain locked.
+4. P9-003 is now the next unresolved workstream and should proceed through its normal audit/approval gate before Engineer handoff.
 
 ## Architect Verdict
 

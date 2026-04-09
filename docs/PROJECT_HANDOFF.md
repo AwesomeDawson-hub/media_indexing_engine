@@ -9,10 +9,10 @@ _Update this document at the end of every session and at every workstream transi
 | Field | Value |
 |---|---|
 | **Current Phase** | Phase 9 — ARCH-002 Gap Remediation |
-| **Current Workstream** | `P9-001` planned and approved as the next implementation gate |
-| **Last Completed Work** | P8-003 (Historical Connector Preview-Only Migration) completed; operator then approved the Phase 9 remediation direction and promoted P9-001 as the next workstream (2026-04-08) |
-| **Next Task** | Prepare the Engineer handoff for `P9-001 — Zero-Transient Connector Ingestion` using `docs/planning/PHASE_9_arch002_gap_remediation_plan.md` |
-| **Next Step Requested** | Engineer begins the ingestion-boundary remediation without reopening the approved Phase 9 product decisions |
+| **Current Workstream** | None — `P9-002` completed; `P9-003` scope is accepted and awaiting Auditor review |
+| **Last Completed Work** | P9-002 (Source-Aware Original Access Hardening) completed; P9-003 scope was then locked in a dedicated plan for the next implementation gate (2026-04-09) |
+| **Next Task** | Audit and review `P9-003 — Additive Origin/Preview Domain Split` using `docs/planning/P9-003_plan.md` |
+| **Next Step Requested** | Auditor verifies the locked P9-003 scope before Engineer begins the origin/preview model migration |
 
 ## Required Reading
 
@@ -28,6 +28,7 @@ If implementation is underway, also read:
 6. **`docs/PROJECT_PLAYBOOK.md`** — safety practices and common tasks
 7. **`docs/planning/ARCH-002-reference-mode-storage.md`** — approved architectural basis for the storage pivot
 8. **`docs/planning/PHASE_9_arch002_gap_remediation_plan.md`** — current approved Phase 9 remediation plan and decision baseline
+9. **`docs/planning/P9-003_plan.md`** — locked implementation scope for the additive origin/preview domain split
 
 ## System Summary
 
@@ -95,6 +96,21 @@ When suggesting code changes:
 - Hardcoding credentials or configuration
 
 ## Recent Session Activity
+
+- **P9-003 scope resolution (2026-04-09):**
+  - `docs/planning/P9-003_plan.md` created to lock the implementation-ready scope for the additive origin/preview domain split.
+  - Locked boundary: `OriginAssetRef` is a new `MediaItem`-owned 1:1 origin locator and does not replace `SourceObject`, which remains connector sync memory.
+  - Locked applicability: `OriginAssetRef` applies to connector-backed items, local-folder items, and manual app-retained uploads.
+  - Locked migration treatment: `storage_path`, `thumbnail_path`, and `source_file_fingerprint` are true migrations with compatibility mirrors; mutation/write-back fields stay on `MediaItem` for this slice.
+  - Locked sequencing: P9-003 remains a prerequisite for P9-004 because `WriteBackOperation` should target `OriginAssetRef`, not the existing mixed locator fields.
+
+- **P9-002 completion (2026-04-09):**
+  - Shared storage guards now block source-inaccessible original reads consistently across download, convert, re-analysis, and scoring flows.
+  - The codebase now fails fast with controlled `original_at_source` behavior instead of assuming `storage_path` implies app-readable originals.
+
+- **P9-001 completion (2026-04-09):**
+  - Connector ingestion no longer writes full originals to app storage even transiently.
+  - Connector analysis now runs from caller-provided bytes and persists connector-backed `MediaItem` rows directly in `storage_mode='reference'` semantics.
 
 - **Phase 9 activation and operator approval (2026-04-08):**
   - `docs/planning/PHASE_9_arch002_gap_remediation_plan.md` is now approved rather than draft.
@@ -290,7 +306,7 @@ When suggesting code changes:
 
 - No application blockers.
 - Operational limitation remains: AWS SES production access is still pending for live password reset email sending, but this does not block Phase 5 planning.
-- Workflow gate: no documentation blocker remains for Phase 9 planning. `P9-001` is the approved next workstream, and the next workflow step is Engineer handoff for zero-transient connector ingestion.
+- Workflow gate: P9-001 and P9-002 are complete. `P9-003` now has a locked plan and the next workflow step is Auditor review before Engineer begins implementation.
 
 ## Document Ownership Note
 

@@ -31,6 +31,27 @@ Each completed workstream gets one entry in the log below, following this struct
 
 ## Completed Workstream Log
 
+### P9-003: Additive Origin/Preview Domain Split
+- **Phase:** Phase 9 — ARCH-002 Gap Remediation
+- **Completed:** 2026-04-09
+- **Objective:** Add `OriginAssetRef` and `PreviewAsset` as first-class models behind the `MediaItem` aggregate so that provider identity, asset locators, and derived previews are tracked in their own tables rather than smeared across `MediaItem` columns and `SourceObject`.
+- **Outcome:** Both tables introduced additively. `SourceObject` unchanged. `MediaItem.storage_path`/`thumbnail_path`/`source_file_fingerprint` kept as compatibility mirrors. Forward-write path covers all three ingestion code paths; backfill script handles pre-existing rows. 12 new tests, all green.
+  - **New model `OriginAssetRef`** in `src/models.py`: 1:1 with `MediaItem`; `provider_type` in (`google_drive`, `s3_compatible`, `local_folder`, `app_upload`); `source_object_id` nullable FK (set by sync_service after SourceObject committed); `app_storage_path` mirrors `MediaItem.storage_path` for app-retained items; `local_file_fingerprint` mirrors for local-folder items; `provider_object_id`/`locator_snapshot`/`revision_marker` for connector-backed items.
+  - **New model `PreviewAsset`** in `src/models.py`: many:1 with `MediaItem`; UNIQUE on `(media_item_id, variant_type)`; `variant_type='thumbnail'` for P9-003 scope; `storage_path` mirrors `MediaItem.thumbnail_path`.
+  - **New migration `b0a1c2d3e4f5`**: No-op merge of prior two heads (`a0b1c2d3e4f5` + `a1b2c3d4e5f7`).
+  - **New migration `c1b2d3e4f5a6`**: Creates `origin_asset_refs` and `preview_assets` tables with all indexes. Single Alembic head confirmed.
+  - **Modified `src/ingestion/connector_ingest.py`**: `process_connector_import` gains `provider_type`/`provider_object_id`/`revision_marker` kwargs; creates `OriginAssetRef` + `PreviewAsset` in the same transaction as `MediaItem`.
+  - **Modified `src/ingestion/upload_service.py`**: `process_upload` creates `OriginAssetRef(provider_type='app_upload', app_storage_path=storage_path)` + `PreviewAsset` in the same transaction as `MediaItem`.
+  - **Modified `src/connectors/sync_service.py`**: `_run_sync` passes `provider_type=connector_row.connector_type`, `provider_object_id=remote_obj.key`, `revision_marker=remote_obj.version` to `process_connector_import`; after `_upsert_source_object("imported")` + commit, executes `sa_update(OriginAssetRef).where(...).values(source_object_id=imported_so.id)`. `_upsert_source_object` return type changed from `None` to `SourceObject`.
+  - **New `scripts/backfill_p9_003_origin_preview.py`**: Async two-phase backfill (Phase 1: `OriginAssetRef` for all MediaItems without one; Phase 2: `PreviewAsset` thumbnail for all MediaItems with `thumbnail_path` but no PreviewAsset). Infers `provider_type` from `Source.source_type` + `SourceConnector.connector_type`. Conservative batch + dry-run + `--stop-after` controls.
+  - **New `tests/test_origin_preview_models.py`**: 12 tests covering upload path (origin ref created, app_storage_path mirrors, preview asset created), connector import path (origin ref created, app_storage_path null, provider fields stored, preview asset created, source_object_id initially null), sync path (source_object_id populated after sync), ORM relationships (origin_asset_ref, preview_assets), and duplicate upload (no second OriginAssetRef).
+- **Key decisions:**
+  - `OriginAssetRef.source_object_id` starts NULL at import time (SourceObject does not exist yet); sync_service fills it after `_upsert_source_object` + commit via `sa_update`. This avoids changing the ingestion contract and keeps the two-phase nature explicit.
+  - `upload_service` always uses `provider_type='app_upload'` regardless of source_type. The backfill correctly sets `provider_type='local_folder'` for historical local-folder items; forward correction can be made in a follow-on workstream.
+  - `_upsert_source_object` now returns `SourceObject` (previously `None`) so the caller can use `imported_so.id` without an extra query.
+  - `provider_type` default in `process_connector_import` is `"s3_compatible"` to match existing `connector_type` values in the codebase (plan said `s3`, code uses `s3_compatible`).
+- **Test count delta:** 411 → 423 (12 new P9-003 tests).
+
 ### P9-002: Source-Aware Original Access Hardening
 - **Phase:** Phase 9 — ARCH-002 Gap Remediation
 - **Completed:** 2026-04-09

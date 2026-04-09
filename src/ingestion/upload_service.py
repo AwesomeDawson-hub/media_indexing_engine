@@ -12,7 +12,7 @@ from src.curation.phash_service import compute_phash, PHASH_VERSION, phash_times
 from src.ingestion.validation import validate_file, detect_mime_type
 from src.ingestion.hashing import compute_sha256
 from src.ingestion.dedup import check_duplicate
-from src.models import MediaItem, ProcessingJob
+from src.models import MediaItem, OriginAssetRef, PreviewAsset, ProcessingJob
 from src.storage.file_store import FileStore
 
 logger = logging.getLogger(__name__)
@@ -134,6 +134,26 @@ class UploadService:
             db.add(processing_job)
             await db.flush()
             job_id = processing_job.id
+            db.add(OriginAssetRef(
+                media_item_id=media_item.id,
+                user_id=user_id,
+                source_id=source_id,
+                source_object_id=None,
+                provider_type="app_upload",
+                provider_object_id=None,
+                locator_snapshot=None,
+                revision_marker=None,
+                app_storage_path=storage_path,
+                local_file_fingerprint=None,
+            ))
+            if thumbnail_path:
+                db.add(PreviewAsset(
+                    media_item_id=media_item.id,
+                    user_id=user_id,
+                    variant_type="thumbnail",
+                    storage_path=thumbnail_path,
+                    mime_type="image/jpeg",
+                ))
             await db.commit()
         except IntegrityError:
             # Concurrent upload of identical content beat us to the commit.

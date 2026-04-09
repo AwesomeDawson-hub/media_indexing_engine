@@ -23,7 +23,7 @@ from src.ingestion.dedup import check_duplicate
 from src.ingestion.hashing import compute_sha256
 from src.ingestion.upload_service import UploadResult, _generate_thumbnail
 from src.ingestion.validation import detect_mime_type, validate_file
-from src.models import MediaItem, ProcessingJob
+from src.models import MediaItem, OriginAssetRef, PreviewAsset, ProcessingJob
 from src.storage.file_store import FileStore
 
 logger = logging.getLogger(__name__)
@@ -36,6 +36,9 @@ async def process_connector_import(
     file_bytes: bytes,
     source_id: str,
     file_store: FileStore,
+    provider_type: str = "s3_compatible",
+    provider_object_id: str | None = None,
+    revision_marker: str | None = None,
 ) -> UploadResult:
     """Import a connector-downloaded file without ever storing the full original.
 
@@ -117,6 +120,26 @@ async def process_connector_import(
         db.add(processing_job)
         await db.flush()
         job_id = processing_job.id
+        db.add(OriginAssetRef(
+            media_item_id=media_item.id,
+            user_id=user_id,
+            source_id=source_id,
+            source_object_id=None,
+            provider_type=provider_type,
+            provider_object_id=provider_object_id,
+            locator_snapshot=provider_object_id,
+            revision_marker=revision_marker,
+            app_storage_path=None,
+            local_file_fingerprint=None,
+        ))
+        if thumbnail_path:
+            db.add(PreviewAsset(
+                media_item_id=media_item.id,
+                user_id=user_id,
+                variant_type="thumbnail",
+                storage_path=thumbnail_path,
+                mime_type="image/jpeg",
+            ))
         await db.commit()
 
     except IntegrityError:

@@ -137,6 +137,9 @@ class MediaItem(Base):
     analysis_metadata: Mapped["MediaMetadata | None"] = relationship(back_populates="media_item", uselist=False)
     curation_score: Mapped["CurationScore | None"] = relationship(back_populates="media_item", uselist=False)
     mutation_history: Mapped[list["SourceMutationHistory"]] = relationship(back_populates="media_item")
+    # P9-003 origin/preview domain split
+    origin_asset_ref: Mapped["OriginAssetRef | None"] = relationship(back_populates="media_item", uselist=False)
+    preview_assets: Mapped[list["PreviewAsset"]] = relationship(back_populates="media_item")
 
 
 class ProcessingJob(Base):
@@ -408,6 +411,109 @@ class CollectionItem(Base):
 
     collection: Mapped["Collection"] = relationship(back_populates="items")
     media_item: Mapped["MediaItem"] = relationship()
+
+
+class OriginAssetRef(Base):
+    """Item-owned canonical origin locator (P9-003 / ARCH-002).
+
+    One row per MediaItem.  This is the authoritative origin reference used by
+    application-layer consumers (source-aware reads, write-back, availability
+    checks).  It does NOT replace SourceObject, which remains the source-scoped
+    connector sync-memory record.
+
+    Canonical ``provider_type`` values in this slice:
+      google_drive | s3_compatible | local_folder | app_upload
+    """
+    __tablename__ = "origin_asset_refs"
+    __table_args__ = (
+        UniqueConstraint("media_item_id", name="uq_origin_asset_refs_media_item_id"),
+        Index("ix_origin_asset_refs_user_id", "user_id"),
+        Index("ix_origin_asset_refs_source_id", "source_id"),
+        Index("ix_origin_asset_refs_source_object_id", "source_object_id"),
+        Index("ix_origin_asset_refs_provider_type_provider_object_id",
+              "provider_type", "provider_object_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    media_item_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("media_items.id"), nullable=False
+    )
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False
+    )
+    # Denormalized source join helper — mirrors MediaItem.source_id
+    source_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("sources.id"), nullable=True
+    )
+    # FK to SourceObject; NULL for non-connector items and reference items whose
+    # SourceObject has not yet been committed when OriginAssetRef was created.
+    source_object_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("source_objects.id"), nullable=True
+    )
+    # Identifies the origin system.  Locked values for P9-003: see class docstring.
+    provider_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    # Stable provider object identifier (e.g. Drive file ID, S3 key).
+    provider_object_id: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    # Display-oriented path/key snapshot; for initial connector items same as provider_object_id.
+    locator_snapshot: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    # Version / revision / etag marker from the source.
+    revision_marker: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # App-retained original path — authoritative for app_upload items.
+    # Mirrors MediaItem.storage_path during rollout.
+    app_storage_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Canonical local-folder fingerprint — authoritative for local_folder items.
+    # Mirrors MediaItem.source_file_fingerprint during rollout.
+    local_file_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
+    )
+
+    media_item: Mapped["MediaItem"] = relationship(back_populates="origin_asset_ref")
+
+
+class PreviewAsset(Base):
+    """Application-retained visual derivative used for gallery and detail preview (P9-003 / ARCH-002).
+
+    One row per retained preview variant per MediaItem.
+    Initial variant_type is 'thumbnail'.
+
+    The authoritative preview path for a MediaItem is the PreviewAsset with
+    variant_type='thumbnail'.  MediaItem.thumbnail_path is kept as a compatibility
+    mirror during rollout.
+    """
+    __tablename__ = "preview_assets"
+    __table_args__ = (
+        UniqueConstraint("media_item_id", "variant_type", name="uq_preview_assets_item_variant"),
+        Index("ix_preview_assets_user_id", "user_id"),
+        Index("ix_preview_assets_storage_path", "storage_path"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    media_item_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("media_items.id"), nullable=False
+    )
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False
+    )
+    # Locked initial value: 'thumbnail'.  Future-safe for 'preview'.
+    variant_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    storage_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    file_size: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    checksum: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
+    )
+
+    media_item: Mapped["MediaItem"] = relationship(back_populates="preview_assets")
 
 
 class SourceMutationHistory(Base):

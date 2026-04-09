@@ -8,7 +8,7 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | **Current Phase** | Phase 9 — ARCH-002 Gap Remediation |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | None — P9-002 completed; P9-003 is next |
+| **Active Workstream** | None — P9-003 completed; P9-004 (WriteBackOperation Domain Split) awaiting Architect/Auditor review |
 | **Last Updated** | 2026-04-09 |
 | **Updated By** | AI — Engineer |
 
@@ -18,15 +18,19 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | Docs aligned | Yes |
 | Drift detected | No |
-| All docs in sync | Yes — updated 2026-04-09 for P9-002 completion |
+| All docs in sync | Yes — updated 2026-04-09 for P9-003 scope resolution |
 | Registry complete | Yes |
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
-| Test status | 411/411 pass (394 pre-P9-002 + 17 new P9-002 tests), 1 skipped |
+| Test status | 423/423 pass (411 pre-P9-003 + 12 new P9-003 tests), 1 skipped |
 | Active workstream | None |
-| Last governance audit | 2026-04-09 — P9-002 completed; P9-003 next |
+| Last governance audit | 2026-04-09 — P9-003 completed; P9-004 scope pending Architect review |
 
 ## Recent Activity
+
+- **2026-04-09:** P9-003 (Additive Origin/Preview Domain Split) **completed**. Delivers `OriginAssetRef` (1:1 with `MediaItem`, tracks provider identity + locator) and `PreviewAsset` (many:1 with `MediaItem`, `variant_type='thumbnail'`) as first-class models. `SourceObject` unchanged — remains connector sync memory. `MediaItem.storage_path`/`thumbnail_path`/`source_file_fingerprint` kept as compatibility mirrors. Forward-write coverage: `upload_service.process_upload` creates `OriginAssetRef(provider_type='app_upload')` + `PreviewAsset`; `process_connector_import` creates both with provider kwargs; `sync_service._run_sync` passes `provider_type`/`provider_object_id`/`revision_marker` and updates `OriginAssetRef.source_object_id` after `SourceObject` is committed. Backfill script `scripts/backfill_p9_003_origin_preview.py` handles pre-P9-003 rows. 12 new tests in `tests/test_origin_preview_models.py`, 423/423 pass.
+
+- **2026-04-09:** P9-003 (Additive Origin/Preview Domain Split) **scope locked by Architect**. New plan `docs/planning/P9-003_plan.md` resolves the three remaining implementation ambiguities before Engineer work begins. Locked decisions: (1) `OriginAssetRef` is a new 1:1 child of `MediaItem`, not a replacement for `SourceObject`; `SourceObject` remains connector sync memory while `OriginAssetRef` becomes the item-owned origin locator; (2) `OriginAssetRef` applies to all media items, including manual app-retained uploads and local-folder items, not just connector-backed items; (3) `storage_path`, `thumbnail_path`, and `source_file_fingerprint` become true migrations with additive compatibility mirrors; mutation/write-back fields stay on `MediaItem` for this slice; (4) P9-003 remains a prerequisite for P9-004 because `WriteBackOperation` should target `OriginAssetRef`, not the existing `MediaItem`/`SourceObject` field smear.
 
 - **2026-04-09:** P9-002 (Source-Aware Original Access Hardening) **completed**. Hardens every API surface that assumes `storage_path` means the original is readable from app storage. Delivers: (1) `src/api/storage_guards.py` — shared `original_is_accessible()` + `assert_original_accessible()` helpers raising 409 `original_at_source`; (2) `reanalyze` + `reanalyze-batch` endpoints guarded — reference/preview_only items rejected or silently skipped; (3) `delete_batch` fixed — `None` storage_path no longer crashes, thumbnail deletion guarded separately; (4) `download` + `download-batch` + `convert-png` endpoints guarded; (5) `analyze_media_item` in processor.py — fail-fast guard before any job-running work for non-full items; (6) `score_group` in scoring_service.py — non-full items skipped with `failed_count` increment; (7) 17 new tests in `tests/test_storage_guards.py`. 411/411 pass (1 skipped).
 
@@ -154,7 +158,7 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 ## Notes for Next Session
 
 - **Phase 9 is now active.** Use `docs/planning/PHASE_9_arch002_gap_remediation_plan.md` as the approved architecture baseline.
-- **Immediate execution target:** prepare the Engineer handoff for `P9-001 — Zero-Transient Connector Ingestion` and implement the ingestion-boundary fix before any deeper domain-model cleanup.
+- **Immediate planning target:** review `docs/planning/P9-003_plan.md`, then run an Auditor pass on the locked P9-003 scope before Engineer begins the additive origin/preview migration.
 - **Locked rollout rules:** long-term connector retry uses source re-fetch; synchronous sync-flow analysis is allowed only as a short-term rollout tactic if needed. Storage-assuming features should return controlled source-aware errors first unless cheap, reliable on-demand source fetch is already available for that surface.
 - **SES activation (when AWS approves):** `ssh -i "C:\Code\AWS\media-indexing-key.pem" ubuntu@vyzindex.com "echo 'EMAIL_FROM=noreply@vyzindex.com' >> ~/media_indexing_engine/.env && docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build backend"`
 - **AWS deploy command:** `ssh -i "C:\Code\AWS\media-indexing-key.pem" ubuntu@vyzindex.com "cd ~/media_indexing_engine && git pull && docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build"`
@@ -162,4 +166,4 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 - **Stripe note:** All billing runs in dev/test mode. To enable: set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_ADVANCED`, `STRIPE_PRICE_ID_PREMIUM` on the server.
 - **Before inviting broader beta users:** rotate the `ANTHROPIC_API_KEY`, `POSTGRES_PASSWORD`, and `AUTH_SECRET_KEY`.
 - **Schema changes** require `alembic revision --autogenerate` + review + `alembic upgrade head`. Back up AWS DB before any migration deploy.
-- **Test status:** 386/386 pass. Tests run from `c:\AI Engineering\Projects\media_indexing_engine` with `.venv\Scripts\python.exe -m pytest tests/ -q --tb=short`.
+- **Test status:** 411/411 pass, 1 skipped. Tests run from `c:\AI Engineering\Projects\media_indexing_engine` with `.venv\Scripts\python.exe -m pytest tests/ -q --tb=short`.

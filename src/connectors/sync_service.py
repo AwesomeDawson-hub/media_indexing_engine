@@ -22,13 +22,13 @@ import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.connectors.base import ConnectorBase
 from src.connectors.factory import build_connector
 from src.connectors.secrets import decrypt_credentials
-from src.models import Source, SourceConnector, SourceObject, SyncRun
+from src.models import OriginAssetRef, Source, SourceConnector, SourceObject, SyncRun
 from src.ingestion.upload_service import UploadService
 from src.storage.file_store import FileStore
 from src.config import settings
@@ -253,6 +253,9 @@ async def _run_sync(
                 file_bytes=file_bytes,
                 source_id=source.id,
                 file_store=file_store,
+                provider_type=connector_row.connector_type,
+                provider_object_id=remote_obj.key,
+                revision_marker=remote_obj.version,
             )
         except Exception as exc:
             logger.warning("Upload failed for %s: %s", remote_obj.key, exc)
@@ -312,12 +315,19 @@ async def _run_sync(
 
         # P8-002: persist SourceObject identity BEFORE calling analyze_media_item so the
         # processor's eligibility check can find it (Decision 9: connector safety contract).
-        _upsert_source_object(
+        imported_so = _upsert_source_object(
             db, so, source.id, user_id, remote_obj, sync_run.id, "imported",
             None, media_item_id=media_item.id, content_hash=media_item.content_hash,
         )
         result.imported_count += 1
         sync_run.imported_count = result.imported_count
+        await db.commit()
+        # P9-003: Link OriginAssetRef to the now-committed SourceObject
+        await db.execute(
+            sa_update(OriginAssetRef)
+            .where(OriginAssetRef.media_item_id == media_item.id)
+            .values(source_object_id=imported_so.id)
+        )
         await db.commit()
 
         # P9-001: Run analysis synchronously with caller-provided bytes.
@@ -395,7 +405,7 @@ def _upsert_source_object(
     *,
     media_item_id: str | None = None,
     content_hash: str | None = None,
-) -> None:
+) -> SourceObject:
     """Insert or update a SourceObject row in the session (not yet committed)."""
     now = datetime.now(timezone.utc)
     if existing is None:
@@ -414,17 +424,19 @@ def _upsert_source_object(
         )
         db.add(so)
     else:
-        existing.external_version = remote_obj.version
-        existing.external_last_modified_at = remote_obj.last_modified_at
-        existing.external_size = remote_obj.size
-        existing.last_sync_run_id = sync_run_id
+        so = existing
+        so.external_version = remote_obj.version
+        so.external_last_modified_at = remote_obj.last_modified_at
+        so.external_size = remote_obj.size
+        so.last_sync_run_id = sync_run_id
         if media_item_id is not None:
-            existing.last_imported_media_item_id = media_item_id
+            so.last_imported_media_item_id = media_item_id
         if content_hash is not None:
-            existing.last_content_hash = content_hash
-        existing.state = state
-        existing.last_error = last_error
-        existing.updated_at = now
+            so.last_content_hash = content_hash
+        so.state = state
+        so.last_error = last_error
+        so.updated_at = now
+    return so
 
 
 def _get_vision_provider():
