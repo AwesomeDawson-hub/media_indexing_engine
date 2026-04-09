@@ -31,6 +31,23 @@ Each completed workstream gets one entry in the log below, following this struct
 
 ## Completed Workstream Log
 
+### P9-002: Source-Aware Original Access Hardening
+- **Phase:** Phase 9 — ARCH-002 Gap Remediation
+- **Completed:** 2026-04-09
+- **Objective:** Harden every API surface that assumes `storage_path` == original readable from app storage. Apply controlled 409 `original_at_source` responses as the default interim behavior per ADR-031.
+- **Outcome:** All identified surfaces hardened. Shared guard module introduced. `delete_batch` crash on `None` storage_path fixed. 17 new tests, all green.
+  - **New file:** `src/api/storage_guards.py` — `original_is_accessible(item) -> bool` and `assert_original_accessible(item) -> None` helpers; raises `HTTPException(409)` with `error_code='original_at_source'` for any item that is not `storage_mode='full'` with a non-null `storage_path`.
+  - **Modified:** `src/api/routes/analysis.py` — `reanalyze` guarded with `assert_original_accessible` (before the "already in progress" check); `reanalyze_batch` silently skips non-full items; `delete_batch` split unconditional `file_store.delete(item.storage_path)` into two separately-guarded blocks (`if item.storage_path` / `if item.thumbnail_path`).
+  - **Modified:** `src/api/routes/download.py` — `download_file` and `convert_to_png` guarded with `assert_original_accessible`; `download_batch` skips non-full items with `skipped` increment.
+  - **Modified:** `src/analysis/processor.py` — `analyze_media_item` gains a fail-fast guard immediately after the "already completed" check; non-full items fail the job with a clear error message, release quota reservation, and return before any processing begins.
+  - **Modified:** `src/curation/scoring_service.py` — `score_group` skips non-full items at the start of the item loop, incrementing `failed_count` rather than crashing on a missing `file_store.read()`.
+  - **New file:** `tests/test_storage_guards.py` — 17 tests covering: helper unit tests (reference, preview_only, full modes); reanalyze 409 + batch skip; download 409 + batch skip; convert-png 409; delete_batch none-crash + thumbnail-cleanup; processor fail-fast for reference and preview_only; score_group skip.
+- **Key decisions:**
+  - ADR-031 interim rule: 409 `original_at_source` is the correct default for all storage-assuming surfaces. No on-demand source fetch in this slice.
+  - One shared guard module (`storage_guards.py`) instead of duplicating the check at every call site — keeps the condition definition in one place for the eventual ADR-031 final implementation.
+  - `delete_batch` uses best-effort deletion (no 409) since deletion should always succeed for the DB row regardless of file state; the file deletion is simply skipped when `storage_path` or `thumbnail_path` is None.
+- **Test count delta:** 394 → 411 (17 new P9-002 tests).
+
 ### P9-001: Zero-Transient Connector Ingestion
 - **Phase:** Phase 9 — ARCH-002 Gap Remediation
 - **Completed:** 2026-04-09

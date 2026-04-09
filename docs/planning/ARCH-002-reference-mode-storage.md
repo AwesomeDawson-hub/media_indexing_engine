@@ -3,7 +3,7 @@
 **Project:** Media Indexing Engine  
 **Author:** Architect  
 **Date:** 2026-04-05  
-**Status:** Approved architectural basis for the reference-mode storage pivot; current implementation gate is operator approval of `P8-001_plan.md` for Slice A+B
+**Status:** Approved architectural basis for the reference-mode storage pivot; current implementation direction is Phase 9 remediation via `PHASE_9_arch002_gap_remediation_plan.md`, with `P9-001` as the next approved workstream
 
 ---
 

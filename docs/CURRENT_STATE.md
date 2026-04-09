@@ -8,7 +8,7 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | **Current Phase** | Phase 9 — ARCH-002 Gap Remediation |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | None — P9-001 completed; P9-002 is next |
+| **Active Workstream** | None — P9-002 completed; P9-003 is next |
 | **Last Updated** | 2026-04-09 |
 | **Updated By** | AI — Engineer |
 
@@ -18,15 +18,17 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | Docs aligned | Yes |
 | Drift detected | No |
-| All docs in sync | Yes — updated 2026-04-09 for P9-001 completion |
+| All docs in sync | Yes — updated 2026-04-09 for P9-002 completion |
 | Registry complete | Yes |
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
-| Test status | 394/394 pass (386 pre-P9-001 + 8 new P9-001 tests), 1 skipped |
+| Test status | 411/411 pass (394 pre-P9-002 + 17 new P9-002 tests), 1 skipped |
 | Active workstream | None |
-| Last governance audit | 2026-04-09 — P9-001 completed; P9-002 next |
+| Last governance audit | 2026-04-09 — P9-002 completed; P9-003 next |
 
 ## Recent Activity
+
+- **2026-04-09:** P9-002 (Source-Aware Original Access Hardening) **completed**. Hardens every API surface that assumes `storage_path` means the original is readable from app storage. Delivers: (1) `src/api/storage_guards.py` — shared `original_is_accessible()` + `assert_original_accessible()` helpers raising 409 `original_at_source`; (2) `reanalyze` + `reanalyze-batch` endpoints guarded — reference/preview_only items rejected or silently skipped; (3) `delete_batch` fixed — `None` storage_path no longer crashes, thumbnail deletion guarded separately; (4) `download` + `download-batch` + `convert-png` endpoints guarded; (5) `analyze_media_item` in processor.py — fail-fast guard before any job-running work for non-full items; (6) `score_group` in scoring_service.py — non-full items skipped with `failed_count` increment; (7) 17 new tests in `tests/test_storage_guards.py`. 411/411 pass (1 skipped).
 
 - **2026-04-09:** P9-001 (Zero-Transient Connector Ingestion) **completed**. Closes the ARCH-002 transient-write gap: connector-synced originals are no longer written to app storage even transiently. Delivers: (1) `src/ingestion/connector_ingest.py` — new `process_connector_import()` bypasses `file_store.save()` entirely; pipeline is validate → hash → dedup → MIME → dimensions → thumbnail-only → `MediaItem(storage_mode='reference', storage_path=None)` + `ProcessingJob`; (2) `analyze_connector_item()` in `processor.py` — single-attempt synchronous analysis from caller-provided bytes, no `file_store.read()` call, no `_attempt_preview_pivot` (item already reference mode per ADR-031); (3) `sync_service.py` — `trigger_sync` now calls `process_connector_import` + `analyze_connector_item` (upload_service parameter kept for backward compat but no longer used internally); (4) `test_preview_pivot.py` test 10 updated to assert `storage_mode='reference'`; (5) 8 new tests in `tests/test_connector_ingest.py` covering all P9-001 paths. 394/394 pass (1 skipped).
 

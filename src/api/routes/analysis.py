@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.dependencies import get_db, get_current_user_id
 from src.api.schemas import AnalysisResponse, MetadataFields, JobInfo, ReanalyzeRequest, ReanalyzeResponse, MetadataUpdateRequest, BatchOperationRequest, BatchReanalyzeResponse, BatchDeleteResponse, BatchTagRequest, BatchTagResponse
 from src.api.routes.upload import _vision_provider, _file_store, _indexing_service
+from src.api.storage_guards import assert_original_accessible
 from src.analysis.processor import analyze_media_item
 from src.analysis.schemas import MediaMetadataResult
 from src.models import MediaItem, MediaMetadata, ProcessingJob, QuotaEvent
@@ -130,6 +131,10 @@ async def reanalyze(
     if item is None:
         raise HTTPException(status_code=404, detail="Media item not found")
 
+    # P9-002: re-analysis requires the original to be in app storage.
+    # reference and preview_only items return 409 original_at_source.
+    assert_original_accessible(item)
+
     # Check for in-progress analysis
     active_result = await db.execute(
         select(ProcessingJob).where(
@@ -206,6 +211,12 @@ async def reanalyze_batch(
 
     eligible_items: list[MediaItem] = []
     for item in items:
+        # P9-002: skip reference/preview_only items — original not in app storage
+        from src.api.storage_guards import original_is_accessible
+        if not original_is_accessible(item):
+            logger.info("Skipping %s — original not in app storage (storage_mode=%s)", item.id, item.storage_mode)
+            continue
+
         # Skip items with in-progress analysis
         active_result = await db.execute(
             select(ProcessingJob).where(
@@ -286,11 +297,19 @@ async def delete_batch(
 
     deleted_ids: list[str] = []
     for item in items:
-        # Delete physical file (best-effort)
-        try:
-            await _file_store.delete(item.storage_path)
-        except Exception:
-            logger.warning("Failed to delete file for media item %s", item.id, exc_info=True)
+        # Delete original file from storage (best-effort, only when present)
+        if item.storage_path:
+            try:
+                await _file_store.delete(item.storage_path)
+            except Exception:
+                logger.warning("Failed to delete original file for media item %s", item.id, exc_info=True)
+
+        # Delete thumbnail from storage (best-effort, only when present)
+        if item.thumbnail_path:
+            try:
+                await _file_store.delete(item.thumbnail_path)
+            except Exception:
+                logger.warning("Failed to delete thumbnail for media item %s", item.id, exc_info=True)
 
         deleted_ids.append(item.id)
 

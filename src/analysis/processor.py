@@ -236,6 +236,31 @@ async def analyze_media_item(
             if job.status == "completed":
                 return
 
+            # P9-002: fail-fast guard — analyze_media_item requires a retained original.
+            # reference and preview_only items must not reach this path; they have no
+            # storage_path and cannot be re-analysed from app storage.
+            if media_item.storage_mode != "full" or not media_item.storage_path:
+                logger.error(
+                    "Job %s: analyze_media_item called for non-full item %s "
+                    "(storage_mode=%r, storage_path=%r) — failing immediately",
+                    job_id,
+                    media_item.id,
+                    media_item.storage_mode,
+                    media_item.storage_path,
+                )
+                job.status = "failed"
+                job.error_message = (
+                    f"Original not in app storage (storage_mode={media_item.storage_mode!r}). "
+                    "Use analyze_connector_item for reference-mode items."
+                )
+                job.completed_at = datetime.now(timezone.utc)
+                media_item.status = "error"
+                await db.commit()
+                if reservation_id:
+                    async with async_session() as quota_db:
+                        await _quota_service.release(quota_db, reservation_id)
+                return
+
             now = datetime.now(timezone.utc)
             job.status = "running"
             job.started_at = now

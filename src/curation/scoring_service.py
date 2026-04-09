@@ -292,6 +292,18 @@ async def score_group(
     failed_count = 0
 
     for item in group_items:
+        # P9-002: skip items whose original is not in app storage — cannot score without bytes.
+        # reference and preview_only items are counted as skipped/failed so the group
+        # can still produce a best_pick from the scorable members.
+        if item.storage_mode != "full" or not item.storage_path:
+            logger.warning(
+                "Scoring: skipping item=%s \u2014 original not in app storage (storage_mode=%r)",
+                item.id,
+                item.storage_mode,
+            )
+            failed_count += 1
+            continue
+
         try:
             file_bytes = await file_store.read(item.storage_path)
         except Exception as exc:  # noqa: BLE001

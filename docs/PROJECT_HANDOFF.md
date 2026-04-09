@@ -8,11 +8,11 @@ _Update this document at the end of every session and at every workstream transi
 
 | Field | Value |
 |---|---|
-| **Current Phase** | Phase 8 — Reference-Mode Storage Pivot |
-| **Current Workstream** | None — `P8-001` planned and awaiting approval |
-| **Last Completed Work** | P7-006 (Auto-sync Scheduler) completed; Phase 8 planning is now active and P8-001 is the new storage-pivot implementation gate (2026-04-08) |
-| **Next Task** | Review and approve `P8-001 — Reference-Mode Storage Pivot (Slice A+B)` using `docs/planning/P8-001_plan.md` |
-| **Next Step Requested** | Operator reviews the Phase 8 Slice A+B storage-pivot plan before Engineer begins implementation |
+| **Current Phase** | Phase 9 — ARCH-002 Gap Remediation |
+| **Current Workstream** | `P9-001` planned and approved as the next implementation gate |
+| **Last Completed Work** | P8-003 (Historical Connector Preview-Only Migration) completed; operator then approved the Phase 9 remediation direction and promoted P9-001 as the next workstream (2026-04-08) |
+| **Next Task** | Prepare the Engineer handoff for `P9-001 — Zero-Transient Connector Ingestion` using `docs/planning/PHASE_9_arch002_gap_remediation_plan.md` |
+| **Next Step Requested** | Engineer begins the ingestion-boundary remediation without reopening the approved Phase 9 product decisions |
 
 ## Required Reading
 
@@ -27,7 +27,7 @@ If implementation is underway, also read:
 5. **`docs/PROJECT_MAP.md`** — codebase structure
 6. **`docs/PROJECT_PLAYBOOK.md`** — safety practices and common tasks
 7. **`docs/planning/ARCH-002-reference-mode-storage.md`** — approved architectural basis for the storage pivot
-8. **`docs/planning/P8-001_plan.md`** — current approval-gate plan for Phase 8 reference-mode storage Slice A+B
+8. **`docs/planning/PHASE_9_arch002_gap_remediation_plan.md`** — current approved Phase 9 remediation plan and decision baseline
 
 ## System Summary
 
@@ -96,11 +96,28 @@ When suggesting code changes:
 
 ## Recent Session Activity
 
+- **Phase 9 activation and operator approval (2026-04-08):**
+  - `docs/planning/PHASE_9_arch002_gap_remediation_plan.md` is now approved rather than draft.
+  - Operator locked five implementation decisions: close the transient-write gap now; use source re-fetch as the long-term retry rule; allow synchronous sync-flow analysis only as a short-term rollout tactic if needed; use controlled source-aware errors first for storage-assuming features unless cheap/reliable on-demand source fetch already exists; use additive domain evolution instead of a big-bang `MediaItem` rewrite; include operational audit/cleanup of already-retained connector originals.
+  - `P9-001 — Zero-Transient Connector Ingestion` is now the next approved workstream.
+
+- **P8-003 planning/governance activation (2026-04-08):**
+  - `docs/planning/P8-003_plan.md` became the Phase 8 approval gate at that time.
+  - The plan defines the historical connector preview-only migration as a one-time operational script, not an API endpoint or startup hook.
+  - Missing thumbnails are explicitly backfilled in-scope for otherwise eligible historical connector items before `_attempt_preview_pivot()` is invoked.
+  - The plan locks conservative batch controls, rerun-safe idempotency, and log-based operator visibility.
+  - Script execution examples now use the real Docker Compose backend service name: `backend`.
+  - That approval-gate state is now historical because Phase 9 is active and `P9-001` is the next approved workstream.
+
+- **P8-002 completion (2026-04-08):**
+  - `analyze_media_item()` now owns the replay-safe preview-only transition path via `_attempt_preview_pivot()`.
+  - Eligibility is derived from persisted source state, not a transient enqueue-time flag.
+  - Connector items require a durable `SourceObject`; `source_type='local_folder'` items require a persisted `source_file_fingerprint`; manual `__uploads__` items remain ineligible.
+  - Sync-service deletion logic was removed after connector identity ordering was made safe for processor-owned pivot evaluation.
+
 - **P8-001 planning activation (2026-04-08):**
-  - Phase 8 planning is now active for the reference-mode storage pivot.
-  - `docs/planning/P8-001_plan.md` is the current operator approval gate for Slice A+B.
-  - `docs/planning/ARCH-002-reference-mode-storage.md` remains the approved architecture basis, but no longer references the old P7-004 gate.
-  - `P8-001_plan.md` now includes explicit rollout sequencing, post-deploy validation, rollback posture for synchronous deletion of retained originals on newly connector-synced items, and clear wording that the retained 800px JPEG is the preview-class derivative for this slice.
+  - Phase 8 planning became active for the reference-mode storage pivot with Slice A+B as the first implementation gate.
+  - That approval gate is now historical because P8-001 and P8-002 completed, P8-003 later superseded it within Phase 8, and Phase 9 has now promoted `P9-001` as the current approved next workstream.
 
 - **P7-004 revision after Auditor findings (2026-04-05):**
   - `docs/planning/P7-004_plan.md` and `docs/planning/ARCH-002-reference-mode-storage.md` were revised to resolve the critical contradiction between the mandatory source-mutation contract and the completed P7-002 `drive.readonly` Google Drive foundation.
@@ -273,7 +290,7 @@ When suggesting code changes:
 
 - No application blockers.
 - Operational limitation remains: AWS SES production access is still pending for live password reset email sending, but this does not block Phase 5 planning.
-- Workflow gate: no Phase 8 implementation workstream is active yet. `P8-001` is the current approval gate and is awaiting operator approval before Engineer begins the Slice A+B storage-pivot implementation.
+- Workflow gate: no documentation blocker remains for Phase 9 planning. `P9-001` is the approved next workstream, and the next workflow step is Engineer handoff for zero-transient connector ingestion.
 
 ## Document Ownership Note
 

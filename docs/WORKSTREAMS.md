@@ -39,18 +39,19 @@ _Post-Phase 6 workstreams are being planned incrementally as the beta product ex
 - **Plan:** `docs/planning/PHASE_9_arch002_gap_remediation_plan.md`
 - **Summary:** `IMPLEMENTATION_STATUS.md` — P9-001 entry
 
+### P9-002: Source-Aware Original Access Hardening
+- **Objective:** Audit and harden every subsystem that still assumes `storage_path` means the original is readable from app storage. Controlled source-aware errors are the default interim behavior unless on-demand source fetch is already cheap and reliable enough for the specific surface.
+- **Phase:** Phase 9 — ARCH-002 Gap Remediation
+- **Status:** Completed — 2026-04-09
+- **Size:** Medium-Large
+- **Plan:** `docs/planning/PHASE_9_arch002_gap_remediation_plan.md`
+- **Summary:** `IMPLEMENTATION_STATUS.md` — P9-002 entry
+
 ---
 
 ## Planned
 
 _Post-Phase 9 workstreams are being planned incrementally._
-
-### P9-002: Source-Aware Original Access Hardening
-- **Objective:** Audit and harden every subsystem that still assumes `storage_path` means the original is readable from app storage. Controlled source-aware errors are the default interim behavior unless on-demand source fetch is already cheap and reliable enough for the specific surface.
-- **Phase:** Phase 9 — ARCH-002 Gap Remediation
-- **Status:** Planned
-- **Size:** Medium-Large
-- **Plan:** `docs/planning/PHASE_9_arch002_gap_remediation_plan.md`
 
 ### P9-003: Additive Origin/Preview Domain Split
 - **Objective:** Add first-class origin and preview models behind the existing `MediaItem` aggregate so origin identity and retained preview assets stop being represented through loosely related fields.

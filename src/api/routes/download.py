@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.dependencies import get_db, get_current_user_id
 from src.api.schemas import BatchDownloadRequest, ConvertResponse
 import src.api.routes.upload as upload_mod
+from src.api.storage_guards import assert_original_accessible
 from src.analysis.schemas import MediaMetadataResult
 from src.config import settings
 from src.enrichment.embedder import MetadataEmbedder
@@ -91,6 +92,9 @@ async def download_file(
     item = result.scalar_one_or_none()
     if item is None:
         raise HTTPException(status_code=404, detail="Media item not found")
+
+    # P9-002: original must be in app storage to embed metadata and serve enriched file
+    assert_original_accessible(item)
 
     # Load metadata
     meta_result = await db.execute(
@@ -171,6 +175,12 @@ async def download_batch(
                 skipped += 1
                 continue
 
+            # P9-002: skip items whose original is not in app storage
+            from src.api.storage_guards import original_is_accessible
+            if not original_is_accessible(item):
+                skipped += 1
+                continue
+
             file_bytes = await upload_mod._file_store.read(item.storage_path)
             metadata_result = _metadata_to_result(meta)
             enrichment = _embedder.embed(file_bytes, item.mime_type, metadata_result, item.original_filename)
@@ -221,6 +231,9 @@ async def convert_to_png(
     # Verify format
     if item.mime_type not in ("image/bmp", "image/gif"):
         raise HTTPException(status_code=400, detail="Only BMP and GIF files can be converted (other formats support metadata natively)")
+
+    # P9-002: conversion requires the original to be in app storage
+    assert_original_accessible(item)
 
     # Load metadata
     meta_result = await db.execute(
