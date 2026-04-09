@@ -41,17 +41,17 @@ This document tracks all work items for the Media Indexing Engine through their 
 - **Plan:** `docs/planning/PHASE_9_arch002_gap_remediation_plan.md`
 - **Summary:** `IMPLEMENTATION_STATUS.md` — P9-002 entry
 
-## Planned
-
-_Post-Phase 9 workstreams are being planned incrementally._
-
 ### P9-003: Additive Origin/Preview Domain Split
 - **Objective:** Add first-class origin and preview models behind the existing `MediaItem` aggregate so origin identity and retained preview assets stop being represented through loosely related fields.
 - **Phase:** Phase 9 — ARCH-002 Gap Remediation
-- **Status:** Planned — architect scope accepted; Auditor pass pending before Engineer handoff
+- **Status:** Completed — 2026-04-09
 - **Size:** Large
-- **Architect review:** Complete — scope locked 2026-04-09
 - **Plan:** `docs/planning/P9-003_plan.md`
+- **Summary:** `IMPLEMENTATION_STATUS.md` — P9-003 entry
+
+## Planned
+
+_Post-Phase 9 workstreams are being planned incrementally._
 
 ### P9-004: Source Capability and Durable Write-Back Operations
 - **Objective:** Make source capability state and write-back intent durable first-class subsystems after origin references and source-aware original access semantics are stable.
