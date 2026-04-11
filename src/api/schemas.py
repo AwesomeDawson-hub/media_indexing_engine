@@ -527,14 +527,40 @@ class ConnectorResponse(BaseModel):
     model_config = {"from_attributes": True}
 
     @classmethod
-    def from_connector(cls, connector) -> "ConnectorResponse":
+    def from_connector(cls, connector, *, has_write_scope: bool | None = None) -> "ConnectorResponse":
         """Build a ConnectorResponse from an ORM SourceConnector row.
 
         Computes ``has_write_scope`` from the stored ``granted_scopes`` field.
         """
         from src.auth.google_drive_oauth import scope_has_write
-        resp = cls.model_validate(connector)
-        resp.has_write_scope = scope_has_write(getattr(connector, "granted_scopes", None))
+        payload = {
+            "id": getattr(connector, "id"),
+            "source_id": getattr(connector, "source_id"),
+            "connector_type": getattr(connector, "connector_type"),
+            "remote_container_id": getattr(connector, "remote_container_id"),
+            "remote_container_label": getattr(connector, "remote_container_label", None),
+            "authorized_account_provider_id": getattr(connector, "authorized_account_provider_id", None),
+            "authorized_account_email": getattr(connector, "authorized_account_email", None),
+            "authorized_account_display_name": getattr(connector, "authorized_account_display_name", None),
+            "target_folder_id": getattr(connector, "target_folder_id", None),
+            "target_folder_label": getattr(connector, "target_folder_label", None),
+            "target_collection_id": getattr(connector, "target_collection_id", None),
+            "prefix": getattr(connector, "prefix", None),
+            "region": getattr(connector, "region", None),
+            "endpoint_url": getattr(connector, "endpoint_url", None),
+            "config_validated_at": getattr(connector, "config_validated_at", None),
+            "last_validation_error": getattr(connector, "last_validation_error", None),
+            "created_at": getattr(connector, "created_at"),
+            "updated_at": getattr(connector, "updated_at"),
+            "auto_sync_enabled": getattr(connector, "auto_sync_enabled", False),
+            "auto_sync_interval_minutes": getattr(connector, "auto_sync_interval_minutes", 60),
+        }
+        if payload["auto_sync_enabled"] is None:
+            payload["auto_sync_enabled"] = False
+        if payload["auto_sync_interval_minutes"] is None:
+            payload["auto_sync_interval_minutes"] = 60
+        resp = cls.model_validate(payload)
+        resp.has_write_scope = has_write_scope if has_write_scope is not None else scope_has_write(getattr(connector, "granted_scopes", None))
         return resp
 
 

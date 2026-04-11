@@ -25,6 +25,14 @@ This document tracks all work items for the Media Indexing Engine through their 
 
 ## Completed (Phase 9)
 
+### P9-004: Source Capability and Durable Write-Back Operations
+- **Objective:** Make source capability state and write-back intent durable first-class subsystems after origin references and source-aware original access semantics are stable.
+- **Phase:** Phase 9 — ARCH-002 Gap Remediation
+- **Status:** Completed and closed after final Auditor re-review — 2026-04-10
+- **Size:** Large
+- **Plan:** `docs/planning/P9-004_plan.md`
+- **Summary:** `IMPLEMENTATION_STATUS.md` — P9-004 entry and P9-004 Auditor remediation entry
+
 ### P9-001: Zero-Transient Connector Ingestion
 - **Objective:** Refactor connector ingestion so connector-synced originals are never written to app storage, even transiently. Introduce `storage_mode='reference'` as a new MediaItem class for connector-ingested items. Add `analyze_connector_item()` to the processor so analysis runs from caller-provided bytes with no `file_store.read()` dependency.
 - **Phase:** Phase 9 — ARCH-002 Gap Remediation
@@ -49,16 +57,17 @@ This document tracks all work items for the Media Indexing Engine through their 
 - **Plan:** `docs/planning/P9-003_plan.md`
 - **Summary:** `IMPLEMENTATION_STATUS.md` — P9-003 entry
 
+### P9-005: Local Working-Folder Intake and Eliminate App-Retained Browser Originals
+- **Objective:** Replace the current browser/local retained-original upload path with working-folder-first local intake so new drag-drop or file-selected items no longer create permanent AWS-retained originals.
+- **Phase:** Phase 9 — ARCH-002 Gap Remediation
+- **Status:** Completed — 2026-04-10
+- **Size:** Large
+- **Plan:** `docs/planning/P9-005_plan.md`
+- **Summary:** `IMPLEMENTATION_STATUS.md` — P9-005 entry
+
 ## Planned
 
 _Post-Phase 9 workstreams are being planned incrementally._
-
-### P9-004: Source Capability and Durable Write-Back Operations
-- **Objective:** Make source capability state and write-back intent durable first-class subsystems after origin references and source-aware original access semantics are stable.
-- **Phase:** Phase 9 — ARCH-002 Gap Remediation
-- **Status:** Planned
-- **Size:** Large
-- **Plan:** `docs/planning/PHASE_9_arch002_gap_remediation_plan.md`
 
 ---
 

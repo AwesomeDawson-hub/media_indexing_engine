@@ -52,6 +52,11 @@ export interface UploadResponse {
   created_at: string;
 }
 
+export interface LocalFolderUploadRequest {
+  source_id?: string;
+  local_file_path?: string;
+}
+
 export interface BatchFileResult {
   filename: string;
   status: string;

@@ -16,6 +16,13 @@ from src.api.schemas import (
 )
 from src.api.routes.upload import _file_store
 from src.analysis.drive_mutation_service import attempt_drive_rename_after_analysis
+from src.analysis.writeback_operation_service import (
+    OP_STATE_FAILED,
+    OP_STATE_PENDING,
+    bootstrap_writeback_operation_from_mirror,
+    get_source_connector,
+    get_writeback_operation,
+)
 from src.config import settings
 from src.curation.phash_service import find_similar, PHASH_THRESHOLD
 from src.curation.scoring_service import load_scores_for_items, find_best_pick, score_group
@@ -610,7 +617,36 @@ async def retry_writeback(
     if item is None:
         raise HTTPException(status_code=404, detail="Media item not found")
 
-    if item.mutation_state != "pending_writeback":
+    # P9-004 locked scope: server-side write-back retry is Drive-only.
+    # Reject non-Drive items unconditionally — even if a backfill-created
+    # WriteBackOperation row exists for the item.
+    connector = await get_source_connector(db, item)
+    is_drive_backed = connector is not None and connector.connector_type == "google_drive"
+    if not is_drive_backed:
+        raise HTTPException(
+            status_code=422,
+            detail="Only items in 'pending_writeback' state can be retried.",
+        )
+
+    operation = await get_writeback_operation(
+        db,
+        media_item_id=item.id,
+        operation_type="rename",
+    )
+    if operation is None and item.mutation_state is not None:
+        operation = await bootstrap_writeback_operation_from_mirror(
+            db,
+            media_item=item,
+            operation_type="rename",
+        )
+
+    if operation is not None:
+        if operation.state not in {OP_STATE_PENDING, OP_STATE_FAILED}:
+            raise HTTPException(
+                status_code=422,
+                detail="Only items in 'pending_writeback' state can be retried.",
+            )
+    elif item.mutation_state != "pending_writeback":
         raise HTTPException(
             status_code=422,
             detail="Only items in 'pending_writeback' state can be retried.",

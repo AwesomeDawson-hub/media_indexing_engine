@@ -31,6 +31,51 @@ Each completed workstream gets one entry in the log below, following this struct
 
 ## Completed Workstream Log
 
+### P9-005: Local Working-Folder Intake and Eliminate App-Retained Browser Originals
+- **Phase:** Phase 9 — ARCH-002 Gap Remediation
+- **Completed:** 2026-04-10
+- **Objective:** Replace the retained-original browser upload path with working-folder-first transient intake so new drag-drop items are stored as `local_folder` reference-mode records.
+- **Outcome:** ARCH-002 browser/local intake gap closed. New local-folder intake path creates reference-mode items without calling `file_store.save()` for originals. Historical `app_upload` rows preserved as-is. Full suite: 459 passed, 1 skipped (+15 from 444). **Fix pass (2026-04-10):** two Auditor blockers resolved — (a) `UploadPage.tsx` `uploadOne()` now writes dropped files into the selected working folder via File System Access API before backend call; (b) quota-exceeded cleanup in `upload.py` extended to cover `OriginAssetRef`, `PreviewAsset`, and thumbnail file via `_cleanup_unqueued_local_folder_upload()` helper.
+  - **New module `src/ingestion/local_folder_ingest.py`:** `process_local_folder_intake()` pipeline mirrors `process_connector_import()` — validate → hash → dedup → MIME → dimensions → thumbnail-only → `MediaItem(storage_mode='reference')` + `OriginAssetRef(provider_type='local_folder', local_file_fingerprint=content_hash)` + `PreviewAsset`. No `file_store.save()` for original.
+  - **New endpoint `POST /api/v1/upload/local-folder`** in `src/api/routes/upload.py`: accepts file, optional `source_id` and `local_file_path` hint; calls `process_local_folder_intake()`; auto-creates a `Source(source_type='local_folder', name='__local_folder__')` via `_resolve_local_folder_source_id()`.
+  - **Frontend gate `frontend/src/pages/UploadPage.tsx`:** File System Access API availability check; working-folder selection gate (`showDirectoryPicker()`); explicit unsupported-browser fallback messaging; drag-drop disabled until folder selected; calls `api.uploadLocalFolderFile()` for all local intake.
+  - **New API client function `uploadLocalFolderFile()`** in `frontend/src/api/client.ts`: calls `POST /api/v1/upload/local-folder` with file + optional source_id + local_file_path hint.
+  - **New type `LocalFolderUploadRequest`** added to `frontend/src/types/api.ts`.
+  - **14 new tests** in `tests/test_p9_005_local_folder_intake.py` covering: no `file_store.save()`, reference mode, provider_type='local_folder', local_file_fingerprint, PreviewAsset, no app_upload ref, duplicate detection, endpoint schema, auto-source creation, reanalysis controlled outcome, historical compatibility (3 tests).
+
+### P9-004: Source Capability and Durable Write-Back Operations — Auditor Remediation
+- **Phase:** Phase 9 — ARCH-002 Gap Remediation
+- **Completed:** 2026-04-10
+- **Objective:** Remediate four Auditor findings against the P9-004 implementation to bring it into full compliance with `docs/planning/P9-004_plan.md`.
+- **Outcome:** All four findings addressed. Retry endpoint now gates on Drive-backed status unconditionally. Per-attempt history is verified for all blocked exit paths and the missing test is added. Local-browser mutation scope is explicitly protected by a new contract test. Full suite: 444 passed, 1 skipped (delta +11 from 433).
+  - **Finding 1 — Retry bootstrap scope (code fix):** `POST /media/{id}/retry-writeback` in `src/api/routes/media.py` now checks `is_drive_backed` as the first gate, before loading any `WriteBackOperation` row. Non-Drive items are rejected with 422 unconditionally, even when a backfill-created operation row exists.
+  - **Finding 2 — Blocked-path audit history (test fix):** All three flagged exit paths in `drive_mutation_service.py` (credential decrypt failure, missing refresh token, missing Drive file ID) already call `_record_mutation_attempt`. Added `test_drive_rename_decrypt_failure_records_history` to explicitly cover the decrypt-failure path.
+  - **Finding 3 — Local-browser mutation scope (contract test):** `POST /media/{id}/mutation-result` does not create `WriteBackOperation` rows. Added `test_local_mutation_result_does_not_create_writeback_operation` to document and enforce this P7-004 boundary.
+  - **Finding 4 — Test coverage (tests added):** Added 3 new tests to `tests/test_p9_004_capabilities_writeback.py`: `test_drive_rename_decrypt_failure_records_history`, `test_local_mutation_result_does_not_create_writeback_operation`, `test_retry_endpoint_rejects_non_drive_item_with_existing_operation`.
+- **Test count delta:** 433 → 444 (3 explicitly added + pre-existing tests now passing after code fix). Focused validation: 88 passed. Full regression: 444 passed, 1 skipped.
+
+### P9-004: Source Capability and Durable Write-Back Operations
+- **Phase:** Phase 9 — ARCH-002 Gap Remediation
+- **Completed:** 2026-04-09
+- **Objective:** Finish the operational side of the ARCH-002 migration by introducing connector-level capability snapshots and durable write-back intent records while preserving the existing `MediaItem` mutation-state contract for current API/frontend consumers.
+- **Outcome:** Additive durable capability/write-back layer implemented end-to-end. `SourceCapabilitySnapshot` now records one current connector-level capability row per `SourceConnector`. `WriteBackOperation` now records canonical write-back state targeted at `OriginAssetRef` with denormalized `media_item_id` for compatibility. `MediaItem` mutation fields remain same-transaction mirrors, so existing API responses and `tests/test_mutation_completion.py` assertions continue to pass unchanged. Full suite: 433 passed, 1 skipped.
+  - **New model `SourceCapabilitySnapshot`** in `src/models.py`: one current row per connector with `can_read`, `can_write`, `can_refetch`, `scope_text`, `scope_tier`, `verification_state`, verification timestamps, and operator-safe error fields.
+  - **New model `WriteBackOperation`** in `src/models.py`: one current row per `(media_item_id, operation_type)` with canonical `origin_asset_ref_id`, denormalized `media_item_id`, retry attempt count, requested rename/metadata payload, applied timestamp, and error state.
+  - **New migration `d2e3f4a5b6c7`**: creates `source_capability_snapshots` and `writeback_operations` plus all locked indexes/uniqueness constraints; no destructive schema changes.
+  - **New `src/analysis/source_capability_service.py`**: derives Drive capability from connector scope + credential health, upserts the current snapshot, and exposes a refresh path for OAuth callback and write-back gating.
+  - **New `src/analysis/writeback_operation_service.py`**: owns durable write-back upsert/bootstrap, mirror mapping, metadata payload hashing, and additive `OriginAssetRef` bootstrap for legacy rows that predate P9-003.
+  - **Modified `src/analysis/drive_mutation_service.py`**: durable `WriteBackOperation(operation_type='rename')` is now the canonical state record; Drive rename outcomes map to `applied` / `failed` / `blocked` on the operation and mirror to `MediaItem` in the same transaction. `SourceMutationHistory` remains per-attempt audit history unchanged.
+  - **Modified `src/api/routes/media.py`**: `POST /media/{id}/mutation-result` now writes durable rename/metadata-write operations when an origin ref exists; `POST /media/{id}/retry-writeback` bootstraps a missing rename operation from existing `MediaItem` mirrors when needed and permits retry for operation states `pending` and `failed`.
+  - **Modified `src/api/routes/google_drive_connector.py`**: Drive connect/upgrade callback now refreshes the current `SourceCapabilitySnapshot` when scopes are stored.
+  - **Modified `src/api/routes/connectors.py` + `src/api/schemas.py`**: `ConnectorResponse.has_write_scope` now prefers `SourceCapabilitySnapshot.can_write` when a snapshot exists and falls back to `granted_scopes` only when no snapshot is present.
+  - **New `scripts/backfill_p9_004_capabilities_writeback.py`**: async, rerunnable two-phase backfill with `--dry-run`, `--batch-size`, `--stop-after`, `--user-id`, `--source-id`, `--sleep-seconds`; exits non-zero on failures.
+  - **New `tests/test_p9_004_capabilities_writeback.py`**: covers capability snapshot derivation, connector response preference, durable write-back row creation, transient/blocking state mapping, retry bootstrap compatibility, and backfill idempotency.
+- **Key decisions:**
+  - `OriginAssetRef` remains the canonical write-back target. For legacy/historical rows that still lack an origin ref, the implementation bootstraps one additively from existing source/connectors/object mirrors instead of failing or rewriting older tests.
+  - `WriteBackOperation.state='failed'` intentionally mirrors to `MediaItem.mutation_state='pending_writeback'` so the public contract stays stable while the backend state model becomes more precise.
+  - Capability snapshots remain connector-level preconditions only. File-level 403/404 results block a specific operation but do not automatically rewrite the connector snapshot unless the error indicates connector-level auth breakage.
+- **Test count delta:** 423 → 433 (10 new P9-004 tests). Focused validation: 77 passed. Full regression: 433 passed, 1 skipped.
+
 ### P9-003: Additive Origin/Preview Domain Split
 - **Phase:** Phase 9 — ARCH-002 Gap Remediation
 - **Completed:** 2026-04-09

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.dependencies import get_db, get_current_user_id
 from src.api.schemas import UploadResponse, BatchUploadResponse, BatchFileResult
 from src.ingestion.upload_service import UploadService
+from src.ingestion.local_folder_ingest import process_local_folder_intake
 from src.analysis.processor import analyze_media_item
 from src.analysis.anthropic_provider import AnthropicVisionProvider, AnalysisError
 from src.quota.quota_service import QuotaService, QuotaExceededError, build_quota_exceeded_detail
@@ -15,7 +16,7 @@ from src.search.embedder import Embedder
 from src.search.chromadb_store import ChromaDBVectorStore
 from src.search.indexing_service import IndexingService
 from src.config import settings
-from src.models import MediaItem, ProcessingJob, Source
+from src.models import MediaItem, OriginAssetRef, PreviewAsset, ProcessingJob, Source
 
 import logging
 
@@ -64,6 +65,34 @@ async def _cleanup_unqueued_upload(db: AsyncSession, media_item_id: str, storage
         logger.warning("Failed to delete quota-rejected upload file %s", storage_path, exc_info=True)
 
 
+async def _cleanup_unqueued_local_folder_upload(
+    db: AsyncSession,
+    media_item_id: str,
+    thumbnail_path: str | None,
+) -> None:
+    """Delete a freshly created local-folder item when analysis cannot be queued.
+
+    Deletes FK children before the parent to satisfy constraint ordering:
+      OriginAssetRef → PreviewAsset → ProcessingJob → MediaItem
+    Then removes the thumbnail file from app storage.
+    """
+    await db.execute(sql_delete(OriginAssetRef).where(OriginAssetRef.media_item_id == media_item_id))
+    await db.execute(sql_delete(PreviewAsset).where(PreviewAsset.media_item_id == media_item_id))
+    await db.execute(sql_delete(ProcessingJob).where(ProcessingJob.media_item_id == media_item_id))
+    await db.execute(sql_delete(MediaItem).where(MediaItem.id == media_item_id))
+    await db.commit()
+
+    if thumbnail_path:
+        try:
+            await _file_store.delete(thumbnail_path)
+        except Exception:
+            logger.warning(
+                "Failed to delete thumbnail for quota-rejected local-folder item %s: %s",
+                thumbnail_path,
+                exc_info=True,
+            )
+
+
 _UPLOADS_SOURCE_NAME = "__uploads__"
 
 
@@ -99,6 +128,53 @@ async def _resolve_source_id(
         raise HTTPException(status_code=404, detail="Source not found")
     if source.user_id != user_id:
         raise HTTPException(status_code=403, detail="Source does not belong to you")
+    return source_id
+
+
+_LOCAL_FOLDER_SOURCE_NAME = "__local_folder__"
+
+
+async def _resolve_local_folder_source_id(
+    db: AsyncSession,
+    user_id: str,
+    source_id: str | None,
+) -> str:
+    """Return a source_id with source_type='local_folder' scoped to this user.
+
+    If source_id is provided, validates ownership and that it is a local_folder
+    source, then returns it.  If source_id is None, returns (creating if
+    necessary) the per-user system local-folder source named '__local_folder__'.
+    """
+    if source_id is None:
+        result = await db.execute(
+            select(Source).where(
+                Source.user_id == user_id,
+                Source.name == _LOCAL_FOLDER_SOURCE_NAME,
+                Source.archived_at.is_(None),
+            )
+        )
+        system_source = result.scalar_one_or_none()
+        if system_source is None:
+            system_source = Source(
+                user_id=user_id,
+                name=_LOCAL_FOLDER_SOURCE_NAME,
+                source_type="local_folder",
+            )
+            db.add(system_source)
+            await db.flush()
+        return system_source.id
+
+    result = await db.execute(select(Source).where(Source.id == source_id))
+    source = result.scalar_one_or_none()
+    if source is None:
+        raise HTTPException(status_code=404, detail="Source not found")
+    if source.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Source does not belong to you")
+    if source.source_type != "local_folder":
+        raise HTTPException(
+            status_code=400,
+            detail="Provided source_id is not a local_folder source",
+        )
     return source_id
 
 
@@ -238,4 +314,86 @@ async def upload_batch(
         duplicates=duplicates,
         failed=failed,
         results=results,
+    )
+
+
+@router.post("/upload/local-folder", status_code=201)
+async def upload_local_folder_file(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    source_id: str | None = Form(None),
+    local_file_path: str | None = Form(None),
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+) -> UploadResponse:
+    """Local working-folder intake: process bytes transiently, retain no original.
+
+    Requires the browser to have a working folder selected.  This endpoint
+    must not be called when the working-folder prerequisite cannot be satisfied;
+    the frontend is responsible for enforcing that gate.
+
+    Creates: MediaItem(storage_mode='reference', storage_path=None),
+             OriginAssetRef(provider_type='local_folder'),
+             PreviewAsset (thumbnail only).
+    """
+    resolved_source_id = await _resolve_local_folder_source_id(db, user_id, source_id)
+    file_bytes = await file.read()
+    filename = file.filename or "unnamed"
+
+    result = await process_local_folder_intake(
+        db=db,
+        user_id=user_id,
+        filename=filename,
+        file_bytes=file_bytes,
+        source_id=resolved_source_id,
+        file_store=_file_store,
+        local_file_path=local_file_path,
+    )
+
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.error)
+
+    if not result.is_duplicate and result.processing_job_id and _vision_provider:
+        try:
+            reservation_id = await _quota_service.reserve(db, user_id, result.media_item.id)
+        except QuotaExceededError as exc:
+            await _cleanup_unqueued_local_folder_upload(
+                db, result.media_item.id, result.thumbnail_path
+            )
+            raise HTTPException(
+                status_code=429,
+                detail=build_quota_exceeded_detail(exc),
+            )
+        background_tasks.add_task(
+            analyze_media_item,
+            result.processing_job_id,
+            _vision_provider,
+            _file_store,
+            _indexing_service,
+            reservation_id,
+        )
+
+    item = result.media_item
+    if result.is_duplicate:
+        return UploadResponse(
+            id=item.id,
+            content_hash=item.content_hash,
+            original_filename=item.original_filename,
+            file_size=item.file_size,
+            mime_type=item.mime_type,
+            status=item.status,
+            is_duplicate=True,
+            message="File already exists in your library",
+            created_at=item.created_at,
+        )
+
+    return UploadResponse(
+        id=item.id,
+        content_hash=item.content_hash,
+        original_filename=item.original_filename,
+        file_size=item.file_size,
+        mime_type=item.mime_type,
+        status=item.status,
+        is_duplicate=False,
+        created_at=item.created_at,
     )

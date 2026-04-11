@@ -24,7 +24,7 @@ media_indexing_engine/
 ├── tests/               → Test suite
 ├── config/              → Configuration files
 ├── docs/                → Project-specific documentation
-├── scripts/             → Automation and utility scripts (rebuild_vector_store.py; backfill_phash.py — P5-001)
+├── scripts/             → Automation and utility scripts (rebuild_vector_store.py; backfill_phash.py — P5-001; backfill_p9_003_origin_preview.py — P9-003; backfill_p9_004_capabilities_writeback.py — P9-004)
 ├── frontend/            → Web UI
 │   ├── Dockerfile       → Multi-stage build: Node.js compile + nginx serve — P3-004
 │   └── nginx.conf       → nginx SPA config + /api/ proxy to backend — P3-004
@@ -60,11 +60,13 @@ media_indexing_engine/
 
 **Workstream:** WS-001
 **Responsibilities:**
-- ORM models: User, MediaItem, ProcessingJob, MediaMetadata, QuotaEvent (**P4-002**), CurationScore (**P5-002**), Source, SourceConnector, SyncRun, SourceObject (**P5-003**)
+- ORM models: User, MediaItem, ProcessingJob, MediaMetadata, QuotaEvent (**P4-002**), CurationScore (**P5-002**), Source, SourceConnector, SyncRun, SourceObject (**P5-003**), OriginAssetRef + PreviewAsset (**P9-003**), SourceCapabilitySnapshot + WriteBackOperation (**P9-004**)
 - Unique constraint `(user_id, content_hash)` on media_items
 - User: `plan_name` (default `'basic'`), `monthly_limit` (default 500) columns added (**P4-002**)
 - MediaItem: `perceptual_hash` (VARCHAR 16), `phash_version` (VARCHAR 20), `phash_computed_at` (TIMESTAMPTZ) — nullable columns + index — **P5-001**
 - Source: extended with `connector_status` (VARCHAR 30), `last_synced_at` (TIMESTAMPTZ), `connector` relationship — **P5-003**
+- SourceCapabilitySnapshot: one current capability row per `SourceConnector` with `can_read`, `can_write`, `can_refetch`, `scope_tier`, `verification_state`, and operator-safe error fields — **P9-004**
+- WriteBackOperation: one current durable write-back row per `(media_item_id, operation_type)` targeted at `OriginAssetRef`; `media_item_id` retained as a denormalized convenience FK — **P9-004**
 - FK relationships between all entities
 
 ### src/ingestion/
@@ -76,6 +78,8 @@ media_indexing_engine/
 - `hashing.py` — SHA256 content hashing
 - `dedup.py` — Per-user `(user_id, content_hash)` duplicate check
 - `upload_service.py` — Orchestrator: validate → hash → dedup → store → DB records → enqueue job; computes pHash after commit (non-fatal, non-blocking) — **P5-001**
+- `connector_ingest.py` — Zero-transient connector ingestion: process bytes without retaining original in app storage; reference-mode only — **P9-001**
+- `local_folder_ingest.py` — Local working-folder transient intake: same pipeline as connector_ingest but `provider_type='local_folder'`; no `file_store.save()` for original — **P9-005**
 - `job_manager.py` — Pending job queries (placeholder processor removed in WS-002)
 
 ### src/storage/
@@ -126,6 +130,7 @@ media_indexing_engine/
 - `rate_limit.py` — In-memory sliding window rate limiter for auth endpoints
 - `routes/upload.py` — `POST /api/v1/upload`, `POST /api/v1/upload/batch`; reserves quota before enqueue; returns `HTTP 429 QUOTA_EXCEEDED` with structured payload on exhaustion; batch returns per-item error (**P4-002**)
 - `routes/media.py` — `GET /api/v1/media` (full filter+sort: `has_people`, `orientation`, `mood`, `mime_type`, `min/max_width/height`, `aspect_ratio`, `tags`, `sort_by`; metadata-based filters JOIN `MediaMetadata`; aspect ratio uses post-query Python filtering via `_matches_aspect_ratio()`), `GET /api/v1/media/{id}`, `GET /api/v1/media/{id}/file` (**P3-001**); `GET /api/v1/media/{id}/similar` returns near-duplicate neighbours with quality scores + best-pick flags when `enable_ai_scoring` ON — **P5-001**, **P5-002**; `POST /api/v1/media/{id}/score-group` triggers AI scoring for entire near-duplicate group — **P5-002**; `_build_media_item_responses()` enriches `has_similar`/`similar_count` when curation gate ON — **P5-001**
+- `routes/media.py` — also owns `POST /api/v1/media/{id}/mutation-result` and `POST /api/v1/media/{id}/retry-writeback`; these still return `MutationStateResponse` from `MediaItem` mirrors while writing canonical `WriteBackOperation` rows underneath — **P7-004**, **P7-005**, **P9-004**
 - `routes/analysis.py` — `GET /api/v1/media/{id}/analysis`, `POST /api/v1/media/{id}/reanalyze` (quota-enforced — **P4-002**); `POST /api/v1/media/reanalyze-batch` (50-item cap, all-or-nothing quota — **P4-002**, **P3-003**); `DELETE /api/v1/media/batch` (50-item cap, user-scoped, deletes DB rows + physical file + vector embeddings best-effort) (**P3-003**)
 - `routes/search.py` — `GET /api/v1/search?q=...` (natural language search with pagination)
 - `routes/auth.py` — `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `GET /api/v1/auth/me`
@@ -159,6 +164,9 @@ media_indexing_engine/
 - `image_prep.py` — Image resize (max 1568px longest side) + JPEG conversion + base64 encoding
 - `schemas.py` — `MediaMetadataResult` Pydantic model (13 ADR-005 fields) + `parse_ai_response()` JSON parser
 - `processor.py` — `analyze_media_item()` background task: load file → prepare → AI call → persist metadata → update statuses; `reservation_id` param: consume on success, release on permanent failure (**P4-002**)
+- `drive_mutation_service.py` — Google Drive rename/write-back orchestration; `WriteBackOperation` is canonical and `MediaItem` mutation fields are same-transaction mirrors — **P7-004**, **P9-004**
+- `source_capability_service.py` — connector-level Google Drive capability snapshot derivation/upsert helpers — **P9-004**
+- `writeback_operation_service.py` — durable write-back upsert/bootstrap, mirror mapping, metadata payload hashing, additive origin-ref bootstrap for legacy rows — **P9-004**
 
 ### src/enrichment/
 
@@ -189,6 +197,8 @@ media_indexing_engine/
 - `alembic/versions/f1e2d3c4b5a6_perceptual_hash.py` — Adds `perceptual_hash`, `phash_version`, `phash_computed_at` nullable columns + index to `media_items` — **P5-001**
 - `alembic/versions/a1b2c3d4e5f6_curation_scores.py` — Creates `curation_scores` table (FK to `media_items` + `users`; UNIQUE index on `media_item_id`; `quality_score`, `rationale`, `scoring_model`, `scored_at`, `created_at` columns) — **P5-002**
 - `alembic/versions/f6a7b8c9d0e1_connector_sync_foundation.py` — Adds `connector_status`/`last_synced_at` to `sources`; creates `source_connectors` (UNIQUE on `source_id`), `sync_runs`, `source_objects` (UNIQUE on `source_id, external_object_key`) tables — **P5-003**
+- `alembic/versions/c1b2d3e4f5a6_p9_003_origin_preview_domain_split.py` — Creates `origin_asset_refs` and `preview_assets` — **P9-003**
+- `alembic/versions/d2e3f4a5b6c7_p9_004_capability_writeback.py` — Creates `source_capability_snapshots` and `writeback_operations` — **P9-004**
 
 ### src/search/
 **Workstream:** WS-003

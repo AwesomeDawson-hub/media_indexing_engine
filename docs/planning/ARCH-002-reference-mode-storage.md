@@ -3,7 +3,7 @@
 **Project:** Media Indexing Engine  
 **Author:** Architect  
 **Date:** 2026-04-05  
-**Status:** Approved architectural basis for the reference-mode storage pivot; current implementation direction is Phase 9 remediation via `PHASE_9_arch002_gap_remediation_plan.md`, with `P9-001` as the next approved workstream
+**Status:** Approved architectural basis for the reference-mode storage pivot; current implementation direction is Phase 9 remediation via `PHASE_9_arch002_gap_remediation_plan.md`, with `P9-005` as the current approval gate
 
 ---
 
@@ -905,7 +905,7 @@ Keep three explicit modes:
    - when folder access is granted, rename and metadata write-back should be attempted immediately and recorded in mutation history
 
 3. **Manual ephemeral intake**
-   - ad hoc file selection or drag-drop is allowed only as intake into the current local working folder or an equivalent transient processing flow
+   - ad hoc file selection or drag-drop is allowed only as intake into the current local working folder
    - it must not create a permanent AWS-stored original
    - if the browser cannot support local-folder writing for this workflow, the product should fall back to cloud-source onboarding rather than silently reverting to permanent AWS copy storage
 

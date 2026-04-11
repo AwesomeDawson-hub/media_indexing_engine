@@ -8,8 +8,8 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | **Current Phase** | Phase 9 — ARCH-002 Gap Remediation |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | None — P9-003 completed; P9-004 (WriteBackOperation Domain Split) awaiting Architect/Auditor review |
-| **Last Updated** | 2026-04-09 |
+| **Active Workstream** | None — P9-005 completed; all Phase 9 ARCH-002 gap remediation workstreams complete |
+| **Last Updated** | 2026-04-10 |
 | **Updated By** | AI — Engineer |
 
 ## System Health
@@ -18,15 +18,25 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 |---|---|
 | Docs aligned | Yes |
 | Drift detected | No |
-| All docs in sync | Yes — updated 2026-04-09 for P9-003 scope resolution |
+| All docs in sync | Yes — updated 2026-04-09 for P9-004 governance-state reconciliation |
 | Registry complete | Yes |
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
-| Test status | 423/423 pass (411 pre-P9-003 + 12 new P9-003 tests), 1 skipped |
+| Test status | 459/459 pass, 1 skipped |
 | Active workstream | None |
-| Last governance audit | 2026-04-09 — P9-003 completed; P9-004 scope pending Architect review |
+| Last governance audit | 2026-04-10 — P9-005 fix pass; two Auditor blockers resolved; test #15 added; all ARCH-002 gap workstreams closed |
 
 ## Recent Activity
+
+- **2026-04-10 (fix pass):** P9-005 Auditor-identified blockers **resolved**. (1) `frontend/src/pages/UploadPage.tsx` `uploadOne()` now writes the dropped file into the selected working folder via File System Access API (`getFileHandle() → createWritable() → write() → close()`) before sending bytes transiently to the backend — the local device is now the source of truth as the plan required. (2) `src/api/routes/upload.py` quota-exceeded cleanup for `/upload/local-folder` extended to delete `OriginAssetRef` and `PreviewAsset` (FK-safe order: OriginAssetRef → PreviewAsset → ProcessingJob → MediaItem) and to delete the persisted thumbnail file via `_file_store.delete()` — previously those artifacts were orphaned on quota rejection. New `_cleanup_unqueued_local_folder_upload(db, media_item_id, thumbnail_path)` helper added. (3) Test #15 `test_upload_local_folder_quota_exceeded_cleans_up_all_artifacts` added; all assertions on zero DB rows (MediaItem, ProcessingJob, OriginAssetRef, PreviewAsset) and zero thumbnail files pass. Full regression: 459 passed, 1 skipped.
+
+- **2026-04-10:** P9-005 (Local Working-Folder Intake and Eliminate App-Retained Browser Originals) **completed**. Closes the final ARCH-002 browser/local intake gap. Delivered: (1) `src/ingestion/local_folder_ingest.py` — new `process_local_folder_intake()` that mirrors `process_connector_import()`: validate → hash → dedup → MIME → dimensions → thumbnail-only → `MediaItem(storage_mode='reference', storage_path=None)` + `OriginAssetRef(provider_type='local_folder', local_file_fingerprint=content_hash)` + `PreviewAsset`; no `file_store.save()` for original; (2) `POST /api/v1/upload/local-folder` endpoint in `src/api/routes/upload.py` with `_resolve_local_folder_source_id()` helper that auto-creates a `Source(source_type='local_folder', name='__local_folder__')` when no source_id is provided; (3) `frontend/src/pages/UploadPage.tsx` rewritten with File System Access API availability check, working-folder selection gate (`showDirectoryPicker()`), explicit unsupported-browser messaging, and calls `api.uploadLocalFolderFile()` instead of legacy `api.uploadFile()`; (4) `uploadLocalFolderFile()` added to `frontend/src/api/client.ts`; (5) `LocalFolderUploadRequest` type added to `frontend/src/types/api.ts`; (6) 14 new tests in `tests/test_p9_005_local_folder_intake.py`. Full regression: 458 passed, 1 skipped.
+
+- **2026-04-10:** P9-004 Auditor remediation **completed**. Addressed all four Auditor findings: (1) restricted `POST /media/{id}/retry-writeback` to Drive-backed items unconditionally — non-Drive items with backfilled WriteBackOperation rows now correctly return 422; (2) verified per-attempt `SourceMutationHistory` is written for all blocked exits in `drive_mutation_service.py` and added the missing credential-decrypt-failure test; (3) confirmed `POST /media/{id}/mutation-result` does not create WriteBackOperation rows (P7-004 scope preserved) and added explicit compliance test; (4) added 3 new focused tests (`test_drive_rename_decrypt_failure_records_history`, `test_local_mutation_result_does_not_create_writeback_operation`, `test_retry_endpoint_rejects_non_drive_item_with_existing_operation`). Full regression: 444 passed, 1 skipped.
+
+- **2026-04-09:** P9-004 (Source Capability and Durable Write-Back Operations) **completed**. Delivered additive `SourceCapabilitySnapshot` and `WriteBackOperation` tables plus Alembic migration `d2e3f4a5b6c7`. Added `src/analysis/source_capability_service.py` and `src/analysis/writeback_operation_service.py`; refactored `drive_mutation_service.py` so durable write-back rows are canonical while `MediaItem` mutation fields remain same-transaction compatibility mirrors; added additive `OriginAssetRef` bootstrap for legacy rows/tests; updated Google Drive callback to refresh capability snapshots; updated connector responses to prefer snapshot-derived `has_write_scope`; added `scripts/backfill_p9_004_capabilities_writeback.py`; added `tests/test_p9_004_capabilities_writeback.py`. Full regression suite: 433 passed, 1 skipped.
+
+- **2026-04-09:** P9-004 (Source Capability and Durable Write-Back Operations) **planned and locked for governance review**. `docs/planning/P9-004_plan.md` now records the implementation-ready architecture: `SourceCapabilitySnapshot` is one current row per `SourceConnector`; `WriteBackOperation` targets `OriginAssetRef` canonically with a denormalized `media_item_id`; `MediaItem` mutation fields remain same-transaction compatibility mirrors; Drive remains the only execution provider in scope for this slice. This is now the active approval gate before Engineer handoff.
 
 - **2026-04-09:** P9-003 (Additive Origin/Preview Domain Split) **completed**. Delivers `OriginAssetRef` (1:1 with `MediaItem`, tracks provider identity + locator) and `PreviewAsset` (many:1 with `MediaItem`, `variant_type='thumbnail'`) as first-class models. `SourceObject` unchanged — remains connector sync memory. `MediaItem.storage_path`/`thumbnail_path`/`source_file_fingerprint` kept as compatibility mirrors. Forward-write coverage: `upload_service.process_upload` creates `OriginAssetRef(provider_type='app_upload')` + `PreviewAsset`; `process_connector_import` creates both with provider kwargs; `sync_service._run_sync` passes `provider_type`/`provider_object_id`/`revision_marker` and updates `OriginAssetRef.source_object_id` after `SourceObject` is committed. Backfill script `scripts/backfill_p9_003_origin_preview.py` handles pre-P9-003 rows. 12 new tests in `tests/test_origin_preview_models.py`, 423/423 pass.
 
@@ -158,7 +168,8 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 ## Notes for Next Session
 
 - **Phase 9 is now active.** Use `docs/planning/PHASE_9_arch002_gap_remediation_plan.md` as the approved architecture baseline.
-- **Immediate planning target:** review `docs/planning/P9-003_plan.md`, then run an Auditor pass on the locked P9-003 scope before Engineer begins the additive origin/preview migration.
+- **Current review gate:** run an Auditor post-implementation review for `P9-004` against `docs/planning/P9-004_plan.md` and the delivered code/tests.
+- **Completed prerequisite:** P9-003 is already implemented; use `docs/IMPLEMENTATION_STATUS.md` and the live ORM/models as the baseline rather than reopening the origin/preview split.
 - **Locked rollout rules:** long-term connector retry uses source re-fetch; synchronous sync-flow analysis is allowed only as a short-term rollout tactic if needed. Storage-assuming features should return controlled source-aware errors first unless cheap, reliable on-demand source fetch is already available for that surface.
 - **SES activation (when AWS approves):** `ssh -i "C:\Code\AWS\media-indexing-key.pem" ubuntu@vyzindex.com "echo 'EMAIL_FROM=noreply@vyzindex.com' >> ~/media_indexing_engine/.env && docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build backend"`
 - **AWS deploy command:** `ssh -i "C:\Code\AWS\media-indexing-key.pem" ubuntu@vyzindex.com "cd ~/media_indexing_engine && git pull && docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build"`
@@ -166,4 +177,4 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 - **Stripe note:** All billing runs in dev/test mode. To enable: set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_ADVANCED`, `STRIPE_PRICE_ID_PREMIUM` on the server.
 - **Before inviting broader beta users:** rotate the `ANTHROPIC_API_KEY`, `POSTGRES_PASSWORD`, and `AUTH_SECRET_KEY`.
 - **Schema changes** require `alembic revision --autogenerate` + review + `alembic upgrade head`. Back up AWS DB before any migration deploy.
-- **Test status:** 411/411 pass, 1 skipped. Tests run from `c:\AI Engineering\Projects\media_indexing_engine` with `.venv\Scripts\python.exe -m pytest tests/ -q --tb=short`.
+- **Test status:** 433/433 pass, 1 skipped. Tests run from `c:\AI Engineering\Projects\media_indexing_engine` with `.venv\Scripts\python.exe -m pytest tests/ -q --tb=short`.

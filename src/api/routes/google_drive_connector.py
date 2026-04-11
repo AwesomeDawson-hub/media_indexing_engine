@@ -36,6 +36,7 @@ from src.api.schemas import (
     DriveFolderItem,
     DriveFoldersResponse,
 )
+from src.analysis.source_capability_service import upsert_drive_capability_snapshot
 from src.auth.google_drive_oauth import (
     DRIVE_STATE_COOKIE,
     DRIVE_STATE_MAX_AGE,
@@ -466,6 +467,7 @@ async def google_drive_callback(
     source.source_type = "google_drive"
     source.connector_status = "configured"
     source.updated_at = now
+    await upsert_drive_capability_snapshot(db, existing_connector or connector)
     await db.commit()
 
     # ------------------------------------------------------------------

@@ -41,6 +41,8 @@ class User(Base):
     media_items: Mapped[list["MediaItem"]] = relationship(back_populates="user")
     sources: Mapped[list["Source"]] = relationship(back_populates="user")
     oauth_accounts: Mapped[list["OAuthAccount"]] = relationship(back_populates="user")
+    source_capability_snapshots: Mapped[list["SourceCapabilitySnapshot"]] = relationship(back_populates="user")
+    writeback_operations: Mapped[list["WriteBackOperation"]] = relationship(back_populates="user")
 
 
 class AdminAuditLog(Base):
@@ -92,6 +94,8 @@ class Source(Base):
     user: Mapped["User"] = relationship(back_populates="sources")
     media_items: Mapped[list["MediaItem"]] = relationship(back_populates="source")
     connector: Mapped["SourceConnector | None"] = relationship(back_populates="source", uselist=False)
+    capability_snapshot: Mapped["SourceCapabilitySnapshot | None"] = relationship(back_populates="source", uselist=False)
+    writeback_operations: Mapped[list["WriteBackOperation"]] = relationship(back_populates="source")
 
 
 class MediaItem(Base):
@@ -140,6 +144,7 @@ class MediaItem(Base):
     # P9-003 origin/preview domain split
     origin_asset_ref: Mapped["OriginAssetRef | None"] = relationship(back_populates="media_item", uselist=False)
     preview_assets: Mapped[list["PreviewAsset"]] = relationship(back_populates="media_item")
+    writeback_operations: Mapped[list["WriteBackOperation"]] = relationship(back_populates="media_item")
 
 
 class ProcessingJob(Base):
@@ -274,6 +279,8 @@ class SourceConnector(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
 
     source: Mapped["Source"] = relationship(back_populates="connector")
+    capability_snapshot: Mapped["SourceCapabilitySnapshot | None"] = relationship(back_populates="source_connector", uselist=False)
+    writeback_operations: Mapped[list["WriteBackOperation"]] = relationship(back_populates="source_connector")
 
 
 class SyncRun(Base):
@@ -472,6 +479,7 @@ class OriginAssetRef(Base):
     )
 
     media_item: Mapped["MediaItem"] = relationship(back_populates="origin_asset_ref")
+    writeback_operations: Mapped[list["WriteBackOperation"]] = relationship(back_populates="origin_asset_ref")
 
 
 class PreviewAsset(Base):
@@ -546,3 +554,74 @@ class SourceMutationHistory(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     media_item: Mapped["MediaItem"] = relationship(back_populates="mutation_history")
+
+
+class SourceCapabilitySnapshot(Base):
+    """Current connector-level capability record (P9-004 / ARCH-002)."""
+    __tablename__ = "source_capability_snapshots"
+    __table_args__ = (
+        UniqueConstraint("source_id", name="uq_source_capability_snapshots_source_id"),
+        UniqueConstraint("source_connector_id", name="uq_source_capability_snapshots_connector_id"),
+        Index("ix_source_capability_snapshots_user_id", "user_id"),
+        Index("ix_source_capability_snapshots_provider_verification", "provider_type", "verification_state"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    source_id: Mapped[str] = mapped_column(String(36), ForeignKey("sources.id"), nullable=False)
+    source_connector_id: Mapped[str] = mapped_column(String(36), ForeignKey("source_connectors.id"), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    provider_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    can_read: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
+    can_write: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
+    can_refetch: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
+    scope_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    scope_tier: Mapped[str] = mapped_column(String(20), nullable=False, default="unknown")
+    verification_state: Mapped[str] = mapped_column(String(20), nullable=False, default="current")
+    last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    last_error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
+
+    user: Mapped["User"] = relationship(back_populates="source_capability_snapshots")
+    source: Mapped["Source"] = relationship(back_populates="capability_snapshot")
+    source_connector: Mapped["SourceConnector"] = relationship(back_populates="capability_snapshot")
+
+
+class WriteBackOperation(Base):
+    """Durable current write-back intent row (P9-004 / ARCH-002)."""
+    __tablename__ = "writeback_operations"
+    __table_args__ = (
+        UniqueConstraint("media_item_id", "operation_type", name="uq_writeback_operations_item_operation"),
+        Index("ix_writeback_operations_origin_asset_ref_id", "origin_asset_ref_id"),
+        Index("ix_writeback_operations_user_id", "user_id"),
+        Index("ix_writeback_operations_source_id", "source_id"),
+        Index("ix_writeback_operations_source_connector_id", "source_connector_id"),
+        Index("ix_writeback_operations_state_operation", "state", "operation_type"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    media_item_id: Mapped[str] = mapped_column(String(36), ForeignKey("media_items.id"), nullable=False)
+    origin_asset_ref_id: Mapped[str] = mapped_column(String(36), ForeignKey("origin_asset_refs.id"), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    source_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("sources.id"), nullable=True)
+    source_connector_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("source_connectors.id"), nullable=True)
+    provider_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    operation_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    state: Mapped[str] = mapped_column(String(20), nullable=False)
+    requested_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    requested_metadata_payload: Mapped[str | None] = mapped_column(Text, nullable=True)
+    requested_metadata_payload_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_attempted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    last_error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
+
+    user: Mapped["User"] = relationship(back_populates="writeback_operations")
+    media_item: Mapped["MediaItem"] = relationship(back_populates="writeback_operations")
+    origin_asset_ref: Mapped["OriginAssetRef"] = relationship(back_populates="writeback_operations")
+    source: Mapped["Source | None"] = relationship(back_populates="writeback_operations")
+    source_connector: Mapped["SourceConnector | None"] = relationship(back_populates="writeback_operations")

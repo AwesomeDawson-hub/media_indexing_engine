@@ -60,11 +60,18 @@ _Safety mechanisms will be documented here as they are implemented._
 **Implementation:** _TBD — WS-001 / WS-002_
 **How it works:** _TBD_
 
+### Same-Transaction Compatibility Mirrors
+
+**Purpose:** Preserve stable API/frontend behavior while additive ARCH-002 tables become canonical.
+**Implementation:** `src/analysis/writeback_operation_service.py`, `src/analysis/drive_mutation_service.py` — **P9-004**
+**How it works:** Canonical write-back state is written to `WriteBackOperation` first, then mirrored onto `MediaItem.mutation_state`, error fields, attempt timestamps, and applied timestamps in the same transaction. This avoids trigger-based hidden logic and keeps legacy routes/tests stable while the backend state model becomes explicit.
+
 ## Safe Development Practices
 
 ### Do
 
 - _To be populated as patterns emerge during implementation_
+- Prefer additive bootstrap over hard failure when a new ARCH-002 model depends on legacy rows that may still exist. P9-004 uses this pattern to create missing `OriginAssetRef` rows for older item/test state before writing canonical `WriteBackOperation` records.
 
 ### Avoid
 

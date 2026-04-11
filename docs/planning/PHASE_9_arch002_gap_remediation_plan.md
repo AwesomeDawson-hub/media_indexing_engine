@@ -13,7 +13,7 @@
 
 ## Objective
 
-Close the remaining gap between the approved ARCH-002 reference-mode architecture and the current beta implementation by eliminating transient full-original retention for connector ingestion, hardening subsystems that still assume app-retained originals, and beginning the additive domain split needed for source-aware originals, preview assets, capability state, and durable write-back operations.
+Close the remaining gap between the approved ARCH-002 reference-mode architecture and the current beta implementation by eliminating transient full-original retention for connector ingestion, hardening subsystems that still assume app-retained originals, beginning the additive domain split needed for source-aware originals, preview assets, capability state, and durable write-back operations, and removing the remaining permanent app-retained browser/local original path.
 
 This phase exists because Phase 8 solved the retention end-state for many connector items, but it did not yet solve the ingestion boundary. Connector sync still writes the full original to app storage first and only deletes it later. That behavior is a real architectural violation of ARCH-002, not a cosmetic mismatch.
 
@@ -246,6 +246,26 @@ Finish the operational side of the ARCH-002 model by making source capability st
 
 This is the clean completion of ARCH-002, but it should build on stable origin references and source-aware original-access semantics rather than trying to establish both at once.
 
+## P9-005 — Local Working-Folder Intake and Eliminate App-Retained Browser Originals
+
+**Status: Completed — 2026-04-10**
+
+### Objective
+
+Remove the remaining ordinary browser/local retained-original upload path so drag-drop and local file selection become working-folder-first source-aware intake rather than permanent AWS original storage.
+
+### Scope
+
+- require a selected local working/export folder before local drag-drop processing is enabled
+- process browser-supplied bytes transiently for validation, preview generation, pHash, analysis, and indexing without persisting the original into app storage
+- persist new local items as `local_folder` reference-mode records with retained preview, metadata, search state, and origin hints
+- prohibit silent fallback to permanent AWS-retained originals when browser file-system capabilities are unavailable
+- preserve historical `app_upload` rows as compatibility data without creating new retained-original debt
+
+### Why fifth
+
+This is the remaining real ARCH-002 gap under the clarified operator policy that browser/local intake must not create permanent app-retained originals. It builds on the Phase 8/9 additive model already in place without reopening the closed connector and Drive remediation slices.
+
 ## Operator Direction Locked Before Implementation
 
 ## 1. Close the transient-write gap now
@@ -280,9 +300,9 @@ Approved. Because some connector items can still remain `full` indefinitely afte
 ## Recommended Order of Approval
 
 1. Phase 9 direction approved.
-2. P9-001 and P9-002 have now completed in that approved order.
-3. Retry and interim source-aware access rules remain locked.
-4. P9-003 is now the next unresolved workstream and should proceed through its normal audit/approval gate before Engineer handoff.
+2. P9-001 and P9-002 completed in that approved order.
+3. P9-003 and P9-004 completed as the additive domain and operational write-back slices.
+4. P9-005 is now the remaining unresolved workstream and should proceed through its normal audit/approval gate before Engineer handoff.
 
 ## Architect Verdict
 
@@ -292,5 +312,6 @@ The right remediation path is not a full model rewrite first. It is:
 2. source-aware consumer hardening next
 3. additive origin/preview model split after the boundary is correct
 4. durable capability/write-back subsystems after the data model supports them cleanly
+5. working-folder-first browser/local intake so permanent app-retained browser originals are no longer created
 
-That sequence closes the real ARCH-002 violation quickly while still moving the codebase toward the intended long-term architecture.
+That sequence closes the real ARCH-002 violations while still moving the codebase toward the intended long-term architecture.

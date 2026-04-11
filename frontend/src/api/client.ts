@@ -216,6 +216,21 @@ export async function uploadBatch(files: File[], sourceId?: string): Promise<Bat
   });
 }
 
+export async function uploadLocalFolderFile(
+  file: File,
+  sourceId?: string,
+  localFilePath?: string,
+): Promise<UploadResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (sourceId) formData.append('source_id', sourceId);
+  if (localFilePath) formData.append('local_file_path', localFilePath);
+  return request<UploadResponse>('/api/v1/upload/local-folder', {
+    method: 'POST',
+    body: formData,
+  });
+}
+
 export async function listMedia(
   page: number = 1,
   perPage: number = 20,

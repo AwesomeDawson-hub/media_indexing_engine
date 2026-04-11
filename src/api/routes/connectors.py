@@ -32,6 +32,7 @@ from src.api.schemas import (
     TriggerSyncResponse,
     AutoSyncUpdateRequest,
 )
+from src.analysis.source_capability_service import get_capability_snapshot
 from src.connectors.secrets import encrypt_credentials, MissingEncryptionKeyError
 from src.connectors.sync_service import trigger_sync
 from src.models import Source, SourceConnector, SyncRun
@@ -74,6 +75,15 @@ def _check_encryption_key() -> None:
                 "error_code": "connector_unavailable",
             },
         )
+
+
+async def _connector_response(db: AsyncSession, connector: SourceConnector) -> ConnectorResponse:
+    has_write_scope: bool | None = None
+    if connector.connector_type == "google_drive":
+        snapshot = await get_capability_snapshot(db, source_connector_id=connector.id)
+        if snapshot is not None:
+            has_write_scope = snapshot.can_write
+    return ConnectorResponse.from_connector(connector, has_write_scope=has_write_scope)
 
 
 # ---------------------------------------------------------------------------
@@ -149,7 +159,7 @@ async def upsert_s3_connector(
 
     await db.commit()
     await db.refresh(connector)
-    return ConnectorResponse.from_connector(connector)
+    return await _connector_response(db, connector)
 
 
 # ---------------------------------------------------------------------------
@@ -227,7 +237,7 @@ async def update_s3_connector(
 
     await db.commit()
     await db.refresh(connector)
-    return ConnectorResponse.from_connector(connector)
+    return await _connector_response(db, connector)
 
 
 # ---------------------------------------------------------------------------
@@ -253,7 +263,7 @@ async def get_connector(
     if connector is None:
         raise HTTPException(status_code=404, detail="No connector configured for this source")
 
-    return ConnectorResponse.from_connector(connector)
+    return await _connector_response(db, connector)
 
 
 # ---------------------------------------------------------------------------
@@ -288,7 +298,7 @@ async def update_auto_sync(
     connector.updated_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(connector)
-    return ConnectorResponse.from_connector(connector)
+    return await _connector_response(db, connector)
 
 
 # ---------------------------------------------------------------------------

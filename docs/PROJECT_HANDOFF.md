@@ -9,10 +9,10 @@ _Update this document at the end of every session and at every workstream transi
 | Field | Value |
 |---|---|
 | **Current Phase** | Phase 9 — ARCH-002 Gap Remediation |
-| **Current Workstream** | None — `P9-002` completed; `P9-003` scope is accepted and awaiting Auditor review |
-| **Last Completed Work** | P9-002 (Source-Aware Original Access Hardening) completed; P9-003 scope was then locked in a dedicated plan for the next implementation gate (2026-04-09) |
-| **Next Task** | Audit and review `P9-003 — Additive Origin/Preview Domain Split` using `docs/planning/P9-003_plan.md` |
-| **Next Step Requested** | Auditor verifies the locked P9-003 scope before Engineer begins the origin/preview model migration |
+| **Current Workstream** | None — P9-005 completed; all Phase 9 ARCH-002 gap remediation workstreams complete |
+| **Last Completed Work** | P9-005 completed on 2026-04-10 |
+| **Next Task** | Phase 9 closeout: Auditor/Operator review of P9-005 and full Phase 9 retrospective |
+| **Next Step Requested** | Auditor reviews P9-005 implementation; if passes, Phase 9 is fully closed |
 
 ## Required Reading
 
@@ -28,7 +28,7 @@ If implementation is underway, also read:
 6. **`docs/PROJECT_PLAYBOOK.md`** — safety practices and common tasks
 7. **`docs/planning/ARCH-002-reference-mode-storage.md`** — approved architectural basis for the storage pivot
 8. **`docs/planning/PHASE_9_arch002_gap_remediation_plan.md`** — current approved Phase 9 remediation plan and decision baseline
-9. **`docs/planning/P9-003_plan.md`** — locked implementation scope for the additive origin/preview domain split
+9. **`docs/planning/P9-004_plan.md`** — locked implementation scope for source capability snapshots and durable write-back operations
 
 ## System Summary
 
@@ -97,12 +97,42 @@ When suggesting code changes:
 
 ## Recent Session Activity
 
+- **P9-004 Auditor remediation (2026-04-10):**
+  - **Finding 1 (Retry bootstrap scope):** In `src/api/routes/media.py`, moved the `is_drive_backed` guard to the top of `retry_writeback` so ALL non-Drive items return 422 unconditionally — including items that already have a backfill-created `WriteBackOperation` row. Previously the guard only blocked the bootstrap path; a non-Drive item with an existing operation could silently enter a no-op retry flow.
+  - **Finding 2 (Blocked-path audit history):** Verified the three flagged exit paths in `drive_mutation_service.py` (credential decrypt failure, missing refresh token, missing Drive file ID) each call `_record_mutation_attempt`. The code was already correct; added the missing test `test_drive_rename_decrypt_failure_records_history` to explicitly cover the decrypt-failure path.
+  - **Finding 3 (Local-browser mutation scope):** Confirmed `POST /media/{id}/mutation-result` does not create `WriteBackOperation` rows. Added `test_local_mutation_result_does_not_create_writeback_operation` to document and protect this contract.
+  - **Finding 4 (Test coverage):** Added 3 focused tests to `tests/test_p9_004_capabilities_writeback.py`: credential decrypt failure writes history, mutation-result stays in P7-004 scope, non-Drive item with existing operation is rejected from retry.
+  - Validation: focused suite 88 passed; full suite 444 passed, 1 skipped.
+  - P9-004 is now ready for Auditor re-review.
+
+- **P9-004 completion (2026-04-09):**
+  - Added `SourceCapabilitySnapshot` and `WriteBackOperation` as additive ORM tables and Alembic migration `d2e3f4a5b6c7_p9_004_capability_writeback.py`.
+  - Added `src/analysis/source_capability_service.py` for connector-level Google Drive capability snapshots and `src/analysis/writeback_operation_service.py` for durable write-back intent + mirror helpers.
+  - Refactored `src/analysis/drive_mutation_service.py` so write-back state is canonical on `WriteBackOperation` while `MediaItem` mutation fields remain same-transaction compatibility mirrors.
+  - Added additive `OriginAssetRef` bootstrap for legacy/historical item state so pre-P9-003 style rows and existing mutation tests continue to work without rewrites.
+  - Updated `src/api/routes/google_drive_connector.py` to refresh capability snapshots on OAuth connect/upgrade and `src/api/routes/connectors.py` to prefer snapshot-derived `has_write_scope`.
+  - Updated `src/api/routes/media.py` so local mutation reporting and retry compatibility bootstrap create durable write-back rows without changing `MutationStateResponse`.
+  - Added `scripts/backfill_p9_004_capabilities_writeback.py` and `tests/test_p9_004_capabilities_writeback.py`.
+  - Validation: focused suite 77 passed; full suite 433 passed, 1 skipped.
+
+- **P9-004 planning lock (2026-04-09):**
+  - `docs/planning/P9-004_plan.md` created to lock the implementation-ready scope for source capability snapshots and durable write-back operations.
+  - Locked boundary: `SourceCapabilitySnapshot` is a single current-state row per `SourceConnector`, not a history table and not a `Source`-level summary.
+  - Locked targeting: `WriteBackOperation` targets `OriginAssetRef` canonically and keeps `media_item_id` as a denormalized convenience FK for compatibility.
+  - Locked compatibility rule: `WriteBackOperation` becomes the canonical backend state while `MediaItem.mutation_state` and related fields remain same-transaction mirrors for existing routes/tests.
+  - Locked next gate: P9-004 is now the active approval/audit target before Engineer starts the durable write-back implementation.
+
 - **P9-003 scope resolution (2026-04-09):**
   - `docs/planning/P9-003_plan.md` created to lock the implementation-ready scope for the additive origin/preview domain split.
   - Locked boundary: `OriginAssetRef` is a new `MediaItem`-owned 1:1 origin locator and does not replace `SourceObject`, which remains connector sync memory.
   - Locked applicability: `OriginAssetRef` applies to connector-backed items, local-folder items, and manual app-retained uploads.
   - Locked migration treatment: `storage_path`, `thumbnail_path`, and `source_file_fingerprint` are true migrations with compatibility mirrors; mutation/write-back fields stay on `MediaItem` for this slice.
   - Locked sequencing: P9-003 remains a prerequisite for P9-004 because `WriteBackOperation` should target `OriginAssetRef`, not the existing mixed locator fields.
+
+- **P9-003 completion (2026-04-09):**
+  - `OriginAssetRef` and `PreviewAsset` are now implemented in the live ORM and ingestion paths.
+  - Backfill script `scripts/backfill_p9_003_origin_preview.py` and `tests/test_origin_preview_models.py` landed with the slice.
+  - `docs/IMPLEMENTATION_STATUS.md` records the completed implementation baseline and the test-suite increase to 423 passing tests.
 
 - **P9-002 completion (2026-04-09):**
   - Shared storage guards now block source-inaccessible original reads consistently across download, convert, re-analysis, and scoring flows.
@@ -306,7 +336,7 @@ When suggesting code changes:
 
 - No application blockers.
 - Operational limitation remains: AWS SES production access is still pending for live password reset email sending, but this does not block Phase 5 planning.
-- Workflow gate: P9-001 and P9-002 are complete. `P9-003` now has a locked plan and the next workflow step is Auditor review before Engineer begins implementation.
+- Workflow gate: P9-001, P9-002, and P9-003 are complete. `P9-004` is now the current approval gate, and the next workflow step is the Auditor pass on `docs/planning/P9-004_plan.md` before Engineer begins implementation.
 
 ## Document Ownership Note
 

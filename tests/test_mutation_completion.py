@@ -75,6 +75,57 @@ def _encrypt_credentials(creds: dict, key: str) -> str:
     return f.encrypt(json.dumps(creds).encode()).decode()
 
 
+async def _create_drive_retry_item(session: AsyncSession, *, user_id: str = DEV_USER_1, mutation_state: str = "pending_writeback") -> str:
+    from src.auth.google_drive_oauth import DRIVE_SCOPE_READWRITE
+    from src.models import MediaItem, MediaMetadata, Source, SourceConnector
+
+    source_id = _new_id()
+    item_id = _new_id()
+    source = Source(id=source_id, user_id=user_id, name="Drive Retry", source_type="google_drive")
+    session.add(source)
+    session.add(SourceConnector(
+        id=_new_id(),
+        source_id=source_id,
+        user_id=user_id,
+        connector_type="google_drive",
+        credentials_encrypted=_encrypt_credentials({"access_token": "at", "refresh_token": "rt"}, _TEST_FERNET_KEY),
+        remote_container_id="my-drive-root",
+        granted_scopes=DRIVE_SCOPE_READWRITE,
+    ))
+    session.add(MediaItem(
+        id=item_id,
+        user_id=user_id,
+        content_hash=hashlib.sha256(f"retry-{item_id}".encode()).hexdigest(),
+        original_filename="retry.jpg",
+        file_size=1000,
+        mime_type="image/jpeg",
+        storage_path=None,
+        status="completed",
+        source_id=source_id,
+        mutation_state=mutation_state,
+    ))
+    session.add(MediaMetadata(
+        id=_new_id(),
+        media_item_id=item_id,
+        title="Retry Target",
+        description="desc",
+        tags="[]",
+        objects="[]",
+        scenes="[]",
+        context="ctx",
+        mood="calm",
+        people="[]",
+        people_count=0,
+        orientation="landscape",
+        colors="[]",
+        ai_provider="mock",
+        ai_model="mock-v1",
+        analyzed_at=_now(),
+    ))
+    await session.commit()
+    return item_id
+
+
 # ---------------------------------------------------------------------------
 # 1. scope_has_write unit tests
 # ---------------------------------------------------------------------------
@@ -307,7 +358,7 @@ async def test_mutation_service_blocked_writeback_no_source_object(db: AsyncSess
     monkeypatch.setattr(cfg_mod.settings.google_drive, "client_secret", _DRIVE_CONFIG["client_secret"])
     monkeypatch.setattr(cfg_mod.settings.google_drive, "redirect_uri", _DRIVE_CONFIG["redirect_uri"])
 
-    from src.models import Source, MediaItem, MediaMetadata, SourceConnector
+    from src.models import Source, MediaItem, MediaMetadata, SourceConnector, SourceMutationHistory
     from src.auth.google_drive_oauth import DRIVE_SCOPE_READWRITE
     from src.analysis.drive_mutation_service import attempt_drive_rename_after_analysis
 
@@ -377,6 +428,16 @@ async def test_mutation_service_blocked_writeback_no_source_object(db: AsyncSess
     # No SourceObject row → cannot find drive_file_id
     assert item.mutation_state == "blocked_writeback"
     assert item.last_mutation_error_code == "no_drive_file_id"
+    history_rows = (
+        await db.execute(
+            select(SourceMutationHistory).where(
+                SourceMutationHistory.media_item_id == item.id,
+                SourceMutationHistory.operation_type == "rename",
+            )
+        )
+    ).scalars().all()
+    assert len(history_rows) == 1
+    assert history_rows[0].error_code == "no_drive_file_id"
 
 
 @pytest.mark.asyncio
@@ -866,18 +927,10 @@ async def test_retry_writeback_pending_item_fully_applied(client, db_session_fac
     """POST retry-writeback transitions pending_writeback → fully_applied on Drive 200 (mocked)."""
     from src.models import MediaItem
 
-    upload_resp = await client.post(
-        "/api/v1/upload",
-        files={"file": ("drive.jpg", JPEG_BYTES, "image/jpeg")},
-    )
-    assert upload_resp.status_code == 201
-    item_id = upload_resp.json()["id"]
-
-    # Manually set mutation_state to pending_writeback
     async with db_session_factory() as session:
+        item_id = await _create_drive_retry_item(session)
         result = await session.execute(select(MediaItem).where(MediaItem.id == item_id))
         item = result.scalar_one()
-        item.mutation_state = "pending_writeback"
         item.last_mutation_error_code = "drive_api_error"
         await session.commit()
 
@@ -974,17 +1027,10 @@ async def test_retry_writeback_stays_pending_on_transient_drive_failure(client, 
     """POST retry-writeback returns 200 but leaves mutation_state=pending_writeback on Drive 5xx."""
     from src.models import MediaItem
 
-    upload_resp = await client.post(
-        "/api/v1/upload",
-        files={"file": ("transient.jpg", JPEG_BYTES, "image/jpeg")},
-    )
-    assert upload_resp.status_code == 201
-    item_id = upload_resp.json()["id"]
-
     async with db_session_factory() as session:
+        item_id = await _create_drive_retry_item(session)
         result = await session.execute(select(MediaItem).where(MediaItem.id == item_id))
         item = result.scalar_one()
-        item.mutation_state = "pending_writeback"
         await session.commit()
 
     # Mock another Drive 5xx — service sets state back to pending_writeback

@@ -8,6 +8,8 @@ const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'im
 const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.tiff', '.tif', '.bmp', '.avif'];
 const MAX_SIZE = 50 * 1024 * 1024; // 50 MB
 
+const HAS_FOLDER_PICKER = typeof window !== 'undefined' && 'showDirectoryPicker' in window;
+
 function isAllowedFile(file: File): boolean {
   // Check MIME type first
   if (ALLOWED_TYPES.includes(file.type)) return true;
@@ -22,11 +24,31 @@ export default function UploadPage() {
   const [quotaStatus, setQuotaStatus] = useState<QuotaStatus | null>(null);
   const [showQuotaModal, setShowQuotaModal] = useState(false);
   const [quotaLoading, setQuotaLoading] = useState(false);
+  const [workingFolder, setWorkingFolder] = useState<FileSystemDirectoryHandle | null>(null);
+  const [folderPickerError, setFolderPickerError] = useState<string | null>(null);
+
   const queuedCount = queue.filter((q) => q.status === 'queued').length;
   const exceedsQuota = quotaStatus !== null && queuedCount > quotaStatus.remaining;
   const quotaDepleted = quotaStatus !== null && quotaStatus.remaining === 0;
+  const canProcess = HAS_FOLDER_PICKER && workingFolder !== null;
+
+  async function handleSelectFolder() {
+    setFolderPickerError(null);
+    try {
+      // showDirectoryPicker is a standard File System Access API method
+      const handle = await (window as unknown as { showDirectoryPicker: () => Promise<FileSystemDirectoryHandle> }).showDirectoryPicker();
+      setWorkingFolder(handle);
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        // User cancelled the picker — do not show error
+        return;
+      }
+      setFolderPickerError('Could not open folder. Please try again.');
+    }
+  }
 
   const handleFiles = useCallback((files: File[]) => {
+    if (!canProcess) return; // Gate: require working folder
     const newEntries: QueuedFile[] = files.map((file) => {
       if (!isAllowedFile(file)) {
         return { file, status: 'error' as const, error: 'Unsupported file type' };
@@ -37,7 +59,7 @@ export default function UploadPage() {
       return { file, status: 'queued' as const };
     });
     setQueue((prev) => [...prev, ...newEntries]);
-  }, []);
+  }, [canProcess]);
 
   async function handleUpload() {
     const toUpload = queue.filter((q) => q.status === 'queued');
@@ -62,7 +84,15 @@ export default function UploadPage() {
         return;
       }
       try {
-        const res = await api.uploadFile(qf.file);
+        // P9-005: write original into the working folder first so the user's device
+        // is the source of truth, then send bytes transiently to the backend.
+        const fileHandle = await workingFolder!.getFileHandle(qf.file.name, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(qf.file);
+        await writable.close();
+
+        const localPath = (qf.file as File & { webkitRelativePath?: string }).webkitRelativePath || qf.file.name;
+        const res = await api.uploadLocalFolderFile(qf.file, undefined, localPath);
         results.push({ filename: qf.file.name, status: res.is_duplicate ? 'duplicate' : 'created' });
       } catch (err: unknown) {
         if (err instanceof api.ApiRequestError && err.error === 'quota_exceeded') {
@@ -119,30 +149,81 @@ export default function UploadPage() {
     await handleUpload();
   }
 
+  // Unsupported browser: File System Access API unavailable
+  if (!HAS_FOLDER_PICKER) {
+    return (
+      <div>
+        <div className="page-header">
+          <h1>Local Working-Folder Intake</h1>
+        </div>
+        <div className="alert alert-warning">
+          <strong>Browser not supported for local working-folder intake.</strong>
+          <p>
+            This feature requires the File System Access API, which is available in Chromium-based
+            browsers (Chrome, Edge) on desktop. Firefox and Safari do not currently support it.
+          </p>
+          <p>
+            To add media from a local folder, please use a supported browser, or connect a cloud
+            source (Google Drive or S3-compatible) from the Add Media page.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="page-header">
-        <h1>Upload</h1>
+        <h1>Local Working-Folder Intake</h1>
         <div className="upload-header-actions">
           {queuedCount > 0 && (
             <button
               className="btn btn-primary"
               onClick={handleClickProcess}
-              disabled={uploading || quotaLoading}
+              disabled={uploading || quotaLoading || !canProcess}
             >
               {quotaLoading ? 'Checking quota...' : uploading ? 'Processing...' : `Process ${queuedCount} file${queuedCount > 1 ? 's' : ''}`}
             </button>
           )}
-
         </div>
       </div>
-      <DropZone
-        onFiles={handleFiles}
-        accept={[...ALLOWED_TYPES, ...ALLOWED_EXTENSIONS].join(',')}
-      />
-      <div className="file-queue-scroll">
-        <FileQueue files={queue} />
+
+      <div className="working-folder-section">
+        {workingFolder ? (
+          <div className="working-folder-status">
+            <span className="folder-indicator">&#x1F4C2;</span>
+            <span>Working folder: <strong>{workingFolder.name}</strong></span>
+            <button className="btn btn-outline btn-sm" onClick={handleSelectFolder}>
+              Change folder
+            </button>
+          </div>
+        ) : (
+          <div className="working-folder-prompt">
+            <p>
+              Select a local working folder before adding files. Originals are kept on your device
+              &mdash; the app retains only a preview thumbnail and AI-generated metadata.
+            </p>
+            <button className="btn btn-primary" onClick={handleSelectFolder}>
+              Select Working Folder
+            </button>
+            {folderPickerError && (
+              <p className="text-danger">{folderPickerError}</p>
+            )}
+          </div>
+        )}
       </div>
+
+      {canProcess && (
+        <>
+          <DropZone
+            onFiles={handleFiles}
+            accept={[...ALLOWED_TYPES, ...ALLOWED_EXTENSIONS].join(',')}
+          />
+          <div className="file-queue-scroll">
+            <FileQueue files={queue} />
+          </div>
+        </>
+      )}
 
       {showQuotaModal && quotaStatus && (
         <div className="modal-overlay">

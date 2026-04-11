@@ -19,21 +19,28 @@ pending and is left for a future background write-back job (out of P7-004 scope)
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import re
 from datetime import datetime, timezone
 
 import httpx
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth.google_drive_oauth import scope_has_write, DRIVE_SCOPE_READWRITE
+from src.analysis.source_capability_service import ensure_drive_capability_snapshot, mark_snapshot_error
+from src.analysis.writeback_operation_service import (
+    OP_STATE_APPLIED,
+    OP_STATE_BLOCKED,
+    OP_STATE_FAILED,
+    apply_writeback_operation_to_mirror,
+    ensure_writeback_operation,
+    ensure_origin_asset_ref,
+)
 from src.connectors.google_drive_tokens import DriveTokenManager, DriveTokenError
 from src.connectors.secrets import decrypt_credentials
 from src.config import settings
-from src.models import MediaItem, MediaMetadata, SourceConnector, SourceMutationHistory
+from src.models import MediaItem, MediaMetadata, SourceConnector, SourceMutationHistory, SourceObject
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +55,8 @@ _ERR_DRIVE_AUTH_EXPIRED = "drive_auth_expired"
 _ERR_DRIVE_PERMISSION_DENIED = "drive_permission_denied"
 _ERR_DRIVE_NOT_FOUND = "drive_file_not_found"
 _ERR_DRIVE_API_ERROR = "drive_api_error"
-_ERR_NO_CONNECTOR = "no_connector"
-_ERR_NOT_DRIVE_ITEM = "not_drive_item"
+_ERR_CAPABILITY_STALE = "capability_stale"
+_ERR_NO_DRIVE_FILE_ID = "no_drive_file_id"
 
 
 def _slugify(text: str) -> str:
@@ -147,8 +154,11 @@ async def attempt_drive_rename_after_analysis(
     if metadata is None:
         return
 
+    origin_asset_ref = await ensure_origin_asset_ref(db, media_item)
+    if origin_asset_ref is None:
+        return
+
     now = datetime.now(timezone.utc)
-    media_item.last_mutation_attempted_at = now
 
     # --- Set first_seen_source_filename once ---
     if media_item.first_seen_source_filename is None:
@@ -156,29 +166,60 @@ async def attempt_drive_rename_after_analysis(
 
     current_filename = media_item.first_seen_source_filename
     target = _target_filename(metadata.title, media_item.original_filename)
+    snapshot = await ensure_drive_capability_snapshot(db, connector)
+    operation = await ensure_writeback_operation(
+        db,
+        media_item=media_item,
+        origin_asset_ref=origin_asset_ref,
+        operation_type="rename",
+        provider_type=origin_asset_ref.provider_type,
+        source_connector_id=connector.id,
+        requested_filename=target,
+    )
+    operation.attempt_count += 1
+    operation.last_attempted_at = now
 
     # --- Check writable scope ---
-    if not scope_has_write(connector.granted_scopes):
-        logger.info(
-            "Drive item %s blocked_writeback: connector has no write scope (source %s)",
-            media_item.id, media_item.source_id,
-        )
-        media_item.mutation_state = "blocked_writeback"
-        media_item.last_mutation_error_code = _ERR_NO_WRITE_SCOPE
-        media_item.last_mutation_error_message = (
-            "Drive connector was authorized with read-only scope. "
-            "Reconnect via 'Upgrade Drive permissions' to enable rename and write-back."
-        )
+    if snapshot.verification_state != "current":
+        operation.state = OP_STATE_BLOCKED
+        operation.last_error_code = snapshot.last_error_code or _ERR_CAPABILITY_STALE
+        operation.last_error_message = snapshot.last_error_message or "Source capability snapshot is not current."
+        apply_writeback_operation_to_mirror(media_item, operation)
         await _record_mutation_attempt(
             db,
             media_item=media_item,
             operation_type="rename",
             prior_filename=current_filename,
             new_filename=target,
-            source_locator_snapshot={"drive_file_id": media_item.content_hash},
+            source_locator_snapshot={"origin_asset_ref_id": origin_asset_ref.id},
+            succeeded=False,
+            error_code=operation.last_error_code,
+            error_message=operation.last_error_message,
+        )
+        return
+
+    if not snapshot.can_write:
+        logger.info(
+            "Drive item %s blocked_writeback: connector has no write scope (source %s)",
+            media_item.id, media_item.source_id,
+        )
+        operation.state = OP_STATE_BLOCKED
+        operation.last_error_code = _ERR_NO_WRITE_SCOPE
+        operation.last_error_message = (
+            "Drive connector was authorized with read-only scope. "
+            "Reconnect via 'Upgrade Drive permissions' to enable rename and write-back."
+        )
+        apply_writeback_operation_to_mirror(media_item, operation)
+        await _record_mutation_attempt(
+            db,
+            media_item=media_item,
+            operation_type="rename",
+            prior_filename=current_filename,
+            new_filename=target,
+            source_locator_snapshot={"origin_asset_ref_id": origin_asset_ref.id},
             succeeded=False,
             error_code=_ERR_NO_WRITE_SCOPE,
-            error_message=media_item.last_mutation_error_message,
+            error_message=operation.last_error_message,
         )
         return
 
@@ -187,15 +228,49 @@ async def attempt_drive_rename_after_analysis(
         credentials = decrypt_credentials(connector.credentials_encrypted)
     except Exception as exc:
         logger.warning("Cannot decrypt Drive credentials for item %s: %s", media_item.id, exc)
-        media_item.mutation_state = "blocked_writeback"
-        media_item.last_mutation_error_code = _ERR_DRIVE_AUTH_EXPIRED
-        media_item.last_mutation_error_message = "Drive credentials could not be decrypted."
+        mark_snapshot_error(
+            snapshot,
+            error_code=_ERR_DRIVE_AUTH_EXPIRED,
+            error_message="Drive credentials could not be decrypted.",
+        )
+        operation.state = OP_STATE_BLOCKED
+        operation.last_error_code = _ERR_DRIVE_AUTH_EXPIRED
+        operation.last_error_message = "Drive credentials could not be decrypted."
+        apply_writeback_operation_to_mirror(media_item, operation)
+        await _record_mutation_attempt(
+            db,
+            media_item=media_item,
+            operation_type="rename",
+            prior_filename=current_filename,
+            new_filename=target,
+            source_locator_snapshot={"origin_asset_ref_id": origin_asset_ref.id},
+            succeeded=False,
+            error_code=_ERR_DRIVE_AUTH_EXPIRED,
+            error_message=operation.last_error_message,
+        )
         return
 
     if not credentials.get("refresh_token"):
-        media_item.mutation_state = "blocked_writeback"
-        media_item.last_mutation_error_code = _ERR_DRIVE_AUTH_EXPIRED
-        media_item.last_mutation_error_message = "Drive connector is disconnected (no refresh token)."
+        mark_snapshot_error(
+            snapshot,
+            error_code=_ERR_DRIVE_AUTH_EXPIRED,
+            error_message="Drive connector is disconnected (no refresh token).",
+        )
+        operation.state = OP_STATE_BLOCKED
+        operation.last_error_code = _ERR_DRIVE_AUTH_EXPIRED
+        operation.last_error_message = "Drive connector is disconnected (no refresh token)."
+        apply_writeback_operation_to_mirror(media_item, operation)
+        await _record_mutation_attempt(
+            db,
+            media_item=media_item,
+            operation_type="rename",
+            prior_filename=current_filename,
+            new_filename=target,
+            source_locator_snapshot={"origin_asset_ref_id": origin_asset_ref.id},
+            succeeded=False,
+            error_code=_ERR_DRIVE_AUTH_EXPIRED,
+            error_message=operation.last_error_message,
+        )
         return
 
     token_manager = DriveTokenManager(
@@ -210,39 +285,54 @@ async def attempt_drive_rename_after_analysis(
         access_token = await token_manager.get_access_token(db)
     except DriveTokenError as exc:
         logger.warning("Drive token refresh failed for item %s: %s", media_item.id, exc)
-        media_item.mutation_state = "blocked_writeback"
-        media_item.last_mutation_error_code = _ERR_DRIVE_AUTH_EXPIRED
-        media_item.last_mutation_error_message = str(exc)[:500]
+        mark_snapshot_error(
+            snapshot,
+            error_code=_ERR_DRIVE_AUTH_EXPIRED,
+            error_message=str(exc),
+        )
+        operation.state = OP_STATE_BLOCKED
+        operation.last_error_code = _ERR_DRIVE_AUTH_EXPIRED
+        operation.last_error_message = str(exc)[:500]
+        apply_writeback_operation_to_mirror(media_item, operation)
         await _record_mutation_attempt(
             db, media_item=media_item, operation_type="rename",
             prior_filename=current_filename, new_filename=target,
             source_locator_snapshot=None,
             succeeded=False, error_code=_ERR_DRIVE_AUTH_EXPIRED,
-            error_message=media_item.last_mutation_error_message,
+            error_message=operation.last_error_message,
         )
         return
 
-    # The Drive file ID is stored as the external_object_key in SourceObject.
-    # We use media_item.original_filename as the current name and look up the
-    # drive file ID from the SourceObject table.
-    from src.models import SourceObject
-    so_result = await db.execute(
-        select(SourceObject).where(
-            SourceObject.source_id == media_item.source_id,
-            SourceObject.last_imported_media_item_id == media_item.id,
+    source_object: SourceObject | None = None
+    drive_file_id = origin_asset_ref.provider_object_id
+    if origin_asset_ref.source_object_id:
+        so_result = await db.execute(
+            select(SourceObject).where(SourceObject.id == origin_asset_ref.source_object_id)
         )
-    )
-    source_object = so_result.scalar_one_or_none()
-    drive_file_id = source_object.external_object_key if source_object else None
+        source_object = so_result.scalar_one_or_none()
+        if not drive_file_id and source_object is not None:
+            drive_file_id = source_object.external_object_key
 
     if not drive_file_id:
         # Item ingested before source-object tracking or via manual upload —
         # cannot locate Drive file; mark blocked.
-        media_item.mutation_state = "blocked_writeback"
-        media_item.last_mutation_error_code = "no_drive_file_id"
-        media_item.last_mutation_error_message = (
+        operation.state = OP_STATE_BLOCKED
+        operation.last_error_code = _ERR_NO_DRIVE_FILE_ID
+        operation.last_error_message = (
             "Cannot locate Drive file ID for this item. "
             "Re-sync the Drive source to re-establish the link."
+        )
+        apply_writeback_operation_to_mirror(media_item, operation)
+        await _record_mutation_attempt(
+            db,
+            media_item=media_item,
+            operation_type="rename",
+            prior_filename=current_filename,
+            new_filename=target,
+            source_locator_snapshot={"origin_asset_ref_id": origin_asset_ref.id},
+            succeeded=False,
+            error_code=_ERR_NO_DRIVE_FILE_ID,
+            error_message=operation.last_error_message,
         )
         return
 
@@ -266,10 +356,11 @@ async def attempt_drive_rename_after_analysis(
         if resp.status_code == 200:
             renamed_to = resp.json().get("name", target)
             media_item.prior_source_filename = current_filename
-            media_item.source_filename_applied_at = now
-            media_item.last_mutation_error_code = None
-            media_item.last_mutation_error_message = None
-            media_item.mutation_state = "fully_applied"
+            operation.state = OP_STATE_APPLIED
+            operation.applied_at = now
+            operation.last_error_code = None
+            operation.last_error_message = None
+            apply_writeback_operation_to_mirror(media_item, operation)
             await _record_mutation_attempt(
                 db, media_item=media_item, operation_type="rename",
                 prior_filename=current_filename, new_filename=renamed_to,
@@ -284,9 +375,12 @@ async def attempt_drive_rename_after_analysis(
         elif resp.status_code in (401, 403):
             err_code = _ERR_DRIVE_PERMISSION_DENIED if resp.status_code == 403 else _ERR_DRIVE_AUTH_EXPIRED
             err_msg = f"Drive API returned HTTP {resp.status_code}: {resp.text[:200]}"
-            media_item.mutation_state = "blocked_writeback"
-            media_item.last_mutation_error_code = err_code
-            media_item.last_mutation_error_message = err_msg
+            if err_code == _ERR_DRIVE_AUTH_EXPIRED:
+                mark_snapshot_error(snapshot, error_code=err_code, error_message=err_msg)
+            operation.state = OP_STATE_BLOCKED
+            operation.last_error_code = err_code
+            operation.last_error_message = err_msg
+            apply_writeback_operation_to_mirror(media_item, operation)
             await _record_mutation_attempt(
                 db, media_item=media_item, operation_type="rename",
                 prior_filename=current_filename, new_filename=target,
@@ -296,9 +390,10 @@ async def attempt_drive_rename_after_analysis(
 
         elif resp.status_code == 404:
             err_msg = "Drive file no longer exists at the expected location."
-            media_item.mutation_state = "blocked_writeback"
-            media_item.last_mutation_error_code = _ERR_DRIVE_NOT_FOUND
-            media_item.last_mutation_error_message = err_msg
+            operation.state = OP_STATE_BLOCKED
+            operation.last_error_code = _ERR_DRIVE_NOT_FOUND
+            operation.last_error_message = err_msg
+            apply_writeback_operation_to_mirror(media_item, operation)
             await _record_mutation_attempt(
                 db, media_item=media_item, operation_type="rename",
                 prior_filename=current_filename, new_filename=target,
@@ -309,9 +404,10 @@ async def attempt_drive_rename_after_analysis(
         else:
             # Transient server-side error → pending_writeback for retry
             err_msg = f"Drive API returned HTTP {resp.status_code}: {resp.text[:200]}"
-            media_item.mutation_state = "pending_writeback"
-            media_item.last_mutation_error_code = _ERR_DRIVE_API_ERROR
-            media_item.last_mutation_error_message = err_msg
+            operation.state = OP_STATE_FAILED
+            operation.last_error_code = _ERR_DRIVE_API_ERROR
+            operation.last_error_message = err_msg
+            apply_writeback_operation_to_mirror(media_item, operation)
             await _record_mutation_attempt(
                 db, media_item=media_item, operation_type="rename",
                 prior_filename=current_filename, new_filename=target,
@@ -325,9 +421,10 @@ async def attempt_drive_rename_after_analysis(
 
     except Exception as exc:
         err_msg = str(exc)[:500]
-        media_item.mutation_state = "pending_writeback"
-        media_item.last_mutation_error_code = _ERR_DRIVE_API_ERROR
-        media_item.last_mutation_error_message = err_msg
+        operation.state = OP_STATE_FAILED
+        operation.last_error_code = _ERR_DRIVE_API_ERROR
+        operation.last_error_message = err_msg
+        apply_writeback_operation_to_mirror(media_item, operation)
         await _record_mutation_attempt(
             db, media_item=media_item, operation_type="rename",
             prior_filename=current_filename, new_filename=target,
