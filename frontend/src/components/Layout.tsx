@@ -63,6 +63,7 @@ export default function Layout() {
           </Link>
           <nav className="app-nav">
             <GalleryNavLink />
+            <NavLink to="/upload" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Upload</NavLink>
             <NavLink to="/add-media" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Add Media</NavLink>
             <NavLink to="/sources" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Connections</NavLink>
             <NavLink to="/sync-runs" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Sync History</NavLink>
