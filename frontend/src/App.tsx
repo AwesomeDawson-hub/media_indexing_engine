@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import PublicRoute from './components/PublicRoute';
@@ -44,7 +44,7 @@ export default function App() {
           <Route element={<Layout />}>
             <Route path="/" element={<GalleryPage />} />
             <Route path="/add-media" element={<AddMediaPage />} />
-            <Route path="/upload" element={<Navigate to="/add-media" replace />} />
+            <Route path="/upload" element={<UploadPage />} />
             <Route path="/sources" element={<SourcesPage />} />
             <Route path="/media/:id" element={<MediaDetailPage />} />
             <Route path="/profile" element={<ProfilePage />} />

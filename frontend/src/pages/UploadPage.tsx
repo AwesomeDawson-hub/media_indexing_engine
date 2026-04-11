@@ -8,17 +8,18 @@ const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'im
 const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.tiff', '.tif', '.bmp', '.avif'];
 const MAX_SIZE = 50 * 1024 * 1024; // 50 MB
 
-const HAS_FOLDER_PICKER = typeof window !== 'undefined' && 'showDirectoryPicker' in window;
-
 function isAllowedFile(file: File): boolean {
-  // Check MIME type first
   if (ALLOWED_TYPES.includes(file.type)) return true;
-  // Fallback: check extension (browsers may not know AVIF/TIFF MIME types)
   const ext = '.' + file.name.split('.').pop()?.toLowerCase();
   return ALLOWED_EXTENSIONS.includes(ext);
 }
 
 export default function UploadPage() {
+  // Check must live inside the component — module-level constants using
+  // typeof window / in globalThis evaluate to false in the Node.js Vite build
+  // process and get dead-code eliminated by Rollup.
+  const HAS_FOLDER_PICKER = typeof (window as unknown as Record<string, unknown>).showDirectoryPicker === 'function';
+
   const [queue, setQueue] = useState<QueuedFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const [quotaStatus, setQuotaStatus] = useState<QuotaStatus | null>(null);
@@ -36,7 +37,7 @@ export default function UploadPage() {
     setFolderPickerError(null);
     try {
       // showDirectoryPicker is a standard File System Access API method
-      const handle = await (window as unknown as { showDirectoryPicker: () => Promise<FileSystemDirectoryHandle> }).showDirectoryPicker();
+      const handle = await (globalThis as unknown as { showDirectoryPicker: () => Promise<FileSystemDirectoryHandle> }).showDirectoryPicker();
       setWorkingFolder(handle);
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') {
