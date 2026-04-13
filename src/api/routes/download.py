@@ -6,7 +6,7 @@ import os
 import re
 import zipfile
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,7 +19,7 @@ from src.analysis.schemas import MediaMetadataResult
 from src.config import settings
 from src.enrichment.embedder import MetadataEmbedder
 from src.ingestion.hashing import compute_sha256
-from src.models import MediaItem, MediaMetadata, ProcessingJob
+from src.models import MediaItem, MediaMetadata, OriginAssetRef, ProcessingJob
 
 router = APIRouter(prefix="/api/v1", tags=["download"])
 
@@ -93,6 +93,36 @@ async def download_file(
     if item is None:
         raise HTTPException(status_code=404, detail="Media item not found")
 
+    # P10-001: Drive-backed reference items — fetch transiently and serve enriched bytes
+    if item.storage_mode == "reference":
+        oar_result = await db.execute(
+            select(OriginAssetRef).where(OriginAssetRef.media_item_id == media_id)
+        )
+        oar = oar_result.scalar_one_or_none()
+        if oar is not None and oar.provider_type == "google_drive":
+            from src.connectors.drive_reference_fetch import fetch_drive_reference_bytes
+
+            meta_result = await db.execute(
+                select(MediaMetadata).where(MediaMetadata.media_item_id == media_id)
+            )
+            meta = meta_result.scalar_one_or_none()
+            if meta is None:
+                raise HTTPException(status_code=409, detail="Analysis not yet completed")
+
+            file_bytes = await fetch_drive_reference_bytes(db, item, user_id)
+            metadata_result = _metadata_to_result(meta)
+            enrichment = _embedder.embed(file_bytes, item.mime_type, metadata_result, item.original_filename)
+
+            ext = _ext_for_mime(enrichment.output_mime_type, item.original_filename)
+            download_name = _sanitize_filename(meta.title, ext) or item.original_filename
+            return Response(
+                content=enrichment.enriched_bytes,
+                media_type=enrichment.output_mime_type,
+                headers={
+                    "Content-Disposition": f'attachment; filename="{download_name}"',
+                },
+            )
+
     # P9-002: original must be in app storage to embed metadata and serve enriched file
     assert_original_accessible(item)
 
@@ -112,6 +142,54 @@ async def download_file(
     enrichment = _embedder.embed(file_bytes, item.mime_type, metadata_result, item.original_filename)
 
     # Always use AI title as download filename
+    ext = _ext_for_mime(enrichment.output_mime_type, item.original_filename)
+    download_name = _sanitize_filename(meta.title, ext) or item.original_filename
+
+    return Response(
+        content=enrichment.enriched_bytes,
+        media_type=enrichment.output_mime_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{download_name}"',
+        },
+    )
+
+
+@router.post("/media/{media_id}/embed")
+async def embed_metadata_client_file(
+    media_id: str,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+) -> Response:
+    """Embed AI metadata into client-supplied bytes and return the enriched file.
+
+    For reference-mode (local working-folder) items the original is not stored in
+    app storage, so the standard /download endpoint cannot be used.  The browser
+    re-uploads the original bytes; the backend fetches the stored AI metadata,
+    embeds it, and returns the enriched file for the client to write back to disk.
+    """
+    result = await db.execute(
+        select(MediaItem).where(MediaItem.id == media_id, MediaItem.user_id == user_id)
+    )
+    item = result.scalar_one_or_none()
+    if item is None:
+        raise HTTPException(status_code=404, detail="Media item not found")
+
+    if item.status != "completed":
+        raise HTTPException(status_code=409, detail="Analysis not yet completed")
+
+    meta_result = await db.execute(
+        select(MediaMetadata).where(MediaMetadata.media_item_id == media_id)
+    )
+    meta = meta_result.scalar_one_or_none()
+    if meta is None:
+        raise HTTPException(status_code=409, detail="Analysis metadata not found")
+
+    file_bytes = await file.read()
+    metadata_result = _metadata_to_result(meta)
+
+    enrichment = _embedder.embed(file_bytes, item.mime_type, metadata_result, item.original_filename)
+
     ext = _ext_for_mime(enrichment.output_mime_type, item.original_filename)
     download_name = _sanitize_filename(meta.title, ext) or item.original_filename
 

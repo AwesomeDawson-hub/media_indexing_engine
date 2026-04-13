@@ -1,6 +1,6 @@
 export interface QueuedFile {
   file: File;
-  status: 'queued' | 'uploading' | 'created' | 'duplicate' | 'error';
+  status: 'queued' | 'uploading' | 'enriching' | 'created' | 'duplicate' | 'error';
   error?: string;
 }
 
@@ -10,7 +10,8 @@ interface FileQueueProps {
 
 const statusLabels: Record<string, string> = {
   queued: 'Queued',
-  uploading: 'Processing...',
+  uploading: 'Uploading...',
+  enriching: 'Writing metadata...',
   created: 'Completed',
   duplicate: 'Duplicate',
   error: 'Error',
@@ -19,6 +20,7 @@ const statusLabels: Record<string, string> = {
 const statusClasses: Record<string, string> = {
   queued: '',
   uploading: 'badge-info',
+  enriching: 'badge-info',
   created: 'badge-success',
   duplicate: 'badge-warning',
   error: 'badge-danger',

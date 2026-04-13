@@ -164,7 +164,7 @@ export default function MediaDetailPage() {
   }
 
   async function handleDelete() {
-    if (!window.confirm('Delete this item? This cannot be undone.')) return;
+    if (!window.confirm('Remove this item from your index? The original file will remain in Google Drive.')) return;
     await executeDelete();
   }
 
@@ -358,15 +358,19 @@ export default function MediaDetailPage() {
           {isAnalyzed && (
             <div className="media-detail-actions">
               {collectionMsg && <span className="collection-feedback-msg">{collectionMsg}</span>}
-              {isNoEmbedFormat ? (
+              {isNoEmbedFormat && media.storage_mode === 'reference' ? (
                 <>
-                  <button
-                    className="btn btn-primary"
-                    onClick={handleDownload}
-                    disabled={downloading}
-                  >
-                    {downloading ? 'Downloading...' : 'Download'}
-                  </button>
+                  {media.drive_view_url ? (
+                    <a
+                      className="btn btn-primary"
+                      href={media.drive_view_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Open this file in Google Drive to view or download"
+                    >
+                      Open in Drive
+                    </a>
+                  ) : null}
                   <button
                     className="btn btn-outline"
                     onClick={handleConvertToPng}
@@ -374,34 +378,29 @@ export default function MediaDetailPage() {
                   >
                     {converting ? 'Converting...' : 'Convert to PNG with metadata'}
                   </button>
-                  <div className="detail-collection-wrapper">
-                    <button
-                      className="btn btn-secondary"
-                      onClick={handleOpenCollectionPicker}
-                      disabled={addingToCollection}
-                    >
-                      + Collection
-                    </button>
-                    {showCollectionPicker && (
-                      <div className="selection-collection-dropdown">
-                        {collections.length === 0 ? (
-                          <div className="selection-collection-item selection-collection-empty">No collections yet</div>
-                        ) : (
-                          collections.map((c) => (
-                            <button
-                              key={c.id}
-                              className="selection-collection-item"
-                              onClick={() => handleAddToCollection(c.id, c.name)}
-                              disabled={addingToCollection}
-                            >
-                              {c.name}
-                              <span className="selection-collection-count">{c.item_count}</span>
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  <button
+                    className="btn btn-danger"
+                    onClick={handleDelete}
+                    disabled={deleting}
+                  >
+                    {deleting ? 'Deleting...' : 'Delete'}
+                  </button>
+                </>
+              ) : isNoEmbedFormat ? (
+                <>
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleDownload}
+                    disabled={downloading}
+                  >
+                    {downloading ? 'Downloading...' : 'Download'}
+                  </button>                  <button
+                    className="btn btn-outline"
+                    onClick={handleConvertToPng}
+                    disabled={converting}
+                  >
+                    {converting ? 'Converting...' : 'Convert to PNG with metadata'}
+                  </button>
                   <button
                     className="btn btn-danger"
                     onClick={handleDelete}
@@ -412,41 +411,29 @@ export default function MediaDetailPage() {
                 </>
               ) : (
                 <>
-                  <button
-                    className="btn btn-primary"
-                    onClick={handleDownload}
-                    disabled={downloading}
-                  >
-                    {downloading ? 'Downloading...' : 'Download (with metadata)'}
-                  </button>
-                  <div className="detail-collection-wrapper">
+                  {media.storage_mode === 'reference' ? (
+                    <>
+                      {media.drive_view_url ? (
+                        <a
+                          className="btn btn-primary"
+                          href={media.drive_view_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Open this file in Google Drive to view or download"
+                        >
+                          Open in Drive
+                        </a>
+                      ) : null}
+                    </>
+                  ) : (
                     <button
-                      className="btn btn-secondary"
-                      onClick={handleOpenCollectionPicker}
-                      disabled={addingToCollection}
+                      className="btn btn-primary"
+                      onClick={handleDownload}
+                      disabled={downloading}
                     >
-                      + Collection
+                      {downloading ? 'Downloading...' : 'Download (with metadata)'}
                     </button>
-                    {showCollectionPicker && (
-                      <div className="selection-collection-dropdown">
-                        {collections.length === 0 ? (
-                          <div className="selection-collection-item selection-collection-empty">No collections yet</div>
-                        ) : (
-                          collections.map((c) => (
-                            <button
-                              key={c.id}
-                              className="selection-collection-item"
-                              onClick={() => handleAddToCollection(c.id, c.name)}
-                              disabled={addingToCollection}
-                            >
-                              {c.name}
-                              <span className="selection-collection-count">{c.item_count}</span>
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  )}
                   <button
                     className="btn btn-danger"
                     onClick={handleDelete}

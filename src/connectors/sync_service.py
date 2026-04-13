@@ -217,12 +217,34 @@ async def _run_sync(
     for remote_obj in remote_objects:
         so = existing_objects.get(remote_obj.key)
 
-        # Idempotency check: skip if key+version unchanged
+        # Idempotency check: skip if file is already imported and version has not
+        # detectably changed.  We default to *skipping* when version info is
+        # absent or identical; only re-process when we can prove a change.
+        # NOTE: Drive returns version as a JSON number (int); normalise to str
+        # before comparison to avoid a type-mismatch false-positive on re-sync.
+        if so is not None and so.state == "excluded":
+            # User explicitly deleted this item from the gallery — never reimport.
+            result.skipped_count += 1
+            sync_run.skipped_count = result.skipped_count
+            continue
+
         if so is not None and so.state in ("imported", "duplicate"):
-            if (
-                remote_obj.version is not None
-                and so.external_version == remote_obj.version
-            ):
+            new_version = str(remote_obj.version) if remote_obj.version is not None else None
+            old_version = so.external_version  # always str (String DB column)
+            version_changed = (
+                new_version is not None
+                and old_version is not None
+                and new_version != old_version
+            )
+            logger.info(
+                "Idempotency: key=%s state=%s old_version=%r new_version=%r version_changed=%s",
+                remote_obj.key, so.state, old_version, new_version, version_changed,
+            )
+            if not version_changed:
+                # Even on skip, persist the latest version so future comparisons
+                # are correct (e.g. NULL→md5 transition after changing watch field).
+                if new_version is not None and so.external_version != new_version:
+                    so.external_version = new_version
                 result.skipped_count += 1
                 sync_run.skipped_count = result.skipped_count
                 continue
@@ -413,7 +435,7 @@ def _upsert_source_object(
             source_id=source_id,
             user_id=user_id,
             external_object_key=remote_obj.key,
-            external_version=remote_obj.version,
+            external_version=str(remote_obj.version) if remote_obj.version is not None else None,
             external_last_modified_at=remote_obj.last_modified_at,
             external_size=remote_obj.size,
             last_sync_run_id=sync_run_id,
@@ -425,7 +447,7 @@ def _upsert_source_object(
         db.add(so)
     else:
         so = existing
-        so.external_version = remote_obj.version
+        so.external_version = str(remote_obj.version) if remote_obj.version is not None else None
         so.external_last_modified_at = remote_obj.last_modified_at
         so.external_size = remote_obj.size
         so.last_sync_run_id = sync_run_id

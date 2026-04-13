@@ -182,7 +182,7 @@ async def test_reanalyze_full_item_succeeds(client):
 async def test_reanalyze_batch_skips_reference_items(
     client, db_session_factory, seed_users, tmp_storage
 ):
-    """Batch reanalyze silently skips reference-mode items and returns queued=0."""
+    """Batch reanalyze explicitly blocks reference-mode items (P11-001: no silent skip)."""
     file_store = LocalFileStore(tmp_storage)
     item = await _make_reference_item(db_session_factory, DEV_USER_1, file_store)
 
@@ -192,7 +192,11 @@ async def test_reanalyze_batch_skips_reference_items(
     )
     assert resp.status_code == 202
     body = resp.json()
-    assert body["queued"] == 0
+    # reference items are now explicitly blocked, not silently skipped
+    assert body["accepted_count"] == 0
+    assert body["blocked_count"] == 1
+    assert body["queued_count"] == 0
+    assert body["outcomes"][0]["outcome"] == "blocked"
 
 
 # ---------------------------------------------------------------------------

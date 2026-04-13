@@ -155,6 +155,14 @@ class GoogleAuthConfig:
 
 
 @dataclass
+class ExportConfig:
+    max_batch_size: int = 50
+    max_active_jobs_per_user: int = 3
+    artifact_ttl_hours: int = 24
+    drive_concurrency: int = 3
+
+
+@dataclass
 class GoogleDriveConfig:
     """Google Drive connector OAuth2 configuration (P7-002).
 
@@ -192,6 +200,7 @@ class Settings:
     connector: ConnectorConfig = field(default_factory=ConnectorConfig)
     google: GoogleAuthConfig = field(default_factory=GoogleAuthConfig)
     google_drive: GoogleDriveConfig = field(default_factory=GoogleDriveConfig)
+    export: ExportConfig = field(default_factory=ExportConfig)
 
 
 def load_settings(path: Path = DEFAULT_SETTINGS_PATH) -> Settings:
@@ -219,6 +228,7 @@ def load_settings(path: Path = DEFAULT_SETTINGS_PATH) -> Settings:
         google=GoogleAuthConfig(**{k: v for k, v in raw.get("google", {}).items()
                                    if k in ("enabled", "client_id", "client_secret",
                                             "redirect_uri", "frontend_url")}),
+        export=ExportConfig(**raw.get("export", {})),
     )
 
     # Override secret key from env var if set (production override)

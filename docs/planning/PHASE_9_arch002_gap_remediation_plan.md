@@ -8,7 +8,7 @@
 | **Project** | Media Indexing Engine |
 | **Created** | 2026-04-08 |
 | **Author** | Architect |
-| **Status** | Approved — operator direction locked 2026-04-08 |
+| **Status** | Approved historical phase baseline — Phase 9 completed; retained for post-Phase-9 reference |
 | **Dependencies** | `ARCH-002-reference-mode-storage.md` approved; P8-001, P8-002, and P8-003 completed |
 
 ## Objective
@@ -302,7 +302,7 @@ Approved. Because some connector items can still remain `full` indefinitely afte
 1. Phase 9 direction approved.
 2. P9-001 and P9-002 completed in that approved order.
 3. P9-003 and P9-004 completed as the additive domain and operational write-back slices.
-4. P9-005 is now the remaining unresolved workstream and should proceed through its normal audit/approval gate before Engineer handoff.
+4. P9-005 completed on 2026-04-10 and Phase 9 is now closed. This document remains a historical remediation baseline for later post-Phase-9 workstreams rather than a live workflow-state owner.
 
 ## Architect Verdict
 

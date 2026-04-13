@@ -216,16 +216,6 @@ export default function AddMediaPage() {
         <h1>Add Media</h1>
       </div>
 
-      {/* ── Upload from local folder ───────────────────────────────────── */}
-      <section className="add-media-section">
-        <h2 className="add-media-section-title">Upload from Local Folder</h2>
-        <p className="add-media-hint">
-          Select a working folder on your device, then drag and drop files to index them.
-          Originals stay on your device — only a thumbnail and AI metadata are stored.
-        </p>
-        <Link to="/upload" className="btn btn-primary">Open Local Upload</Link>
-      </section>
-
       {/* ── Connect Google Drive ──────────────────────────────────────────── */}
       <section className="add-media-section">
         <h2 className="add-media-section-title">Connect Google Drive</h2>
@@ -272,14 +262,19 @@ export default function AddMediaPage() {
         )}
       </section>
 
-      {/* ── S3 ───────────────────────────────────────────────────────────── */}
-      <section className="add-media-section">
-        <h2 className="add-media-section-title">Connect S3 Bucket</h2>
-        <p className="add-media-hint">
-          To connect an AWS S3 or S3-compatible bucket,{' '}
-          <Link to="/sources">manage it from the Connections page</Link>.
-        </p>
-      </section>
+      {/* ── Advanced Settings ─────────────────────────────────────────── */}
+      <details className="advanced-settings">
+        <summary className="advanced-settings-toggle">Advanced Settings</summary>
+
+        <section className="add-media-section">
+          <h2 className="add-media-section-title">Connect S3 Bucket</h2>
+          <p className="add-media-hint">
+            For teams storing originals in AWS S3 or an S3-compatible store (Backblaze B2, MinIO, etc.).
+            Requires an IAM access key with <code>s3:ListBucket</code> and <code>s3:GetObject</code> permissions.{' '}
+            <Link to="/sources">Set it up from the Connections page</Link>.
+          </p>
+        </section>
+      </details>
     </div>
   );
 }

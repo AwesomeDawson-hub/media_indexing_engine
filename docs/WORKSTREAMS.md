@@ -57,6 +57,14 @@ This document tracks all work items for the Media Indexing Engine through their 
 - **Plan:** `docs/planning/P9-003_plan.md`
 - **Summary:** `IMPLEMENTATION_STATUS.md` — P9-003 entry
 
+### P10-001: On-Demand Drive Fetch for Reference Items
+- **Objective:** Introduce a controlled transient Drive-only refetch path for `storage_mode='reference'` items so single-item re-analysis and single-item download/export can reuse the source-owned original without reintroducing app-retained originals.
+- **Phase:** Post-Phase 9 incremental workstreams
+- **Status:** Completed and closed out — 2026-04-12
+- **Size:** Medium
+- **Plan:** `docs/planning/P10-001_plan.md`
+- **Summary:** `IMPLEMENTATION_STATUS.md` — P10-001 entry
+
 ### P9-005: Local Working-Folder Intake and Eliminate App-Retained Browser Originals
 - **Objective:** Replace the current browser/local retained-original upload path with working-folder-first local intake so new drag-drop or file-selected items no longer create permanent AWS-retained originals.
 - **Phase:** Phase 9 — ARCH-002 Gap Remediation
@@ -65,13 +73,25 @@ This document tracks all work items for the Media Indexing Engine through their 
 - **Plan:** `docs/planning/P9-005_plan.md`
 - **Summary:** `IMPLEMENTATION_STATUS.md` — P9-005 entry
 
+### P11-001: Capability-Aware Batch Reanalysis
+- **Objective:** Replace the legacy full-storage silent-skip batch reanalysis behavior with a capability-aware contract that can queue eligible full items and approved Drive-backed reference items while reporting explicit per-item outcomes for blocked and rejected selections.
+- **Phase:** Post-Phase 9 incremental workstreams
+- **Status:** Completed and closed out — 2026-04-12
+- **Size:** Medium-Large
+- **Plan:** `docs/planning/P11-001_plan.md`
+- **Summary:** `IMPLEMENTATION_STATUS.md` — P11-001 entry
+
+## In Progress
+
+### P11-002: Async Connector-Aware Bulk Export
+- **Objective:** Define a separate async export-job model for connector-backed bulk export instead of extending the legacy synchronous ZIP route into mixed full-plus-reference behavior.
+- **Phase:** Post-Phase 9 incremental workstreams
+- **Status:** Implementation and remediation complete; final Auditor closeout re-pass pending — 2026-04-12
+- **Size:** Medium-Large
+- **Plan:** `docs/planning/P11-002_plan.md`
+- **Summary:** `IMPLEMENTATION_STATUS.md` — P11-002 implementation and post-remediation reconciliation entry; awaiting final Auditor gate
+
 ## Planned
-
-_Post-Phase 9 workstreams are being planned incrementally._
-
----
-
-## Future
 
 ### Future: Dropbox Connector
 - **Objective:** Add Dropbox ingestion on top of the connector foundation.
@@ -82,12 +102,6 @@ _Post-Phase 9 workstreams are being planned incrementally._
 - **Objective:** Support automatic ingestion from a user's local filesystem.
 - **Phase:** Later than Phase 5
 - **Status:** Deferred — requires an agent or bridge component not present in the current hosted architecture.
-
----
-
-## In Progress
-
-_No workstreams currently in progress._
 
 ---
 

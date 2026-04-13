@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +12,10 @@ from src.api.schemas import SourceCreateRequest, SourceResponse
 from src.models import MediaItem, Source
 
 router = APIRouter(prefix="/api/v1/sources", tags=["sources"])
+
+
+class _RenameRequest(BaseModel):
+    name: str
 
 
 @router.post("", status_code=201)
@@ -81,6 +86,30 @@ async def list_sources(
         r.media_count = counts.get(s.id, 0)
         responses.append(r)
     return responses
+
+
+@router.patch("/{source_id}")
+async def rename_source(
+    source_id: str,
+    body: _RenameRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+) -> SourceResponse:
+    """Rename a source."""
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Name cannot be blank")
+    result = await db.execute(
+        select(Source).where(Source.id == source_id, Source.user_id == user_id)
+    )
+    source = result.scalar_one_or_none()
+    if source is None:
+        raise HTTPException(status_code=404, detail="Source not found")
+    source.name = name
+    source.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(source)
+    return SourceResponse.model_validate(source)
 
 
 @router.post("/{source_id}/archive")

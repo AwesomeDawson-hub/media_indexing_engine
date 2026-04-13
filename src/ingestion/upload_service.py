@@ -4,7 +4,7 @@ import io
 import logging
 from dataclasses import dataclass, field
 
-from PIL import Image
+from PIL import Image, ImageOps
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,16 +18,17 @@ from src.storage.file_store import FileStore
 logger = logging.getLogger(__name__)
 
 # Thumbnail generation constants (ADR-028 / P8-001)
-_THUMB_MAX_PX = 800
-_THUMB_QUALITY = 85
+_THUMB_MAX_PX = 400
+_THUMB_QUALITY = 75
 
 
 def _generate_thumbnail(file_bytes: bytes) -> bytes:
-    """Generate an 800px max-dimension JPEG thumbnail and return the bytes.
+    """Generate a 400px max-dimension JPEG thumbnail and return the bytes.
 
     Raises on unsupported image types or corrupted input.
     """
     img = Image.open(io.BytesIO(file_bytes))
+    img = ImageOps.exif_transpose(img) or img  # correct rotation before resizing
     img = img.convert("RGB")
     img.thumbnail((_THUMB_MAX_PX, _THUMB_MAX_PX), Image.LANCZOS)
     buf = io.BytesIO()

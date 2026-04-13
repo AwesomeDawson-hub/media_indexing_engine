@@ -26,7 +26,7 @@ from src.analysis.writeback_operation_service import (
 from src.config import settings
 from src.curation.phash_service import find_similar, PHASH_THRESHOLD
 from src.curation.scoring_service import load_scores_for_items, find_best_pick, score_group
-from src.models import MediaItem, MediaMetadata, Source, SourceMutationHistory
+from src.models import MediaItem, MediaMetadata, OriginAssetRef, Source, SourceMutationHistory
 
 router = APIRouter(prefix="/api/v1", tags=["media"])
 
@@ -80,6 +80,18 @@ async def _build_media_item_responses(
     source_ids = [item.source_id for item in items if item.source_id]
     source_names = await _get_source_names(db, source_ids)
 
+    # Batch-fetch Drive view URLs for reference-mode items
+    reference_ids = [item.id for item in items if item.storage_mode == "reference"]
+    drive_view_urls: dict[str, str] = {}
+    if reference_ids:
+        oar_result = await db.execute(
+            select(OriginAssetRef.media_item_id, OriginAssetRef.provider_type, OriginAssetRef.provider_object_id)
+            .where(OriginAssetRef.media_item_id.in_(reference_ids))
+        )
+        for media_item_id, provider_type, provider_object_id in oar_result.all():
+            if provider_type == "google_drive" and provider_object_id:
+                drive_view_urls[media_item_id] = f"https://drive.google.com/file/d/{provider_object_id}/view"
+
     # Similarity summary — one batch query per page when feature gate is ON
     similarity_map: dict[str, tuple[bool, int]] = {}  # item_id -> (has_similar, similar_count)
     if settings.curation.enable_duplicate_detection:
@@ -119,6 +131,9 @@ async def _build_media_item_responses(
             created_at=item.created_at,
             has_similar=similarity_map.get(item.id, (False, 0))[0],
             similar_count=similarity_map.get(item.id, (False, 0))[1],
+            mutation_state=item.mutation_state,
+            storage_mode=item.storage_mode,
+            drive_view_url=drive_view_urls.get(item.id),
         )
         for item in items
     ]

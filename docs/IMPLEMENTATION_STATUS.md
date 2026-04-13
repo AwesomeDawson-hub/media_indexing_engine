@@ -31,6 +31,58 @@ Each completed workstream gets one entry in the log below, following this struct
 
 ## Completed Workstream Log
 
+### P11-002: Async Connector-Aware Bulk Export
+- **Phase:** Post-Phase 9 incremental workstreams
+- **Completed:** Initial implementation landed 2026-04-12; narrow closeout remediation also landed 2026-04-12; final Auditor closeout re-pass pending
+- **Files Changed:**
+  - `src/config.py` — added `ExportConfig` dataclass (`max_batch_size`, `max_active_jobs_per_user`, `artifact_ttl_hours`, `drive_concurrency`); wired into `Settings` and `load_settings`
+  - `src/models.py` — added `ExportJob` ORM model (`export_jobs` table; status lifecycle, per-item JSON columns, artifact path/TTL, artifact_downloaded flag)
+  - `src/api/schemas.py` — added `ExportBatchRequest`, `ExportItemOutcome`, `ExportBatchResponse`, `ExportItemResult`, `ExportJobStatusResponse`
+  - `src/api/routes/export.py` — new file; 3 routes + background executor `_run_export_job`; bounded Drive semaphore; post-remediation contract alignment for no-eligible-items payload, incremental artifact writing, and expired-status promotion
+  - `src/api/app.py` — registered `export.router`; app lifespan now wires startup cleanup for expired export artifacts
+  - `tests/conftest.py` — added `export_mod.async_session` patching in both `client` and `client_user2` fixtures
+  - `tests/test_p11_002_export_batch.py` — new file, 19 focused tests
+- **Contract changes (new routes):**
+  - `POST /api/v1/media/export-batch` — HTTP 202 with per-item submission outcomes; accepted/blocked/rejected classification; no job created on all-rejected/blocked
+  - `GET /api/v1/media/export-jobs/{job_id}` — job status, item results, artifact_ready flag
+  - `GET /api/v1/media/export-jobs/{job_id}/download` — single-use ZIP download; 410 after first download or TTL expiry
+- **Historical closeout note:** P11-002 was briefly reopened on 2026-04-12 after Auditor review found four material drifts against ADR-036. That reopened state is now historical.
+- **Post-remediation reconciliation:**
+  - `export_no_eligible_items` now returns the full locked 409 detail payload (`request_count`, `accepted_count: 0`, `blocked_count`, `rejected_count`, `outcomes[]`)
+  - ZIP assembly now writes incrementally to the temporary export artifact instead of buffering the full archive in memory
+  - TTL-expired artifact cleanup now exists on startup via app lifespan wiring
+  - completed and `completed_with_failures` jobs are now TTL-checked and can promote to `expired` on status polling
+- **Validation status:** P11-002 focused suite 19/19 pass. Directly affected suites 71 pass. The full backend suite is not fully green because of a separate unrelated failure in `tests/test_google_drive_connector.py`; that failure is not treated as a P11-002 regression.
+- **Architect verdict:** P11-002 is now reconciled to the locked ADR-036 contract. The remaining workflow gate is the final Auditor closeout re-pass, not another Engineer remediation slice.
+
+### P11-001: Capability-Aware Batch Reanalysis
+- **Phase:** Post-Phase 9 incremental workstreams
+- **Completed:** 2026-04-12
+- **Files Changed:**
+  - `src/api/schemas.py` — added `BatchReanalyzeItemOutcome`, `BatchReanalyzeResponseV2`; added `from typing import Literal`
+  - `src/api/routes/analysis.py` — replaced `reanalyze_batch` with P11-001 capability-aware implementation; added `_run_drive_batch_item` background task helper with bounded Drive concurrency (`_DRIVE_BATCH_SEMAPHORE`); top-level imports for `asyncio`, `async_session`, `fetch_drive_reference_bytes`, `original_is_accessible`, new schemas
+  - `tests/test_p11_001_batch_reanalysis.py` — new file, 9 focused tests covering all P11-001 cases
+  - `tests/test_bulk_operations.py` — 3 tests updated from old `{queued, message}` shape to P11-001 response shape
+  - `tests/test_storage_guards.py` — 1 test updated from silent-skip assertion to explicit-blocking assertion
+- **Contract changes:**
+  - `POST /api/v1/media/reanalyze-batch` response shape changed from `{queued, message}` to `BatchReanalyzeResponseV2` with `request_count`, `accepted_count`, `blocked_count`, `rejected_count`, `queued_count`, `outcomes[]`
+  - Drive-backed `storage_mode='reference'` items are now eligible for batch reanalysis (async queue; no request-time Drive fetch)
+  - All items return explicit per-item outcomes (no silent skips)
+  - All-or-nothing quota contract enforced (quota failure → HTTP 429 with full per-item reclassification)
+- **Test results:** Full regression 459/459 pass, 1 skipped at closeout; focused P11-001 validation 53/53 pass across P11-001 + bulk-operations + storage-guards + P10-001 suites.
+
+### P10-001: On-Demand Drive Fetch for Reference Items
+- **Phase:** Post-Phase 9 incremental workstreams
+- **Completed:** 2026-04-12
+- **Objective:** Introduce a controlled, transient Drive-only refetch path for `storage_mode='reference'` items so single-item re-analysis and single-item download/export can reuse the source-owned original without reintroducing app-retained originals.
+- **Outcome:** Drive refetch path delivered and aligned to locked contract. `POST /api/v1/media/{id}/reanalyze` and `GET /api/v1/media/{id}/download` both serve Drive-backed reference items by transiently fetching bytes in-memory and never persisting the original. Non-Drive reference items continue to return 409 `original_at_source` at the route layer. All 18 P10-001 tests pass; 52/52 pass across all directly-affected suites (P10-001, storage_guards, analysis, download). Full regression: 459 passed, 1 skipped (no delta — P10-001 code was already present; this workstream aligned the error contract and confirmed implementation).
+  - **`src/connectors/drive_reference_fetch.py`:** Shared Drive fetch service. Missing OAR / non-Drive OAR / missing `provider_object_id` reclassified from 422 to 502 `drive_fetch_failed` per locked contract (internal precondition failures, not client validation). All `detail` dicts changed from `"error"` key to `"error_code"` key to match error handler contract and produce consistent `error_code` in API responses.
+  - **`src/api/routes/analysis.py`:** `POST /media/{id}/reanalyze` — Drive OAR check dispatches to `fetch_drive_reference_bytes`; non-Drive reference items fall through to `assert_original_accessible()` (409). Inline ad-hoc Drive branch removed, replaced by shared service.
+  - **`src/api/routes/download.py`:** `GET /media/{id}/download` — Drive OAR check: requires metadata, fetches bytes transiently, embeds, serves. Non-Drive reference items fall through to `assert_original_accessible()` (409).
+  - **`tests/test_p10_001_drive_reference_fetch.py`:** 18 tests. Assertions updated: tests 2-4 corrected from 422 to 502 + `error_code` check; all `detail["error"]` assertions updated to `detail["error_code"]`; route propagation test mocks updated to use `error_code` key so error handler promotes correctly.
+- **Key decisions:** Internal precondition failures (missing OAR, wrong provider, missing connector) are 502 not 422 — callers are expected to resolve Drive-backed items only at the route layer before entering the shared service. `error_code` is the canonical key in all detail dicts to align with `error_handlers.py`.
+- **Scope preserved:** No batch expansion, no convert-png expansion, no persistent original retention.
+
 ### P9-005: Local Working-Folder Intake and Eliminate App-Retained Browser Originals
 - **Phase:** Phase 9 — ARCH-002 Gap Remediation
 - **Completed:** 2026-04-10

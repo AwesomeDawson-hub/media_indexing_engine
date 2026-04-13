@@ -1,6 +1,7 @@
 """Integration tests for P3-003: Bulk Operations (reanalyze-batch and delete-batch)."""
 
 import asyncio
+from unittest.mock import patch
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -40,7 +41,7 @@ async def _upload_png(client, name: str = "photo.png") -> str:
 
 @pytest.mark.asyncio
 async def test_reanalyze_batch_success(client, db_engine):
-    """Batch re-analyze queues processing jobs for owned items."""
+    """Batch re-analyze queues processing jobs for owned items (P11-001 response shape)."""
     # Upload two distinct items (different formats to avoid content-hash dedup)
     id1 = await _upload_jpeg(client, "img1.jpg")
     id2 = await _upload_png(client, "img2.png")
@@ -54,8 +55,12 @@ async def test_reanalyze_batch_success(client, db_engine):
     )
     assert resp.status_code == 202
     body = resp.json()
-    assert body["queued"] >= 1
-    assert "queued for re-analysis" in body["message"]
+    assert body["accepted_count"] >= 1
+    assert body["queued_count"] >= 1
+    assert body["request_count"] == 2
+    assert len(body["outcomes"]) == 2
+    accepted = [o for o in body["outcomes"] if o["outcome"] == "accepted"]
+    assert len(accepted) >= 1
 
     # Verify at least one new pending job exists
     factory = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
@@ -80,7 +85,7 @@ async def test_reanalyze_batch_empty_body(client):
 
 @pytest.mark.asyncio
 async def test_reanalyze_batch_unauthorized_ids(client, client_user2, db_engine):
-    """User cannot re-analyze items belonging to another user; they are silently skipped."""
+    """User cannot re-analyze items belonging to another user; they are rejected."""
     # Upload item as user1
     id1 = await _upload_jpeg(client, "user1_photo.jpg")
 
@@ -91,8 +96,12 @@ async def test_reanalyze_batch_unauthorized_ids(client, client_user2, db_engine)
     )
     assert resp.status_code == 202
     body = resp.json()
-    # Item is not owned by user2 — should be silently skipped (queued == 0)
-    assert body["queued"] == 0
+    # Item is not owned by user2 — returned as rejected/media_item_not_found
+    assert body["accepted_count"] == 0
+    assert body["queued_count"] == 0
+    assert body["rejected_count"] == 1
+    assert body["outcomes"][0]["outcome"] == "rejected"
+    assert body["outcomes"][0]["reason_code"] == "media_item_not_found"
 
 
 @pytest.mark.asyncio
@@ -108,40 +117,49 @@ async def test_reanalyze_batch_cap_exceeded(client):
 
 @pytest.mark.asyncio
 async def test_reanalyze_batch_over_limit_returns_structured_429(client, db_engine):
-    """Batch re-analysis should fail cleanly when the selection exceeds remaining quota."""
+    """Batch re-analysis: P11-001 all-or-nothing quota failure returns 429 with full outcomes."""
+    from src.analysis.mock_provider import MockVisionProvider
+
     id1 = await _upload_jpeg(client, "img1.jpg")
     id2 = await _upload_png(client, "img2.png")
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(0.2)
 
     factory = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
+
+    # Capture existing jobs before the batch call.
+    async with factory() as db:
+        pre_jobs = (await db.execute(
+            select(ProcessingJob).where(ProcessingJob.media_item_id.in_([id1, id2]))
+        )).scalars().all()
+        pre_count = len(pre_jobs)
+
     async with factory() as db:
         user = (await db.execute(select(User).where(User.id == DEV_USER_1))).scalar_one()
-        user.monthly_limit = 3
+        user.monthly_limit = 0
         await db.commit()
 
-    resp = await client.post(
-        "/api/v1/media/reanalyze-batch",
-        json={"media_ids": [id1, id2]},
-    )
+    with patch("src.api.routes.analysis._vision_provider", MockVisionProvider()):
+        resp = await client.post(
+            "/api/v1/media/reanalyze-batch",
+            json={"media_ids": [id1, id2]},
+        )
 
     assert resp.status_code == 429
     body = resp.json()
-    assert body["detail"] == "Monthly quota exceeded"
-    assert body["error_code"] == "QUOTA_EXCEEDED"
-    assert body["error"] == "quota_exceeded"
-    assert body["remaining"] == 0
-    assert body["limit"] == 3
+    assert body["error_code"] == "quota_exceeded"
+    assert body["queued_count"] == 0
+    assert body["accepted_candidate_count"] == 2
 
+    outcomes_by_id = {o["media_id"]: o for o in body["outcomes"]}
+    assert outcomes_by_id[id1]["reason_code"] == "quota_exhausted_batch"
+    assert outcomes_by_id[id2]["reason_code"] == "quota_exhausted_batch"
+
+    # Verify no NEW job was created.
     async with factory() as db:
-        jobs = (await db.execute(
+        post_jobs = (await db.execute(
             select(ProcessingJob).where(ProcessingJob.media_item_id.in_([id1, id2]))
         )).scalars().all()
-        assert len(jobs) == 2
-
-        released = (await db.execute(
-            select(QuotaEvent).where(QuotaEvent.event_type == "released")
-        )).scalars().all()
-        assert len(released) == 1
+        assert len(post_jobs) == pre_count
 
 
 # ---------------------------------------------------------------------------

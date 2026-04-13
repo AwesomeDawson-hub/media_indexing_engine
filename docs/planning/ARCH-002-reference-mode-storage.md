@@ -3,7 +3,7 @@
 **Project:** Media Indexing Engine  
 **Author:** Architect  
 **Date:** 2026-04-05  
-**Status:** Approved architectural basis for the reference-mode storage pivot; current implementation direction is Phase 9 remediation via `PHASE_9_arch002_gap_remediation_plan.md`, with `P9-005` as the current approval gate
+**Status:** Approved historical architectural baseline for the reference-mode storage pivot; Phase 9 remediation is complete and this document remains a reference baseline for later post-Phase-9 workstreams
 
 ---
 

@@ -558,8 +558,8 @@ export default function GalleryPage() {
           {browseItems.length === 0 ? (
             <div className="empty-state">
               <h2>No media yet</h2>
-              <p>Upload some files to get started.</p>
-              <Link to="/upload" className="btn btn-primary">Source</Link>
+              <p>Connect a source to get started.</p>
+              <Link to="/sources" className="btn btn-primary">Connect a source</Link>
             </div>
           ) : (
             <>

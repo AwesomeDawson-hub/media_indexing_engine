@@ -135,36 +135,6 @@ export default function SelectionBar({ count, selectedIds, onClear, onDeleteSucc
       >
         Add Tags
       </button>
-      <div className="selection-collection-wrapper">
-        <button
-          className="btn btn-secondary btn-sm"
-          onClick={() => { setShowCollectionPicker((v) => !v); setLastMessage(null); }}
-          disabled={busy || addingToCollection}
-        >
-          Add to Collection
-        </button>
-        {showCollectionPicker && (
-          <div className="selection-collection-dropdown">
-            {collectionsLoading ? (
-              <div className="selection-collection-item selection-collection-loading">Loading…</div>
-            ) : collections.length === 0 ? (
-              <div className="selection-collection-item selection-collection-empty">No collections yet</div>
-            ) : (
-              collections.map((c) => (
-                <button
-                  key={c.id}
-                  className="selection-collection-item"
-                  onClick={() => handleAddToCollection(c.id, c.name)}
-                  disabled={addingToCollection}
-                >
-                  {c.name}
-                  <span className="selection-collection-count">{c.item_count}</span>
-                </button>
-              ))
-            )}
-          </div>
-        )}
-      </div>
       <button
         className="btn btn-danger btn-sm"
         onClick={handleDelete}

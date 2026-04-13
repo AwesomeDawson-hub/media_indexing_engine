@@ -23,7 +23,7 @@ from src.models import MediaItem, MediaMetadata, ProcessingJob, Source, SourceCo
 from src.ocr.ocr_service import extract_text as ocr_extract_text
 from src.quota.quota_service import QuotaService
 from src.storage.file_store import FileStore
-from src.analysis.drive_mutation_service import attempt_drive_rename_after_analysis
+from src.analysis.drive_mutation_service import attempt_drive_rename_after_analysis, attempt_drive_metadata_embed
 
 if TYPE_CHECKING:
     from src.search.indexing_service import IndexingService
@@ -469,6 +469,7 @@ async def analyze_connector_item(
 
             try:
                 await attempt_drive_rename_after_analysis(db, media_item)
+                await attempt_drive_metadata_embed(db, media_item, file_bytes)
             except Exception as mut_err:
                 logger.warning(
                     "Drive mutation raised unexpectedly for connector item %s (non-fatal): %s",

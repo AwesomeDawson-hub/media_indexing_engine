@@ -618,7 +618,7 @@ async def google_drive_configure(
     - target_collection_id=None means do not auto-add to any collection.
     Can be called after initial OAuth or any time to change the scope.
     """
-    await _require_owned_source(source_id, user_id, db)
+    source = await _require_owned_source(source_id, user_id, db)
 
     conn_result = await db.execute(
         select(SourceConnector).where(
@@ -646,6 +646,8 @@ async def google_drive_configure(
     connector_row.target_folder_label = body.target_folder_label or None
     connector_row.target_collection_id = body.target_collection_id or None
     connector_row.updated_at = now
+    source.name = body.target_folder_label or "Google Drive"
+    source.updated_at = now
     await db.commit()
     await db.refresh(connector_row)
     return ConnectorResponse.model_validate(connector_row)

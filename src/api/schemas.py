@@ -1,6 +1,7 @@
 """Pydantic response models for the API."""
 
 from datetime import datetime
+from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -22,6 +23,9 @@ class MediaItemResponse(BaseModel):
     similar_count: int = 0
     # Source mutation completion state (P7-004) — None until analysis completes
     mutation_state: str | None = None
+    storage_mode: str | None = None
+    # Direct link to the source file in its cloud provider (e.g. Google Drive view URL)
+    drive_view_url: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -232,6 +236,23 @@ class BatchOperationRequest(BaseModel):
 class BatchReanalyzeResponse(BaseModel):
     queued: int
     message: str
+
+
+class BatchReanalyzeItemOutcome(BaseModel):
+    media_id: str
+    outcome: Literal["accepted", "blocked", "rejected"]
+    reason_code: str
+    message: str
+    job_id: str | None = None
+
+
+class BatchReanalyzeResponseV2(BaseModel):
+    request_count: int
+    accepted_count: int
+    blocked_count: int
+    rejected_count: int
+    queued_count: int
+    outcomes: list[BatchReanalyzeItemOutcome]
 
 
 class BatchDeleteResponse(BaseModel):
@@ -712,3 +733,64 @@ class MutationStateResponse(BaseModel):
     source_filename_applied_at: datetime | None = None
     last_mutation_error_code: str | None = None
     last_mutation_error_message: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Async bulk export (P11-002)
+# ---------------------------------------------------------------------------
+
+class ExportBatchRequest(BaseModel):
+    media_ids: list[str] = Field(..., min_length=1)
+
+    @field_validator("media_ids")
+    @classmethod
+    def no_empty_ids(cls, v: list[str]) -> list[str]:
+        if any(not item.strip() for item in v):
+            raise ValueError("media_ids must not contain empty strings")
+        return v
+
+
+class ExportItemOutcome(BaseModel):
+    """Per-item outcome recorded at submission time."""
+    media_id: str
+    outcome: Literal["accepted", "blocked", "rejected"]
+    reason_code: str
+    message: str
+    export_filename: str | None = None
+
+
+class ExportBatchResponse(BaseModel):
+    """Immediate 202 response from POST /media/export-batch."""
+    job_id: str
+    status: str
+    request_count: int
+    accepted_count: int
+    blocked_count: int
+    rejected_count: int
+    outcomes: list[ExportItemOutcome]
+
+
+class ExportItemResult(BaseModel):
+    """Per-item execution result stored in ExportJob.item_results."""
+    media_id: str
+    status: Literal["exported", "failed"]
+    error_code: str | None = None
+    message: str | None = None
+    filename: str | None = None
+
+
+class ExportJobStatusResponse(BaseModel):
+    """Response from GET /media/export-jobs/{job_id}."""
+    job_id: str
+    status: str
+    request_count: int
+    accepted_count: int
+    blocked_count: int
+    rejected_count: int
+    exported_count: int | None = None
+    failed_count: int | None = None
+    item_results: list[ExportItemResult] | None = None
+    artifact_ready: bool
+    artifact_expires_at: datetime | None = None
+    created_at: datetime
+    completed_at: datetime | None = None

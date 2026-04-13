@@ -625,3 +625,38 @@ class WriteBackOperation(Base):
     origin_asset_ref: Mapped["OriginAssetRef"] = relationship(back_populates="writeback_operations")
     source: Mapped["Source | None"] = relationship(back_populates="writeback_operations")
     source_connector: Mapped["SourceConnector | None"] = relationship(back_populates="writeback_operations")
+
+
+class ExportJob(Base):
+    """Async bulk-export job for a batch of media items (P11-002).
+
+    Status lifecycle:
+        pending → running → completed | completed_with_failures | failed
+        Any terminal state may become expired once artifact_expires_at passes.
+    """
+
+    __tablename__ = "export_jobs"
+    __table_args__ = (
+        Index("ix_export_jobs_user_id", "user_id"),
+        Index("ix_export_jobs_status", "status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_new_uuid)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    # pending | running | completed | completed_with_failures | failed | expired
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
+    request_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    accepted_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    blocked_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    rejected_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # JSON: list[ExportItemOutcome] — per-item outcomes recorded at submission time
+    submission_outcomes: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    # JSON: list[ExportItemResult] — per-item results recorded after job execution
+    item_results: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Relative storage path of the assembled ZIP artifact (None until job completes)
+    artifact_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    artifact_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # True after the artifact has been downloaded once; subsequent downloads are blocked
+    artifact_downloaded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

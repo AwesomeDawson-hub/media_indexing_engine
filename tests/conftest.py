@@ -21,6 +21,7 @@ import src.database as db_module
 import src.ingestion.job_manager as job_manager_mod
 import src.analysis.processor as processor_mod
 from src.api.routes import search as search_mod
+import src.api.routes.export as export_mod
 
 DEV_USER_1 = "test-user-1"
 DEV_USER_2 = "test-user-2"
@@ -125,8 +126,10 @@ async def client(db_engine, db_session_factory, seed_users, tmp_storage):
     # Patch module-level async_session so background tasks use the test DB
     original_jm_session = job_manager_mod.async_session
     original_proc_session = processor_mod.async_session
+    original_export_session = export_mod.async_session
     job_manager_mod.async_session = db_session_factory
     processor_mod.async_session = db_session_factory
+    export_mod.async_session = db_session_factory
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
@@ -134,6 +137,7 @@ async def client(db_engine, db_session_factory, seed_users, tmp_storage):
 
     job_manager_mod.async_session = original_jm_session
     processor_mod.async_session = original_proc_session
+    export_mod.async_session = original_export_session
     upload_mod._vision_provider = original_provider
     upload_mod._indexing_service = original_indexing
     search_mod._search_service = original_search
@@ -189,8 +193,10 @@ async def client_user2(db_engine, db_session_factory, seed_users, tmp_storage):
     # Patch module-level async_session so background tasks use the test DB
     original_jm_session = job_manager_mod.async_session
     original_proc_session = processor_mod.async_session
+    original_export_session_u2 = export_mod.async_session
     job_manager_mod.async_session = db_session_factory
     processor_mod.async_session = db_session_factory
+    export_mod.async_session = db_session_factory
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
@@ -198,6 +204,7 @@ async def client_user2(db_engine, db_session_factory, seed_users, tmp_storage):
 
     job_manager_mod.async_session = original_jm_session
     processor_mod.async_session = original_proc_session
+    export_mod.async_session = original_export_session_u2
     upload_mod._vision_provider = original_provider
     upload_mod._indexing_service = original_indexing
     search_mod._search_service = original_search

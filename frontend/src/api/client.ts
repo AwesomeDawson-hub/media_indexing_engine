@@ -37,6 +37,8 @@ import type {
   CollectionItemsModifiedResponse,
   MutationStateResponse,
   LocalMutationResultRequest,
+  ExportBatchResponse,
+  ExportJobStatusResponse,
 } from '../types/api';
 
 const BASE_URL = '';
@@ -231,6 +233,20 @@ export async function uploadLocalFolderFile(
   });
 }
 
+export async function embedMetadata(mediaId: string, file: File): Promise<Blob> {
+  const token = localStorage.getItem('auth_token');
+  const headers: Record<string, string> = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const body = new FormData();
+  body.append('file', file);
+  const response = await fetch(`/api/v1/media/${mediaId}/embed`, { method: 'POST', headers, body });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Embed failed' }));
+    throw new Error(err.detail || 'Embed failed');
+  }
+  return response.blob();
+}
+
 export async function listMedia(
   page: number = 1,
   perPage: number = 20,
@@ -375,29 +391,106 @@ export async function downloadFile(id: string): Promise<void> {
 }
 
 export async function downloadBatch(ids: string[]): Promise<void> {
+  const submit = await requestExportBatch(ids);
+  const job = await waitForExportArtifact(submit.job_id);
+  await downloadExportArtifact(job.job_id);
+}
+
+async function requestExportBatch(ids: string[]): Promise<ExportBatchResponse> {
   const token = localStorage.getItem('auth_token');
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const response = await fetch('/api/v1/media/download-batch', {
+  const response = await fetch('/api/v1/media/export-batch', {
     method: 'POST',
     headers,
     body: JSON.stringify({ media_ids: ids }),
   });
   if (!response.ok) {
-    const err = await response.json().catch(() => ({ detail: 'Batch download failed' }));
-    throw new Error(err.detail || 'Batch download failed');
+    const err = await response.json().catch(() => ({ detail: 'Batch export failed' }));
+    throw new Error(formatExportError(err));
+  }
+
+  return response.json() as Promise<ExportBatchResponse>;
+}
+
+async function waitForExportArtifact(jobId: string): Promise<ExportJobStatusResponse> {
+  const deadline = Date.now() + 120_000;
+
+  while (Date.now() < deadline) {
+    const status = await getExportJobStatus(jobId);
+    if (status.artifact_ready) {
+      return status;
+    }
+
+    if (status.status === 'failed') {
+      throw new Error('Export failed before an artifact was created.');
+    }
+
+    if (status.status === 'expired') {
+      throw new Error('Export artifact expired before it could be downloaded.');
+    }
+
+    await new Promise((resolve) => window.setTimeout(resolve, 1000));
+  }
+
+  throw new Error('Export is taking longer than expected. Please try again in a moment.');
+}
+
+async function getExportJobStatus(jobId: string): Promise<ExportJobStatusResponse> {
+  return request<ExportJobStatusResponse>(`/api/v1/media/export-jobs/${jobId}`);
+}
+
+async function downloadExportArtifact(jobId: string): Promise<void> {
+  const token = localStorage.getItem('auth_token');
+  const headers: Record<string, string> = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const response = await fetch(`/api/v1/media/export-jobs/${jobId}/download`, { headers });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: 'Export download failed' }));
+    throw new Error(formatExportError(err));
   }
 
   const blob = await response.blob();
+  const disposition = response.headers.get('content-disposition') || '';
+  const match = disposition.match(/filename="?(.+?)"?$/);
+  const filename = match ? match[1] : 'media_export.zip';
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'media_export.zip';
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+function formatExportError(err: Record<string, unknown>): string {
+  const errorCode = typeof err.error_code === 'string' ? err.error_code : '';
+  const message = typeof err.message === 'string'
+    ? err.message
+    : typeof err.detail === 'string'
+      ? err.detail
+      : 'Batch export failed';
+
+  if (errorCode !== 'export_no_eligible_items') {
+    return message;
+  }
+
+  const outcomes = Array.isArray(err.outcomes) ? err.outcomes : [];
+  const blockedLocalOnly = outcomes.length > 0 && outcomes.every((outcome) => (
+    outcome
+    && typeof outcome === 'object'
+    && 'reason_code' in outcome
+    && (outcome as { reason_code?: string }).reason_code === 'local_reference_not_supported'
+  ));
+
+  if (blockedLocalOnly) {
+    return 'Selected items are local-folder references, so the server cannot assemble a download ZIP for them.';
+  }
+
+  return message;
 }
 
 export interface ConvertResponse {
@@ -471,6 +564,13 @@ export async function createSource(name: string, sourceType = 'manual'): Promise
 
 export async function archiveSource(id: string): Promise<SourceResponse> {
   return request<SourceResponse>(`/api/v1/sources/${id}/archive`, { method: 'POST' });
+}
+
+export async function renameSource(id: string, name: string): Promise<SourceResponse> {
+  return request<SourceResponse>(`/api/v1/sources/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ name }),
+  });
 }
 
 export async function restoreSource(id: string): Promise<SourceResponse> {

@@ -6,27 +6,45 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 
 | Field | Value |
 |---|---|
-| **Current Phase** | Phase 9 — ARCH-002 Gap Remediation |
+| **Current Phase** | Post-Phase 9 incremental workstreams |
 | **Active Project** | Media Indexing Engine (`Projects/media_indexing_engine/`) |
-| **Active Workstream** | None — P9-005 completed; all Phase 9 ARCH-002 gap remediation workstreams complete |
-| **Last Updated** | 2026-04-10 |
-| **Updated By** | AI — Engineer |
+| **Active Workstream** | P11-002 — final Auditor closeout re-pass pending |
+| **Last Updated** | 2026-04-12 |
+| **Updated By** | AI — Architect |
 
 ## System Health
 
 | Check | Status |
 |---|---|
 | Docs aligned | Yes |
-| Drift detected | No |
-| All docs in sync | Yes — updated 2026-04-09 for P9-004 governance-state reconciliation |
+| Drift detected | No active P11-002 contract drift — the previously identified closeout gaps were remediated in code |
+| All docs in sync | Yes |
 | Registry complete | Yes |
 | No orphan documents | Yes |
 | No duplicate ownership | Yes |
-| Test status | 459/459 pass, 1 skipped |
-| Active workstream | None |
-| Last governance audit | 2026-04-10 — P9-005 fix pass; two Auditor blockers resolved; test #15 added; all ARCH-002 gap workstreams closed |
+| Test status | P11-002 focused tests 19/19 pass; directly affected suites 71 pass; full backend suite currently has an unrelated failure in `tests/test_google_drive_connector.py` |
+| Active workstream | P11-002 — final Auditor closeout re-pass pending |
+| Last governance audit | 2026-04-12 — P11-002 post-remediation closeout package reconciled; final Auditor re-pass is next |
 
 ## Recent Activity
+
+- **2026-04-12:** P11-002 (Async Connector-Aware Bulk Export) post-remediation governance reconciliation completed. The four previously identified closeout gaps are now remediated in code: `export_no_eligible_items` returns the full locked 409 payload, ZIP assembly writes incrementally to a temporary artifact, expired-artifact cleanup is wired from app lifespan, and completed/completed_with_failures jobs can promote to `expired` during status polling. Validation observed in this state: P11-002 focused suite 19/19 pass and directly affected suites 71 pass. A separate full-backend-suite failure in `tests/test_google_drive_connector.py` remains out of scope for P11-002 and is not treated as a regression in this workstream. The live workflow state is now final Auditor closeout re-pass pending.
+
+- **2026-04-12:** P11-002 (Async Connector-Aware Bulk Export) implementation-closeout was previously **reopened** after Auditor review found four material contract gaps: incomplete `export_no_eligible_items` detail payload, in-memory ZIP assembly, missing startup/sweeper cleanup for TTL-expired artifacts, and incomplete status promotion to `expired`. That reopened-remediation state is now historical after the post-remediation reconciliation above.
+
+- **2026-04-12:** P11-002 (Async Connector-Aware Bulk Export) **planned** and is now the current approval gate. `docs/planning/P11-002_plan.md` locks bulk export as a separate async export-job workstream rather than an extension of the legacy synchronous `POST /api/v1/media/download-batch` ZIP route. Full items and Drive-backed reference items are eligible only through explicit accepted/blocked/rejected submission reporting plus bounded async execution. Local-folder and other non-Drive reference providers remain blocked. Temporary user-scoped export artifacts are allowed, but permanent original retention and provider-neutral bulk fetch are not.
+
+- **2026-04-12:** P11-001 (Capability-Aware Batch Reanalysis) **implemented and closed**. `POST /api/v1/media/reanalyze-batch` now returns explicit per-item `accepted`/`blocked`/`rejected` outcomes, admits Drive-backed reference items only through async queueing, preserves local-folder and non-Drive blocks, and enforces all-or-nothing quota with HTTP 429 `quota_exceeded` responses. The shipped unauthorized-or-missing-ID contract is privacy-preserving: both cases collapse to rejected `media_item_not_found` rather than exposing a separate `not_owned` reason.
+
+- **2026-04-12:** P11-001 post-implementation governance was reconciled into a single closeout state. Duplicate planning-era system-health and recent-activity sections were removed, and `docs/planning/P11-001_plan.md` was converted from approval-gate wording to a closed historical contract. That closeout state was later superseded the same day when P11-002 became the current approval gate.
+
+- **2026-04-12:** P10-001 (On-Demand Drive Fetch for Reference Items) **moved out of pre-implementation approval-gate governance and into implementation reconciliation/closeout governance**. Architect verification against the live codebase confirmed that `src/connectors/drive_reference_fetch.py`, `src/api/routes/analysis.py`, `src/api/routes/download.py`, and `tests/test_p10_001_drive_reference_fetch.py` already implement the Drive-only transient fetch slice. Governance/docs were reconciled to reality. Locked follow-up contract: keep Drive-only single-item scope, keep non-Drive reference items on `409 original_at_source`, require `detail.error_code` + `message` payloads for Drive fetch failures, and classify shared-service misuse or inconsistent supposedly-Drive item state as `502 drive_fetch_failed` rather than `422`.
+
+- **2026-04-12:** P10-001 (On-Demand Drive Fetch for Reference Items) **completed and closed out**. `src/connectors/drive_reference_fetch.py`: internal precondition failures (missing OAR, non-Drive OAR, missing `provider_object_id`, missing SourceConnector) reclassified from 422 to 502 `drive_fetch_failed` per locked contract; all `detail` dict keys changed from `"error"` to `"error_code"` to align with `error_handlers.py`. `tests/test_p10_001_drive_reference_fetch.py`: 18 tests updated to match contract (tests 2-4 now assert 502, all `detail["error"]` references updated to `detail["error_code"]`, route mock side-effects corrected). All 18 P10-001 tests pass. 52/52 pass across P10-001 + storage_guards + analysis + download suites. Closeout governance is complete.
+
+- **2026-04-11:** P10-001 (On-Demand Drive Fetch for Reference Items) **planned** and is now the current approval gate. `docs/planning/P10-001_plan.md` locks a Drive-only, transient-bytes-only scope for single-item re-analysis and single-item download/export on `storage_mode='reference'` items. Governance correction applied: plan metadata date aligned to 2026-04-11, nonexistent `P9-002_plan.md` dependency replaced with `docs/planning/PHASE_9_arch002_gap_remediation_plan.md`, `WORKSTREAMS.md` now lists P10-001 under Planned, and `PROJECT_HANDOFF.md` now points to the required Auditor re-pass before any Engineer handoff.
+
+- **2026-04-11 (ad-hoc fixes — no workstream):** Post-P9-005 operational and UI improvements. Verified repo-backed changes: (1) `PATCH /api/v1/sources/{id}` rename endpoint added to `src/api/routes/sources.py`; (2) `google_drive_configure` in `src/api/routes/google_drive_connector.py` now updates `source.name` to the selected Drive folder label on configure (previously only `target_folder_label` on the connector row was updated); (3) `SourcesPage.tsx` — inline rename UI (pencil icon on hover, commit on Enter/Save or Escape); (4) source type display label in `SourcesPage.tsx` changed from raw `google_drive` to human-readable `"Google Drive"` via `SOURCE_TYPE_LABELS` lookup. Operator-performed operational actions (not repo changes): two existing Google Drive connections renamed to their folder labels via DB UPDATE; 52 dev sample images deleted from `/input/` on EC2 (24 MB freed).
 
 - **2026-04-10 (fix pass):** P9-005 Auditor-identified blockers **resolved**. (1) `frontend/src/pages/UploadPage.tsx` `uploadOne()` now writes the dropped file into the selected working folder via File System Access API (`getFileHandle() → createWritable() → write() → close()`) before sending bytes transiently to the backend — the local device is now the source of truth as the plan required. (2) `src/api/routes/upload.py` quota-exceeded cleanup for `/upload/local-folder` extended to delete `OriginAssetRef` and `PreviewAsset` (FK-safe order: OriginAssetRef → PreviewAsset → ProcessingJob → MediaItem) and to delete the persisted thumbnail file via `_file_store.delete()` — previously those artifacts were orphaned on quota rejection. New `_cleanup_unqueued_local_folder_upload(db, media_item_id, thumbnail_path)` helper added. (3) Test #15 `test_upload_local_folder_quota_exceeded_cleans_up_all_artifacts` added; all assertions on zero DB rows (MediaItem, ProcessingJob, OriginAssetRef, PreviewAsset) and zero thumbnail files pass. Full regression: 459 passed, 1 skipped.
 
@@ -35,8 +53,6 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 - **2026-04-10:** P9-004 Auditor remediation **completed**. Addressed all four Auditor findings: (1) restricted `POST /media/{id}/retry-writeback` to Drive-backed items unconditionally — non-Drive items with backfilled WriteBackOperation rows now correctly return 422; (2) verified per-attempt `SourceMutationHistory` is written for all blocked exits in `drive_mutation_service.py` and added the missing credential-decrypt-failure test; (3) confirmed `POST /media/{id}/mutation-result` does not create WriteBackOperation rows (P7-004 scope preserved) and added explicit compliance test; (4) added 3 new focused tests (`test_drive_rename_decrypt_failure_records_history`, `test_local_mutation_result_does_not_create_writeback_operation`, `test_retry_endpoint_rejects_non_drive_item_with_existing_operation`). Full regression: 444 passed, 1 skipped.
 
 - **2026-04-09:** P9-004 (Source Capability and Durable Write-Back Operations) **completed**. Delivered additive `SourceCapabilitySnapshot` and `WriteBackOperation` tables plus Alembic migration `d2e3f4a5b6c7`. Added `src/analysis/source_capability_service.py` and `src/analysis/writeback_operation_service.py`; refactored `drive_mutation_service.py` so durable write-back rows are canonical while `MediaItem` mutation fields remain same-transaction compatibility mirrors; added additive `OriginAssetRef` bootstrap for legacy rows/tests; updated Google Drive callback to refresh capability snapshots; updated connector responses to prefer snapshot-derived `has_write_scope`; added `scripts/backfill_p9_004_capabilities_writeback.py`; added `tests/test_p9_004_capabilities_writeback.py`. Full regression suite: 433 passed, 1 skipped.
-
-- **2026-04-09:** P9-004 (Source Capability and Durable Write-Back Operations) **planned and locked for governance review**. `docs/planning/P9-004_plan.md` now records the implementation-ready architecture: `SourceCapabilitySnapshot` is one current row per `SourceConnector`; `WriteBackOperation` targets `OriginAssetRef` canonically with a denormalized `media_item_id`; `MediaItem` mutation fields remain same-transaction compatibility mirrors; Drive remains the only execution provider in scope for this slice. This is now the active approval gate before Engineer handoff.
 
 - **2026-04-09:** P9-003 (Additive Origin/Preview Domain Split) **completed**. Delivers `OriginAssetRef` (1:1 with `MediaItem`, tracks provider identity + locator) and `PreviewAsset` (many:1 with `MediaItem`, `variant_type='thumbnail'`) as first-class models. `SourceObject` unchanged — remains connector sync memory. `MediaItem.storage_path`/`thumbnail_path`/`source_file_fingerprint` kept as compatibility mirrors. Forward-write coverage: `upload_service.process_upload` creates `OriginAssetRef(provider_type='app_upload')` + `PreviewAsset`; `process_connector_import` creates both with provider kwargs; `sync_service._run_sync` passes `provider_type`/`provider_object_id`/`revision_marker` and updates `OriginAssetRef.source_object_id` after `SourceObject` is committed. Backfill script `scripts/backfill_p9_003_origin_preview.py` handles pre-P9-003 rows. 12 new tests in `tests/test_origin_preview_models.py`, 423/423 pass.
 
@@ -167,14 +183,19 @@ This is the live status file for the Media Indexing Engine project. It reflects 
 
 ## Notes for Next Session
 
-- **Phase 9 is now active.** Use `docs/planning/PHASE_9_arch002_gap_remediation_plan.md` as the approved architecture baseline.
-- **Current review gate:** run an Auditor post-implementation review for `P9-004` against `docs/planning/P9-004_plan.md` and the delivered code/tests.
-- **Completed prerequisite:** P9-003 is already implemented; use `docs/IMPLEMENTATION_STATUS.md` and the live ORM/models as the baseline rather than reopening the origin/preview split.
-- **Locked rollout rules:** long-term connector retry uses source re-fetch; synchronous sync-flow analysis is allowed only as a short-term rollout tactic if needed. Storage-assuming features should return controlled source-aware errors first unless cheap, reliable on-demand source fetch is already available for that surface.
+- **Current workflow state:** P11-002 implementation and narrow remediation are complete. Architecture remains locked, and the live workflow step is a final Auditor closeout re-pass.
+- **Phase baseline:** Phase 9 is closed. Use `docs/planning/ARCH-002-reference-mode-storage.md`, `docs/planning/PHASE_9_arch002_gap_remediation_plan.md`, the completed P9-004/P9-005 records, the locked P10-001 contract, the closed P11-001 contract, and ADR-036 as the architectural baseline for the final P11-002 closeout review.
+- **Completed prerequisites:** P9-001 through P9-005 are already implemented and audited; use `docs/IMPLEMENTATION_STATUS.md` and the live codebase as the baseline rather than reopening completed Phase 9 scope.
+- **Locked P10-001 error contract:** Drive fetch failures must use `detail` plus `error_code` payloads. Non-Drive reference items remain `409 original_at_source` at the route layer. Shared-service misuse or inconsistent supposedly-Drive item state (missing OAR, non-Drive OAR, missing provider_object_id, missing connector/source binding) must be treated as `502 drive_fetch_failed`, not `422`.
+- **Locked P11-001 delivered contract:** Batch reanalysis is complete and remains separate from bulk export. The implemented route now uses explicit per-item accepted/blocked/rejected reporting, allows Drive-backed reference items only through capability-aware async queueing, keeps local-folder and other non-Drive reference providers blocked, and intentionally collapses missing and unauthorized IDs into rejected `media_item_not_found`.
+- **Locked P11-002 delivered contract:** Bulk export remains separate from P11-001 and uses the dedicated async export-job model locked in ADR-036. The legacy synchronous `POST /api/v1/media/download-batch` route is not the target mixed-selection contract. Full items and Drive-backed reference items are eligible through bounded async execution only; local-folder and future non-Drive reference providers remain blocked; temporary export artifacts remain short-lived and user-scoped.
+- **Post-remediation evidence:** The previously reopened closeout gaps are now reconciled in code: full `export_no_eligible_items` detail payload, incremental ZIP writing, startup/lifespan cleanup for expired artifacts, and status/download lifecycle promotion of completed jobs to `expired`.
+- **Next workflow step:** Run the final Auditor closeout re-pass on P11-002. If accepted, close the workstream and clear the active slot for the next planning decision.
+- **Optional cleanup only:** stale P10-001 test names can be cleaned up in a later follow-up if the operator wants cosmetic naming consistency, but that is not a closeout blocker.
 - **SES activation (when AWS approves):** `ssh -i "C:\Code\AWS\media-indexing-key.pem" ubuntu@vyzindex.com "echo 'EMAIL_FROM=noreply@vyzindex.com' >> ~/media_indexing_engine/.env && docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build backend"`
 - **AWS deploy command:** `ssh -i "C:\Code\AWS\media-indexing-key.pem" ubuntu@vyzindex.com "cd ~/media_indexing_engine && git pull && docker compose -f docker-compose.yml -f docker-compose.beta.yml up -d --build"`
 - **HTTPS is live:** `https://vyzindex.com` — Caddy handles TLS automatically. compose files: `docker-compose.yml` + `docker-compose.beta.yml`. SSH key: `C:\Code\AWS\media-indexing-key.pem`, user `ubuntu`.
 - **Stripe note:** All billing runs in dev/test mode. To enable: set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_ADVANCED`, `STRIPE_PRICE_ID_PREMIUM` on the server.
 - **Before inviting broader beta users:** rotate the `ANTHROPIC_API_KEY`, `POSTGRES_PASSWORD`, and `AUTH_SECRET_KEY`.
 - **Schema changes** require `alembic revision --autogenerate` + review + `alembic upgrade head`. Back up AWS DB before any migration deploy.
-- **Test status:** 433/433 pass, 1 skipped. Tests run from `c:\AI Engineering\Projects\media_indexing_engine` with `.venv\Scripts\python.exe -m pytest tests/ -q --tb=short`.
+- **Test status:** P11-002 focused suite 19/19 pass; directly affected suites 71 pass. A separate full-suite failure currently exists in `tests/test_google_drive_connector.py` and is not treated as a P11-002 regression. Tests run from `c:\AI Engineering\Projects\media_indexing_engine` with `.venv\Scripts\python.exe -m pytest tests/ -q --tb=short`.

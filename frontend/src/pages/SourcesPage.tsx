@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
 import * as api from '../api/client';
 import type {
   SourceResponse,
@@ -22,6 +21,21 @@ export default function SourcesPage() {
   const [expandedConnector, setExpandedConnector] = useState<string | null>(null);
   const [callbackBanner, setCallbackBanner] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [autoConfigureSourceId, setAutoConfigureSourceId] = useState<string | null>(null);
+  const [quickConnectPending, setQuickConnectPending] = useState(false);
+  const [quickConnectError, setQuickConnectError] = useState('');
+
+  async function handleQuickConnectDrive() {
+    setQuickConnectError('');
+    setQuickConnectPending(true);
+    try {
+      const resp = await api.quickConnectGoogleDrive();
+      window.location.href = resp.authorization_url;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setQuickConnectError(`Could not start Google Drive connection: ${msg}`);
+      setQuickConnectPending(false);
+    }
+  }
 
   async function load(includeArchived: boolean) {
     setLoading(true);
@@ -96,7 +110,13 @@ export default function SourcesPage() {
       <div className="page-header">
         <h1>Connections</h1>
         <div className="upload-header-actions">
-          <Link to="/add-media" className="btn btn-primary btn-sm">+ Add connection</Link>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={handleQuickConnectDrive}
+            disabled={quickConnectPending}
+          >
+            {quickConnectPending ? 'Connecting…' : '+ Connect Google Drive'}
+          </button>
           <label className="sources-toggle-archived">
             <input
               type="checkbox"
@@ -121,8 +141,9 @@ export default function SourcesPage() {
         <div className="page-loading"><div className="spinner" /></div>
       ) : (
         <>
+          {quickConnectError && <div className="alert alert-danger">{quickConnectError}</div>}
           {active.length === 0 && !showArchived && (
-            <p className="text-muted">No connections yet. <Link to="/add-media">Add one →</Link></p>
+            <p className="text-muted">No connections yet. Click "+ Connect Google Drive" to get started.</p>
           )}
 
           {active.length > 0 && (
@@ -174,6 +195,12 @@ export default function SourcesPage() {
   );
 }
 
+const SOURCE_TYPE_LABELS: Record<string, string> = {
+  google_drive: 'Google Drive',
+  s3: 'Amazon S3',
+  manual: 'Manual',
+};
+
 function SourceRow({
   source,
   pending,
@@ -197,14 +224,62 @@ function SourceRow({
 }) {
   const isArchived = !!source.archived_at;
   const hasConnector = !!source.connector_status;
+  const [renaming, setRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState(source.name);
+  const [renamePending, setRenamePending] = useState(false);
+  const [renameError, setRenameError] = useState('');
+
+  async function handleRenameSave() {
+    const trimmed = renameValue.trim();
+    if (!trimmed || trimmed === source.name) { setRenaming(false); return; }
+    setRenamePending(true);
+    setRenameError('');
+    try {
+      const updated = await api.renameSource(source.id, trimmed);
+      if (onSourceUpdate) onSourceUpdate({ ...updated, media_count: source.media_count });
+      setRenaming(false);
+    } catch {
+      setRenameError('Could not rename.');
+    } finally {
+      setRenamePending(false);
+    }
+  }
+
   return (
     <div className={`source-row card${isArchived ? ' source-row--archived' : ''}`}>
       <div className="source-row-info">
-        <span className="source-row-name">{source.name}</span>
+        {renaming ? (
+          <span className="source-row-rename">
+            <input
+              className="source-rename-input"
+              value={renameValue}
+              autoFocus
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleRenameSave(); if (e.key === 'Escape') setRenaming(false); }}
+              disabled={renamePending}
+            />
+            <button className="btn btn-sm btn-primary" onClick={handleRenameSave} disabled={renamePending}>{renamePending ? '…' : 'Save'}</button>
+            <button className="btn btn-sm btn-outline" onClick={() => setRenaming(false)} disabled={renamePending}>Cancel</button>
+            {renameError && <span className="source-rename-error">{renameError}</span>}
+          </span>
+        ) : (
+          <span className="source-row-name">
+            {source.name}
+            {!isArchived && (
+              <button
+                className="btn-icon source-rename-btn"
+                title="Rename"
+                onClick={() => { setRenameValue(source.name); setRenameError(''); setRenaming(true); }}
+              >✎</button>
+            )}
+          </span>
+        )}
         <span className="source-row-meta">
           {source.media_count} {source.media_count === 1 ? 'item' : 'items'}
           {' · '}
-          {source.source_type}
+          <span className="source-type-label">
+            {SOURCE_TYPE_LABELS[source.source_type] ?? source.source_type}
+          </span>
           {isArchived && <span className="badge badge-muted">Archived</span>}
           {hasConnector && (
             <span
@@ -326,17 +401,53 @@ function ConnectorPanel({
         }
       }).catch(() => null);
       loadRuns();
+      // If the source is already syncing when the panel opens, start polling
+      if (source.connector_status === 'syncing') {
+        startPolling();
+      }
     }
   }, [source.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function stopPolling() {
+    if (pollRef.current !== null) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }
+
+  // Clean up interval on unmount
+  useEffect(() => stopPolling, []);
 
   async function loadRuns() {
     try {
       const result: SyncRunsResponse = await api.listSyncRuns(source.id);
       setRuns(result.runs);
       setRunsTotal(result.total);
+      // If any run is still active, ensure polling is running
+      const hasActive = result.runs.some(r => r.status === 'pending' || r.status === 'running');
+      if (hasActive) {
+        startPolling();
+      } else {
+        // All done — stop polling and refresh the source row (updates badge + item count)
+        const wasPolling = pollRef.current !== null;
+        stopPolling();
+        if (wasPolling && onSourceUpdate) {
+          api.listSources(false).then(all => {
+            const updated = all.find(s => s.id === source.id);
+            if (updated) onSourceUpdate(updated);
+          }).catch(() => null);
+        }
+      }
     } catch {
       // silently fail
     }
+  }
+
+  function startPolling() {
+    if (pollRef.current !== null) return; // already polling
+    pollRef.current = setInterval(() => { loadRuns(); }, 3000);
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -385,7 +496,8 @@ function ConnectorPanel({
     try {
       const result = await api.triggerSync(source.id);
       setPanelInfo(result.message);
-      setTimeout(() => loadRuns(), 1500);
+      // Start polling immediately so the UI updates as the sync progresses
+      setTimeout(() => { loadRuns(); startPolling(); }, 1500);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setPanelError(`Sync failed: ${msg}`);

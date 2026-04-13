@@ -76,12 +76,16 @@ export default function UploadPage() {
     const CONCURRENCY = 4;
     let quotaExceeded = false;
 
-    // Process files in parallel with a concurrency limit
-    const results: { filename: string; status: QueuedFile['status']; error?: string }[] = [];
+    // Helper: update a single file's status mid-upload so the user sees progress
+    function setFileStatus(filename: string, status: QueuedFile['status'], error?: string) {
+      setQueue((prev) =>
+        prev.map((q) => (q.file.name === filename ? { ...q, status, error } : q)),
+      );
+    }
 
     async function uploadOne(qf: QueuedFile) {
       if (quotaExceeded) {
-        results.push({ filename: qf.file.name, status: 'error', error: 'Monthly quota exceeded' });
+        setFileStatus(qf.file.name, 'error', 'Monthly quota exceeded');
         return;
       }
       try {
@@ -94,14 +98,58 @@ export default function UploadPage() {
 
         const localPath = (qf.file as File & { webkitRelativePath?: string }).webkitRelativePath || qf.file.name;
         const res = await api.uploadLocalFolderFile(qf.file, undefined, localPath);
-        results.push({ filename: qf.file.name, status: res.is_duplicate ? 'duplicate' : 'created' });
+
+        if (!res.is_duplicate) {
+          // Poll for AI analysis completion, then embed metadata and write it back
+          // to the working-folder file so the local copy is fully enriched.
+          setFileStatus(qf.file.name, 'enriching');
+          const itemId = res.id;
+          let writeBackDone = false;
+          for (let attempt = 0; attempt < 24; attempt++) {
+            await new Promise((r) => setTimeout(r, 2500));
+            const item = await api.getMedia(itemId);
+            if (item.status === 'completed') {
+              try {
+                const origHandle = await workingFolder!.getFileHandle(qf.file.name);
+                const origFile = await origHandle.getFile();
+                const enrichedBlob = await api.embedMetadata(itemId, origFile);
+                const ww = await origHandle.createWritable();
+                await ww.write(enrichedBlob);
+                await ww.close();
+                await api.reportLocalMutationResult(itemId, {
+                  succeeded: true,
+                  operation_type: 'metadata_write',
+                  source_file_fingerprint: res.content_hash,
+                });
+                writeBackDone = true;
+              } catch (writeErr: unknown) {
+                const writeMsg = writeErr instanceof Error ? writeErr.message : 'Write-back failed';
+                await api.reportLocalMutationResult(itemId, {
+                  succeeded: false,
+                  operation_type: 'metadata_write',
+                  error_code: 'local_access_lost',
+                  error_message: writeMsg,
+                }).catch(() => {});
+              }
+              break;
+            }
+            if (item.status === 'error' || item.status === 'failed') break;
+          }
+          setFileStatus(
+            qf.file.name,
+            writeBackDone ? 'created' : 'error',
+            writeBackDone ? undefined : 'Analysis done, but could not write metadata to file. Open the item and use "Save to file" to retry.',
+          );
+        } else {
+          setFileStatus(qf.file.name, 'duplicate');
+        }
       } catch (err: unknown) {
         if (err instanceof api.ApiRequestError && err.error === 'quota_exceeded') {
           quotaExceeded = true;
-          results.push({ filename: qf.file.name, status: 'error', error: 'Monthly quota exceeded' });
+          setFileStatus(qf.file.name, 'error', 'Monthly quota exceeded');
         } else {
           const message = err instanceof Error ? err.message : 'Upload failed';
-          results.push({ filename: qf.file.name, status: 'error', error: message });
+          setFileStatus(qf.file.name, 'error', message);
         }
       }
     }
@@ -114,16 +162,6 @@ export default function UploadPage() {
     for (const chunk of chunks) {
       await Promise.all(chunk.map(uploadOne));
     }
-
-    // Apply all status updates in a single state write
-    const resultMap = new Map(results.map((r) => [r.filename, r]));
-    setQueue((prev) =>
-      prev.map((q) => {
-        const r = resultMap.get(q.file.name);
-        if (!r) return q;
-        return { ...q, status: r.status, error: r.error };
-      }),
-    );
 
     setUploading(false);
   }

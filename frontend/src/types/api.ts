@@ -90,6 +90,9 @@ export interface MediaItemResponse {
   similar_count?: number;
   // Source mutation completion state (P7-004)
   mutation_state?: string | null;
+  storage_mode?: string | null;
+  // Direct link to the source file in its cloud provider
+  drive_view_url?: string | null;
 }
 
 export interface SimilarItemResponse {
@@ -342,9 +345,52 @@ export interface ApiError {
   detail: string;
   error_code: string;
   error?: string;
+  message?: string;
   remaining?: number;
   limit?: number;
   archived_source_id?: string;
+}
+
+export interface ExportItemOutcome {
+  media_id: string;
+  outcome: 'accepted' | 'blocked' | 'rejected';
+  reason_code: string;
+  message: string;
+  export_filename?: string | null;
+}
+
+export interface ExportBatchResponse {
+  job_id: string;
+  status: string;
+  request_count: number;
+  accepted_count: number;
+  blocked_count: number;
+  rejected_count: number;
+  outcomes: ExportItemOutcome[];
+}
+
+export interface ExportItemResult {
+  media_id: string;
+  status: 'exported' | 'failed';
+  error_code?: string | null;
+  message?: string | null;
+  filename?: string | null;
+}
+
+export interface ExportJobStatusResponse {
+  job_id: string;
+  status: string;
+  request_count: number;
+  accepted_count: number;
+  blocked_count: number;
+  rejected_count: number;
+  exported_count?: number | null;
+  failed_count?: number | null;
+  item_results?: ExportItemResult[] | null;
+  artifact_ready: boolean;
+  artifact_expires_at?: string | null;
+  created_at: string;
+  completed_at?: string | null;
 }
 
 export interface AdminUserSummary {

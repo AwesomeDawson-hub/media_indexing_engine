@@ -8,11 +8,11 @@ _Update this document at the end of every session and at every workstream transi
 
 | Field | Value |
 |---|---|
-| **Current Phase** | Phase 9 — ARCH-002 Gap Remediation |
-| **Current Workstream** | None — P9-005 completed; all Phase 9 ARCH-002 gap remediation workstreams complete |
-| **Last Completed Work** | P9-005 completed on 2026-04-10 |
-| **Next Task** | Phase 9 closeout: Auditor/Operator review of P9-005 and full Phase 9 retrospective |
-| **Next Step Requested** | Auditor reviews P9-005 implementation; if passes, Phase 9 is fully closed |
+| **Current Phase** | Post-Phase 9 incremental workstreams |
+| **Current Workstream** | P11-002 — final Auditor closeout re-pass pending |
+| **Last Completed Work** | P11-001 implemented and closed out 2026-04-12 |
+| **Next Task** | Final Auditor closeout review of P11-002 |
+| **Next Step Requested** | Auditor re-pass on the post-remediation P11-002 closeout package |
 
 ## Required Reading
 
@@ -29,6 +29,7 @@ If implementation is underway, also read:
 7. **`docs/planning/ARCH-002-reference-mode-storage.md`** — approved architectural basis for the storage pivot
 8. **`docs/planning/PHASE_9_arch002_gap_remediation_plan.md`** — current approved Phase 9 remediation plan and decision baseline
 9. **`docs/planning/P9-004_plan.md`** — locked implementation scope for source capability snapshots and durable write-back operations
+10. **`docs/planning/P11-002_plan.md`** — current approval-gate plan for async connector-aware bulk export
 
 ## System Summary
 
@@ -97,6 +98,71 @@ When suggesting code changes:
 
 ## Recent Session Activity
 
+- **P11-002 post-remediation governance reconciliation (2026-04-12):**
+  - The previously reopened P11-002 closeout package was reconciled to the current post-remediation state without reopening architecture or scope.
+  - The four previously identified contract drifts are now resolved in code: `export_no_eligible_items` returns the full locked 409 payload; ZIP assembly writes incrementally to a temporary artifact; expired export-artifact cleanup is wired from app lifespan; and completed/completed_with_failures jobs can promote to `expired` during status polling.
+  - Validation now observed: P11-002 focused suite 19/19 pass and directly affected suites 71 pass. A separate backend-suite failure in `tests/test_google_drive_connector.py` remains outside P11-002 scope and is not treated as a workstream regression.
+  - Governance consequence: P11-002 is no longer in Engineer remediation. The live workflow state is final Auditor closeout re-pass pending.
+
+- **P11-002 implementation-closeout reconciliation (2026-04-12):**
+  - The implementation landed in `src/config.py`, `src/models.py`, `src/api/schemas.py`, `src/api/routes/export.py`, `src/api/app.py`, `tests/conftest.py`, and `tests/test_p11_002_export_batch.py`.
+  - Auditor closeout review found four material drifts against the locked ADR-036/P11-002 contract: the `export_no_eligible_items` response omits the full locked detail payload; ZIP assembly is still in-memory instead of incremental; TTL-expired artifacts have no startup or sweeper cleanup path; and status polling does not fully promote completed jobs to `expired`.
+  - Governance consequence: P11-002 was reopened for a narrow remediation slice. That reopened state is now historical after the post-remediation reconciliation above.
+
+- **P11-002 planning lock (2026-04-12):**
+  - `docs/planning/P11-002_plan.md` created to define the next post-P11 workstream: async connector-aware bulk export.
+  - Locked decision: the final mixed-selection bulk export contract must not extend the legacy synchronous `POST /api/v1/media/download-batch` ZIP route. P11-002 instead introduces a dedicated async export-job boundary with explicit submission-time accepted/blocked/rejected reporting and explicit runtime export results.
+  - Locked contract: full items and Drive-backed reference items may participate only through bounded async export execution; local-folder and other non-Drive reference providers remain blocked; temporary export artifacts are user-scoped, short-lived, and must not become permanent retained originals.
+  - Governance consequence: P11-002 is now the current approval gate. The next workflow step is Auditor review of the planning and governance package.
+
+- **P11-001 post-implementation closeout reconciliation (2026-04-12):**
+  - `docs/CURRENT_STATE.md`, `docs/PROJECT_HANDOFF.md`, `docs/planning/P11-001_plan.md`, and `docs/DECISION_LOG.md` were reconciled so the project now reads as one post-P11 closeout state rather than a mix of implementation-complete and approval-gate language.
+  - Locked contract clarification: the shipped API intentionally collapses both missing IDs and unauthorized IDs into rejected `media_item_not_found`. The separate `not_owned` reason from the planning draft was removed from the authoritative governance contract without reopening implementation scope.
+  - Governance consequence: P11-001 is completed and closed. That interim closeout-only state was later superseded the same day when P11-002 became the current approval gate.
+
+- **P11-001 implementation closeout (2026-04-12):**
+  - `POST /api/v1/media/reanalyze-batch` now uses explicit per-item `accepted`/`blocked`/`rejected` reporting instead of silent skips.
+  - Drive-backed reference items are admitted only through async queueing; no request-time Drive download occurs.
+  - Local-folder and other non-Drive reference providers remain blocked, and all-or-nothing quota enforcement returns HTTP 429 with explicit per-item outcomes when exhausted.
+
+- **P11-001 planning lock (2026-04-12):**
+  - `docs/planning/P11-001_plan.md` created to define the next post-P10 workstream: capability-aware batch reanalysis.
+  - Locked decision: batch reanalysis and bulk export are separate workstreams. `P11-001` covers `POST /api/v1/media/reanalyze-batch` only; `P11-002 — Async Connector-Aware Bulk Export` is explicitly deferred as a later planning slice.
+  - Locked contract: the current batch reanalysis route is legacy full-storage silent-skip behavior, not the final UX. Future mixed selections are allowed only with explicit per-item accepted/blocked/rejected reporting. Full items remain eligible; Drive-backed reference items may participate only through a capability-aware queueing model; local-folder and other non-Drive reference providers remain blocked.
+  - _(Historical planning state only: this approval-gate wording was superseded once P11-001 was implemented and moved into closeout.)_
+
+- **P10-001 Architect reconciliation (2026-04-12):**
+  - Auditor re-pass found plan-versus-code drift: the shared Drive fetch service, both route integrations, and dedicated P10-001 tests already exist in the repo, so P10-001 is no longer a pre-Engineer approval gate.
+  - `docs/planning/P10-001_plan.md` was reconciled to the live implementation baseline and now serves as the authoritative post-implementation contract rather than a pre-implementation proposal.
+  - Locked contract: non-Drive reference items stay on `409 original_at_source`; Drive fetch failures use standardized `detail` + `error_code` payloads; shared-service misuse or inconsistent supposedly-Drive state is `502 drive_fetch_failed`, not `422`.
+  - Governance consequence: P10-001 moved into implementation reconciliation/closeout status.
+
+- **P10-001 closeout governance reconciliation (2026-04-12):**
+  - Closeout audit result is now the governing workflow state: P10-001 is completed and closed out.
+  - Stale next-step text that still left Auditor closeout as a pending workflow step was removed from the live governance docs.
+  - Optional follow-up only: stale P10-001 test names may be cleaned up later if the operator wants cosmetic naming consistency, but they do not block closeout.
+
+- **2026-04-11 (ad-hoc fixes — no workstream):**
+  - `PATCH /api/v1/sources/{id}` rename endpoint added to `src/api/routes/sources.py`. Allows any connection to be renamed independently of its connector configuration.
+  - `google_drive_configure` in `src/api/routes/google_drive_connector.py` now captures the return value of `_require_owned_source` and sets `source.name = body.target_folder_label or "Google Drive"` before committing. Previously only `target_folder_label` on the connector row was updated; `source.name` stayed as the creation-time default.
+  - `SourcesPage.tsx` — inline rename UI: pencil icon appears on hover, opens text input pre-filled with current name, commits on Enter/Save or dismisses on Escape. Calls `api.renameSource()` in `frontend/src/api/client.ts`.
+  - Source type display label in `SourcesPage.tsx` changed from raw `google_drive` / `s3` to human-readable `"Google Drive"` / `"Amazon S3"` via a `SOURCE_TYPE_LABELS` lookup map.
+  - **Operator-performed operational actions (not repo changes):** two existing Google Drive connections renamed to their Drive folder labels via DB UPDATE; 52 dev sample images deleted from `/input/` on EC2 (24 MB freed).
+
+- **P9-005 fix pass (2026-04-10):**
+  - Resolved two Auditor blockers identified against the P9-005 implementation.
+  - `frontend/src/pages/UploadPage.tsx` `uploadOne()` now writes the dropped file into the selected working folder via File System Access API (`getFileHandle() → createWritable() → write() → close()`) before sending bytes transiently to the backend. The local device is now the source of truth as the plan required.
+  - `src/api/routes/upload.py` quota-exceeded cleanup for `POST /upload/local-folder` extended to delete `OriginAssetRef` and `PreviewAsset` (FK-safe order) and to delete the persisted thumbnail file via `_file_store.delete()`. New `_cleanup_unqueued_local_folder_upload(db, media_item_id, thumbnail_path)` helper.
+  - Test #15 `test_upload_local_folder_quota_exceeded_cleans_up_all_artifacts` added; all assertions on zero DB rows and zero thumbnail files pass.
+  - Full regression: 459 passed, 1 skipped. Phase 9 is fully closed.
+
+- **P9-005 completion (2026-04-10):**
+  - Closed the final ARCH-002 browser/local intake gap. All connector-synced and locally-selected originals are now reference-mode; no new full-retained originals can be created via normal user flows.
+  - New `src/ingestion/local_folder_ingest.py` — `process_local_folder_intake()` mirrors `process_connector_import()`: validate → hash → dedup → MIME → dimensions → thumbnail-only → `MediaItem(storage_mode='reference', storage_path=None)` + `OriginAssetRef(provider_type='local_folder')` + `PreviewAsset`; no `file_store.save()` for original.
+  - New `POST /api/v1/upload/local-folder` endpoint in `src/api/routes/upload.py` with `_resolve_local_folder_source_id()` auto-create helper.
+  - `frontend/src/pages/UploadPage.tsx` rewritten with File System Access API gate, working-folder selection (`showDirectoryPicker()`), unsupported-browser messaging, calls `uploadLocalFolderFile()`.
+  - 14 new tests in `tests/test_p9_005_local_folder_intake.py`. Suite at 458 passed, 1 skipped before fix pass.
+
 - **P9-004 Auditor remediation (2026-04-10):**
   - **Finding 1 (Retry bootstrap scope):** In `src/api/routes/media.py`, moved the `is_drive_backed` guard to the top of `retry_writeback` so ALL non-Drive items return 422 unconditionally — including items that already have a backfill-created `WriteBackOperation` row. Previously the guard only blocked the bootstrap path; a non-Drive item with an existing operation could silently enter a no-op retry flow.
   - **Finding 2 (Blocked-path audit history):** Verified the three flagged exit paths in `drive_mutation_service.py` (credential decrypt failure, missing refresh token, missing Drive file ID) each call `_record_mutation_attempt`. The code was already correct; added the missing test `test_drive_rename_decrypt_failure_records_history` to explicitly cover the decrypt-failure path.
@@ -120,7 +186,7 @@ When suggesting code changes:
   - Locked boundary: `SourceCapabilitySnapshot` is a single current-state row per `SourceConnector`, not a history table and not a `Source`-level summary.
   - Locked targeting: `WriteBackOperation` targets `OriginAssetRef` canonically and keeps `media_item_id` as a denormalized convenience FK for compatibility.
   - Locked compatibility rule: `WriteBackOperation` becomes the canonical backend state while `MediaItem.mutation_state` and related fields remain same-transaction mirrors for existing routes/tests.
-  - Locked next gate: P9-004 is now the active approval/audit target before Engineer starts the durable write-back implementation.
+  - _(Historical: P9-004 was subsequently implemented and audited — see completion and Auditor remediation entries above.)_
 
 - **P9-003 scope resolution (2026-04-09):**
   - `docs/planning/P9-003_plan.md` created to lock the implementation-ready scope for the additive origin/preview domain split.
@@ -336,7 +402,8 @@ When suggesting code changes:
 
 - No application blockers.
 - Operational limitation remains: AWS SES production access is still pending for live password reset email sending, but this does not block Phase 5 planning.
-- Workflow gate: P9-001, P9-002, and P9-003 are complete. `P9-004` is now the current approval gate, and the next workflow step is the Auditor pass on `docs/planning/P9-004_plan.md` before Engineer begins implementation.
+- Workflow state: P11-002 implementation and remediation are complete. The next workflow step is the final Auditor closeout re-pass.
+- Validation note: P11-002 focused suite is 19/19 pass and directly affected suites are 71 pass. The current unrelated failure in `tests/test_google_drive_connector.py` is not treated as a P11-002 blocker.
 
 ## Document Ownership Note
 

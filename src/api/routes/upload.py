@@ -8,7 +8,7 @@ from src.api.dependencies import get_db, get_current_user_id
 from src.api.schemas import UploadResponse, BatchUploadResponse, BatchFileResult
 from src.ingestion.upload_service import UploadService
 from src.ingestion.local_folder_ingest import process_local_folder_intake
-from src.analysis.processor import analyze_media_item
+from src.analysis.processor import analyze_media_item, analyze_connector_item
 from src.analysis.anthropic_provider import AnthropicVisionProvider, AnalysisError
 from src.quota.quota_service import QuotaService, QuotaExceededError, build_quota_exceeded_detail
 from src.storage.file_store import get_file_store
@@ -364,13 +364,17 @@ async def upload_local_folder_file(
                 status_code=429,
                 detail=build_quota_exceeded_detail(exc),
             )
+        # Local-folder items are storage_mode='reference' — bytes were not retained
+        # in app storage, so pass them directly to analyze_connector_item.
         background_tasks.add_task(
-            analyze_media_item,
+            analyze_connector_item,
             result.processing_job_id,
+            file_bytes,
             _vision_provider,
             _file_store,
             _indexing_service,
             reservation_id,
+            filename,  # hint for the AI
         )
 
     item = result.media_item

@@ -42,7 +42,7 @@ _BASE_QUERY = (
 )
 # Legacy alias kept for tests that import _LIST_QUERY directly
 _LIST_QUERY = _BASE_QUERY
-_LIST_FIELDS = "nextPageToken,files(id,name,version,mimeType,size,modifiedTime)"
+_LIST_FIELDS = "nextPageToken,files(id,name,version,md5Checksum,mimeType,size,modifiedTime)"
 _PAGE_SIZE = 100  # Drive API max per page
 _MAX_FOLDER_DEPTH = 10  # guard against pathologically deep / circular trees
 
@@ -208,7 +208,7 @@ class GoogleDriveConnector(ConnectorBase):
         return RemoteObject(
             key=item["id"],
             display_name=item.get("name") or item["id"],
-            version=item.get("version"),
+            version=item.get("md5Checksum"),  # content-only hash; None if not available — integer 'version' is NOT used because it increments on renames/metadata changes
             last_modified_at=last_modified,
             size=int(size_raw) if size_raw is not None else None,
         )

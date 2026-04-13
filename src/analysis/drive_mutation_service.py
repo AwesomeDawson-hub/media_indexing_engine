@@ -432,3 +432,260 @@ async def attempt_drive_rename_after_analysis(
             succeeded=False, error_code=_ERR_DRIVE_API_ERROR, error_message=err_msg,
         )
         logger.warning("Drive rename failed for item %s: %s", media_item.id, exc)
+
+
+# ---------------------------------------------------------------------------
+# Metadata embed write-back — uploads enriched bytes back to Drive
+# ---------------------------------------------------------------------------
+
+async def attempt_drive_metadata_embed(
+    db: AsyncSession,
+    media_item: MediaItem,
+    file_bytes: bytes,
+) -> None:
+    """Embed AI metadata into the file bytes and upload the result back to Drive.
+
+    Called immediately after analysis + rename, while the original bytes are
+    still available in memory.  Silently skips if:
+      - Item has no Drive connector
+      - Connector lacks write scope
+      - MIME type does not support embedding (BMP, GIF, etc.)
+
+    Does NOT set mutation_state — that belongs to the rename operation.
+    Records a row in source_mutation_history for auditing.
+    """
+    if not media_item.source_id:
+        return
+
+    conn_result = await db.execute(
+        select(SourceConnector).where(
+            SourceConnector.source_id == media_item.source_id,
+            SourceConnector.user_id == media_item.user_id,
+        )
+    )
+    connector = conn_result.scalar_one_or_none()
+    if connector is None or connector.connector_type != "google_drive":
+        return
+
+    # Load analysis metadata
+    meta_result = await db.execute(
+        select(MediaMetadata).where(MediaMetadata.media_item_id == media_item.id)
+    )
+    metadata = meta_result.scalar_one_or_none()
+    if metadata is None:
+        return
+
+    # Check write scope
+    snapshot = await ensure_drive_capability_snapshot(db, connector)
+    if not snapshot.can_write:
+        logger.debug(
+            "Drive embed skipped for item %s: connector has no write scope",
+            media_item.id,
+        )
+        return
+
+    # Get Drive file ID
+    origin_asset_ref = await ensure_origin_asset_ref(db, media_item)
+    if origin_asset_ref is None:
+        return
+    drive_file_id = origin_asset_ref.provider_object_id
+    if not drive_file_id and origin_asset_ref.source_object_id:
+        so_result = await db.execute(
+            select(SourceObject).where(SourceObject.id == origin_asset_ref.source_object_id)
+        )
+        so = so_result.scalar_one_or_none()
+        if so is not None:
+            drive_file_id = so.external_object_key
+    if not drive_file_id:
+        logger.debug("Drive embed skipped for item %s: no drive_file_id", media_item.id)
+        return
+
+    # Embed metadata into bytes
+    import json
+    from src.enrichment.embedder import MetadataEmbedder
+    from src.analysis.schemas import MediaMetadataResult
+
+    embedder = MetadataEmbedder()
+    metadata_result = MediaMetadataResult(
+        title=metadata.title,
+        description=metadata.description,
+        tags=json.loads(metadata.tags) if metadata.tags else [],
+        objects=json.loads(metadata.objects) if metadata.objects else [],
+        scenes=json.loads(metadata.scenes) if metadata.scenes else [],
+        context=metadata.context or "",
+        mood=metadata.mood or "",
+        people=json.loads(metadata.people) if metadata.people else [],
+        people_count=metadata.people_count or 0,
+        orientation=metadata.orientation or "landscape",
+        colors=json.loads(metadata.colors) if metadata.colors else [],
+        location_hint=metadata.location_hint,
+        quality_notes=metadata.quality_notes,
+    )
+    result = embedder.embed(
+        file_bytes,
+        media_item.mime_type,
+        metadata_result,
+        media_item.original_filename,
+    )
+    if not result.embedded:
+        logger.debug(
+            "Drive embed skipped for item %s: MIME type %s does not support embedding",
+            media_item.id,
+            media_item.mime_type,
+        )
+        return
+
+    # Get access token
+    try:
+        credentials = decrypt_credentials(connector.credentials_encrypted)
+    except Exception as exc:
+        logger.warning("Drive embed: failed to decrypt credentials for item %s: %s", media_item.id, exc)
+        return
+
+    token_manager = DriveTokenManager(
+        connector_row=connector,
+        credentials=credentials,
+        client_id=settings.google_drive.client_id,
+        client_secret=settings.google_drive.client_secret,
+        redirect_uri=settings.google_drive.redirect_uri,
+    )
+    try:
+        access_token = await token_manager.get_access_token(db)
+    except DriveTokenError as exc:
+        logger.warning("Drive embed: token refresh failed for item %s: %s", media_item.id, exc)
+        return
+
+    # PATCH the file content back to Drive (media-only upload)
+    upload_url = f"https://www.googleapis.com/upload/drive/v3/files/{drive_file_id}"
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.patch(
+                upload_url,
+                params={"uploadType": "media", "fields": "id,md5Checksum"},
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": result.output_mime_type,
+                },
+                content=result.enriched_bytes,
+                timeout=60.0,
+            )
+
+        if resp.status_code == 200:
+            logger.info(
+                "Drive metadata embed succeeded for item %s (file_id=%s)",
+                media_item.id, drive_file_id,
+            )
+            # Update the SourceObject's stored version to the post-embed md5 so
+            # that the next sync sees a matching version and does not reimport.
+            embed_response = resp.json()
+            new_embed_md5 = embed_response.get("md5Checksum")
+            if new_embed_md5:
+                so_result = await db.execute(
+                    select(SourceObject).where(
+                        SourceObject.last_imported_media_item_id == media_item.id
+                    )
+                )
+                embed_so = so_result.scalar_one_or_none()
+                if embed_so is not None:
+                    embed_so.external_version = new_embed_md5
+                    embed_so.updated_at = datetime.now(timezone.utc)
+                    logger.info(
+                        "Drive metadata embed: updated SO %s external_version to post-embed md5 %s",
+                        embed_so.id, new_embed_md5,
+                    )
+            await _record_mutation_attempt(
+                db,
+                media_item=media_item,
+                operation_type="metadata_embed",
+                prior_filename=media_item.original_filename,
+                new_filename=None,
+                source_locator_snapshot={"drive_file_id": drive_file_id},
+                succeeded=True,
+            )
+        else:
+            logger.warning(
+                "Drive metadata embed returned HTTP %s for item %s: %s",
+                resp.status_code, media_item.id, resp.text[:200],
+            )
+            await _record_mutation_attempt(
+                db,
+                media_item=media_item,
+                operation_type="metadata_embed",
+                prior_filename=media_item.original_filename,
+                new_filename=None,
+                source_locator_snapshot={"drive_file_id": drive_file_id},
+                succeeded=False,
+                error_code=_ERR_DRIVE_API_ERROR,
+                error_message=f"HTTP {resp.status_code}: {resp.text[:200]}",
+            )
+    except Exception as exc:
+        logger.warning("Drive metadata embed failed for item %s: %s", media_item.id, exc)
+        await _record_mutation_attempt(
+            db,
+            media_item=media_item,
+            operation_type="metadata_embed",
+            prior_filename=media_item.original_filename,
+            new_filename=None,
+            source_locator_snapshot={"drive_file_id": drive_file_id},
+            succeeded=False,
+            error_code=_ERR_DRIVE_API_ERROR,
+            error_message=str(exc)[:500],
+        )
+
+
+async def download_and_embed_drive_metadata(
+    media_item_id: str,
+    user_id: str,
+) -> None:
+    """Re-download the Drive file and embed the current DB metadata into it.
+
+    Used by manual-edit and re-analyze flows where the original bytes are no
+    longer in memory.  Creates its own DB session so it can be called as a
+    FastAPI BackgroundTask.
+
+    Silently no-ops if the item has no Drive connector or no write scope.
+    """
+    from src.database import async_session
+    from src.connectors.factory import build_connector
+    from src.connectors.secrets import decrypt_credentials
+
+    async with async_session() as db:
+        item_result = await db.execute(
+            select(MediaItem).where(MediaItem.id == media_item_id, MediaItem.user_id == user_id)
+        )
+        media_item = item_result.scalar_one_or_none()
+        if media_item is None or media_item.storage_mode != "reference":
+            return
+
+        conn_result = await db.execute(
+            select(SourceConnector).where(
+                SourceConnector.source_id == media_item.source_id,
+                SourceConnector.user_id == user_id,
+            )
+        )
+        connector_row = conn_result.scalar_one_or_none()
+        if connector_row is None or connector_row.connector_type != "google_drive":
+            return
+
+        # Get the Drive file ID from OriginAssetRef
+        origin_asset_ref = await ensure_origin_asset_ref(db, media_item)
+        if origin_asset_ref is None:
+            return
+        drive_file_id = origin_asset_ref.provider_object_id
+        if not drive_file_id:
+            return
+
+        # Build connector and download current file bytes
+        try:
+            credentials = decrypt_credentials(connector_row.credentials_encrypted)
+            connector = build_connector(connector_row, credentials)
+            file_bytes = await connector.download_object(drive_file_id)
+        except Exception as exc:
+            logger.warning(
+                "download_and_embed_drive_metadata: failed to download item %s: %s",
+                media_item_id, exc,
+            )
+            return
+
+        await attempt_drive_metadata_embed(db, media_item, file_bytes)
+

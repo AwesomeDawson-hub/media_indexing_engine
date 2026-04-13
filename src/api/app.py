@@ -11,9 +11,10 @@ from src.config import settings
 from src.database import create_tables, run_migrations, async_session
 from src.models import User, QuotaEvent, MediaItem, Source, SourceConnector, SyncRun
 from src.api.dependencies import DEV_USER_ID
-from src.api.routes import upload, media, analysis, search, auth, download, health, quota, sources, admin, billing, connectors, google_auth, collections, google_drive_connector
+from src.api.routes import upload, media, analysis, search, auth, download, health, quota, sources, admin, billing, connectors, google_auth, collections, google_drive_connector, export
 from src.api.error_handlers import register_error_handlers
 from src.analysis.processor import analyze_media_item
+from datetime import datetime, timezone
 from src.analysis.drive_mutation_service import attempt_drive_rename_after_analysis
 from src.ingestion.job_manager import get_pending_jobs
 
@@ -179,6 +180,19 @@ async def lifespan(app: FastAPI):
                 job_reservations[job.id] = str(row) if row else None
 
         for job in pending_jobs:
+            # Reference-mode items (local_folder) cannot be resumed on restart —
+            # the original bytes are gone. Mark them failed so they don't loop.
+            media_item_result = await db.execute(
+                select(MediaItem).where(MediaItem.id == job.media_item_id)
+            )
+            job_media_item = media_item_result.scalar_one_or_none()
+            if job_media_item and job_media_item.storage_mode != "full":
+                job.status = "failed"
+                job.error_message = "Could not resume: original bytes unavailable after restart. Please re-upload."
+                job.completed_at = datetime.now(timezone.utc)
+                job_media_item.status = "error"
+                await db.commit()
+                continue
             asyncio.create_task(
                 analyze_media_item(
                     job.id,
@@ -206,6 +220,11 @@ async def lifespan(app: FastAPI):
             )
             for wb_item in writeback_items:
                 asyncio.create_task(_retry_writeback_task(wb_item.id))
+
+    # Sweep expired export artifacts left from previous runs (P11-002)
+    from src.api.routes.export import _sweep_expired_export_artifacts
+    async with async_session() as db:
+        await _sweep_expired_export_artifacts(db)
 
     # Start the auto-sync scheduler loop (P7-006)
     scheduler_task = asyncio.create_task(_auto_sync_loop())
@@ -250,6 +269,7 @@ def create_app() -> FastAPI:
     app.include_router(google_auth.router)
     app.include_router(collections.router)
     app.include_router(google_drive_connector.router)
+    app.include_router(export.router)
     return app
 
 
