@@ -1,6 +1,6 @@
 """p11_002_export_jobs: add export_jobs table for async bulk export.
 
-Revision ID: a1b2c3d4e5f7
+Revision ID: b1c2d3e4f5a6
 Revises: f8a9b0c1d2e3
 Create Date: 2026-04-12
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 
-revision = "a1b2c3d4e5f7"
+revision = "b1c2d3e4f5a6"
 down_revision = "f8a9b0c1d2e3"
 branch_labels = None
 depends_on = None
