@@ -99,25 +99,38 @@ export default function MediaDetailPage() {
     };
   }, [id]);
 
-  // Show the "fully applied" banner only when mutation_state transitions TO fully_applied
-  // during this session (i.e. after a (re-)analysis completes). Skip the initial load value.
+  // Show the "fully applied" banner after a (re-)analysis completes with fully_applied.
+  // Two triggers:
+  //   1. mutation_state transitions FROM something else TO fully_applied (first-time analysis)
+  //   2. reanalyzing flips false→true→false and mutation_state is fully_applied on completion
   useEffect(() => {
     const current = media?.mutation_state;
     const prev = prevMutationStateRef.current;
 
     if (prev !== undefined && prev !== 'fully_applied' && current === 'fully_applied') {
-      // Genuine transition — show and start dismiss timer
+      // Transition from non-fully_applied → fully_applied (e.g. first analysis)
       setShowFullyAppliedBanner(true);
       clearTimeout(fullyAppliedTimerRef.current);
       fullyAppliedTimerRef.current = setTimeout(() => setShowFullyAppliedBanner(false), 5000);
     } else if (current !== 'fully_applied') {
-      // State is pending/blocked/null — hide banner (it's never a success right now)
       setShowFullyAppliedBanner(false);
     }
 
     prevMutationStateRef.current = current;
     return () => clearTimeout(fullyAppliedTimerRef.current);
   }, [media?.mutation_state]);
+
+  // When a re-analysis finishes (reanalyzing: true→false) and mutation_state is fully_applied,
+  // show the banner — mutation_state itself won't transition so the above effect won't fire.
+  const prevReanalyzingRef = useRef(false);
+  useEffect(() => {
+    if (prevReanalyzingRef.current && !reanalyzing && media?.mutation_state === 'fully_applied') {
+      setShowFullyAppliedBanner(true);
+      clearTimeout(fullyAppliedTimerRef.current);
+      fullyAppliedTimerRef.current = setTimeout(() => setShowFullyAppliedBanner(false), 5000);
+    }
+    prevReanalyzingRef.current = reanalyzing;
+  }, [reanalyzing, media?.mutation_state]);
 
   const isTerminal = (s: string) => ['completed', 'failed', 'error'].includes(s);
 
