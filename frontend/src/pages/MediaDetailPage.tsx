@@ -504,9 +504,6 @@ export default function MediaDetailPage() {
           <div className="media-detail-analysis">
             <div className="section-header">
               <h2>Analysis</h2>
-              {reanalyzing && (
-                <span className="reanalyze-confirm-label">Analyzing...</span>
-              )}
             </div>
             {!reanalyzing && (
               <div className="reanalyze-confirm">
