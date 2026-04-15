@@ -81,17 +81,41 @@ This document tracks all work items for the Media Indexing Engine through their 
 - **Plan:** `docs/planning/P11-001_plan.md`
 - **Summary:** `IMPLEMENTATION_STATUS.md` — P11-001 entry
 
-## In Progress
+### P12-001: Google OAuth Production-Readiness and Beta-Access Hardening
+- **Objective:** Harden Google SSO and Google Drive OAuth for external beta use by making provider-blocked states explicit, improving recovery guidance, and locking a current operator readiness/onboarding contract.
+- **Phase:** Post-Phase 9 incremental workstreams
+- **Status:** Completed and closed out — 2026-04-14
+- **Size:** Medium
+- **Plan:** `docs/planning/P12-001_plan.md`
+- **Summary:** `IMPLEMENTATION_STATUS.md` — P12-001 entry
 
 ### P11-002: Async Connector-Aware Bulk Export
 - **Objective:** Define a separate async export-job model for connector-backed bulk export instead of extending the legacy synchronous ZIP route into mixed full-plus-reference behavior.
 - **Phase:** Post-Phase 9 incremental workstreams
-- **Status:** Implementation and remediation complete; final Auditor closeout re-pass pending — 2026-04-12
+- **Status:** Completed and closed out after final Auditor re-pass — 2026-04-13
 - **Size:** Medium-Large
 - **Plan:** `docs/planning/P11-002_plan.md`
-- **Summary:** `IMPLEMENTATION_STATUS.md` — P11-002 implementation and post-remediation reconciliation entry; awaiting final Auditor gate
+- **Summary:** `IMPLEMENTATION_STATUS.md` — P11-002 closeout entry
+
+## In Progress
+
+### P12-009: Source Capture Metadata Preservation Hardening
+- **Objective:** Lock first-class DB storage for source-authored capture date/time and GPS, make date-taken correctness DB-backed, protect authoritative source fields from AI overwrite, remove AI writes into standard source-location fields, and require non-destructive PNG XMP preservation.
+- **Phase:** Post-Phase 9 incremental workstreams
+- **Status:** Implemented — pending Auditor closeout review
+- **Size:** Medium
+- **Plan:** `docs/planning/P12-009_plan.md`
+- **Architecture note:** `docs/planning/ARCH-004-source-capture-metadata-preservation.md`
+- **Test status:** 12/12 focused tests pass
 
 ## Planned
+
+### P12-002: Remembered-Photo Evaluation Baseline and Query Set
+- **Objective:** Create the frozen benchmark contract, query-set coverage floor, and repeatable offline evaluation harness boundary that all later remembered-photo retrieval workstreams must use before claiming search-quality improvement.
+- **Phase:** Post-Phase 9 incremental workstreams
+- **Status:** Planned — separate from P12-009; not yet active
+- **Size:** Medium
+- **Plan:** `docs/planning/P12-002_plan.md`
 
 ### Future: Dropbox Connector
 - **Objective:** Add Dropbox ingestion on top of the connector foundation.

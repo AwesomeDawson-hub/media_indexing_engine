@@ -22,14 +22,11 @@ def build_xmp_xml(metadata: MediaMetadataResult) -> str:
         f"          <rdf:li>{_escape(kw)}</rdf:li>" for kw in keywords
     )
 
-    location = _escape(metadata.location_hint) if metadata.location_hint else ""
-
     xmp = f"""<?xpacket begin="\xef\xbb\xbf" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/">
   <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
     <rdf:Description
       xmlns:dc="http://purl.org/dc/elements/1.1/"
-      xmlns:Iptc4xmpCore="http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/"
       xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/">
       <dc:title>
         <rdf:Alt>
@@ -46,13 +43,7 @@ def build_xmp_xml(metadata: MediaMetadataResult) -> str:
 {keyword_items}
         </rdf:Bag>
       </dc:subject>
-      <photoshop:Headline>{_escape(metadata.title)}</photoshop:Headline>"""
-
-    if location:
-        xmp += f"""
-      <Iptc4xmpCore:Location>{location}</Iptc4xmpCore:Location>"""
-
-    xmp += """
+      <photoshop:Headline>{_escape(metadata.title)}</photoshop:Headline>
     </rdf:Description>
   </rdf:RDF>
 </x:xmpmeta>

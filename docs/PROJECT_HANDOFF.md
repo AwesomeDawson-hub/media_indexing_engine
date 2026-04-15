@@ -9,10 +9,10 @@ _Update this document at the end of every session and at every workstream transi
 | Field | Value |
 |---|---|
 | **Current Phase** | Post-Phase 9 incremental workstreams |
-| **Current Workstream** | P11-002 — final Auditor closeout re-pass pending |
-| **Last Completed Work** | P11-001 implemented and closed out 2026-04-12 |
-| **Next Task** | Final Auditor closeout review of P11-002 |
-| **Next Step Requested** | Auditor re-pass on the post-remediation P11-002 closeout package |
+| **Current Workstream** | P12-009 — Source Capture Metadata Preservation Hardening (**implemented, pending Auditor closeout**) |
+| **Last Completed Work** | P12-009 Engineer session 2026-04-15: all 4 slices implemented — migration, model, metadata extractor, ingest extraction, enrichment violations removed, non-destructive PNG XMP merge, backfill script, 12/12 focused tests pass |
+| **Next Task** | Auditor closeout review of P12-009 implementation |
+| **Next Step Requested** | Auditor confirmation pass verifying the P12-009 implementation against `P12-009_plan.md` and `ARCH-004-source-capture-metadata-preservation.md` before formal closeout |
 
 ## Required Reading
 
@@ -29,16 +29,21 @@ If implementation is underway, also read:
 7. **`docs/planning/ARCH-002-reference-mode-storage.md`** — approved architectural basis for the storage pivot
 8. **`docs/planning/PHASE_9_arch002_gap_remediation_plan.md`** — current approved Phase 9 remediation plan and decision baseline
 9. **`docs/planning/P9-004_plan.md`** — locked implementation scope for source capability snapshots and durable write-back operations
-10. **`docs/planning/P11-002_plan.md`** — current approval-gate plan for async connector-aware bulk export
+10. **`docs/planning/P12-009_plan.md`** — current approval-gate plan for source capture metadata preservation hardening
+11. **`docs/planning/ARCH-004-source-capture-metadata-preservation.md`** — governing architecture note for source-truth capture metadata, date-taken correctness, and safe write-back preservation
+12. **`docs/planning/P12-002_plan.md`** — separately planned remembered-photo evaluation baseline workstream; not merged into P12-009
+13. **`docs/planning/ARCH-003-remembered-photo-retrieval-roadmap.md`** — staged search-quality roadmap and P12-002 parent architecture context
+14. **`docs/planning/P12-001_plan.md`** — closed historical contract for Google OAuth production-readiness and beta-access hardening
+15. **`docs/planning/P11-002_plan.md`** — current closeout-contract baseline for async connector-aware bulk export
 
 ## System Summary
 
-Media Indexing Engine is an AI-powered system that analyzes photos, enriches their metadata using vision AI models, and enables fast semantic search across large media libraries. Users upload images via a web interface; the system automatically processes, tags, and indexes them for natural language retrieval.
+Media Indexing Engine is an AI-powered system that analyzes photos, enriches their metadata using vision AI models, and enables fast semantic search across large media libraries. Users connect supported sources through a web interface; the system processes, tags, and indexes that media for natural language retrieval. Historical local working-folder intake may still exist in code and past workstream records, but it is hidden/deprecated and is not part of the supported beta experience.
 
 ### Core Flow
 
 ```
-Upload (web UI)
+Connected Source Intake (web UI)
     │
     ▼
 Ingestion (validate, deduplicate, store)
@@ -81,6 +86,8 @@ Natural Language Search (web UI)
 - Dev mode (`auth.dev_mode: true`) bypasses auth using auto-seeded dev user
 - Standardized error responses with `detail` + `error_code` across all endpoints
 - Rate limiting on auth endpoints (5/min login, 3/min register)
+- Supported beta intake is source-connected intake (currently Google Drive), not local working-folder onboarding
+- Local working-folder intake remains historical implementation context only; it is hidden/deprecated and any legacy local-folder reference items remain blocked for server-side bulk export
 
 ## Development Guidelines
 
@@ -98,11 +105,45 @@ When suggesting code changes:
 
 ## Recent Session Activity
 
+- **P12-009 planning lock (2026-04-15):**
+  - `docs/planning/P12-009_plan.md` defines the current metadata-preservation hardening slice.
+  - Governing architecture note: `docs/planning/ARCH-004-source-capture-metadata-preservation.md` locks the source-truth contract for capture date/time and GPS, DB-backed date-taken behavior, authoritative source-field protection, AI non-overwrite rules, and PNG XMP non-destructive preservation.
+  - Locked scope: no retrieval changes, no ranking changes, no richer AI metadata schema expansion, no remembered-photo benchmark implementation, and no multimodal work.
+  - Governance consequence: P12-009 is now the current approval gate. P12-002 remains separately planned. The next workflow step is a short Auditor confirmation pass before operator approval and Engineer handoff.
+
+- **P12-002 planning lock (2026-04-13):**
+  - `docs/planning/P12-002_plan.md` defines the next remembered-photo retrieval workstream as a strictly measurement-first slice.
+  - Locked contract: P12-002 freezes the benchmark owner, the three relevance labels (`primary_match`, `acceptable_match`, `non_match`), the three core metrics (`top1_primary_hit_rate`, `top5_primary_hit_rate`, `top5_primary_or_acceptable_hit_rate`), and the reporting shape before any retrieval or metadata work changes the system.
+  - Tightened benchmark coverage rule: the first frozen benchmark set must contain at least 30 total queries, at least 5 queries in each mandatory class, and broad semantic regression queries may not exceed 20% of the benchmark.
+  - Planning consequence only: P12-002 remains separately planned and is not implicitly merged into P12-009.
+
+- **P12-001 closeout reconciliation (2026-04-14):**
+  - `docs/planning/P12-001_plan.md` was converted from approval-gate wording into a closed historical contract after implementation verification.
+  - `docs/CURRENT_STATE.md`, `docs/PROJECT_HANDOFF.md`, `docs/WORKSTREAMS.md`, and `docs/IMPLEMENTATION_STATUS.md` were reconciled so they all agree that P12-001 is completed and closed.
+  - Locked closeout note: the unrelated failure `tests/test_google_drive_connector.py::test_drive_list_objects_sends_correct_query` remains out of scope and is not treated as a P12-001 regression.
+  - Governance consequence: the active workstream slot is clear and the next workstream is operator-selected.
+
+- **P12-001 planning lock (2026-04-13):**
+  - `docs/planning/P12-001_plan.md` created to define the next post-P11 cleanup/hardening workstream: Google OAuth production-readiness and beta-access hardening.
+  - Locked decision: the next slice is about external beta readiness for Google SSO and Google Drive OAuth, not provider expansion, not export redesign, and not reactivating deprecated local working-folder intake.
+  - Locked contract: blocked Google platform states must become explicit user-facing and operator-facing product states, with clearer reconnect/scope-upgrade guidance and a single current readiness checklist.
+  - Historical planning consequence only: P12-001 became the approval gate at that time. That planning state is now superseded by the 2026-04-14 closeout reconciliation above.
+
+- **Live intake-model reconciliation (2026-04-13):**
+  - Live governance/docs were reconciled to the current product truth that supported connected sources are the active beta intake path.
+  - Historical P9-005 and related architecture records remain intact as implementation history, but local working-folder intake is no longer described as a supported current beta flow.
+  - Governance consequence: no workstream was reopened; this was a live-state wording correction only.
+
+- **P11-002 final closeout approval (2026-04-13):**
+  - Final Auditor re-pass returned no blocking findings and approved P11-002 for closeout.
+  - Governance consequence: P11-002 is now formally completed and closed. ADR-036 remains the authoritative contract, and the unrelated failure in `tests/test_google_drive_connector.py` remains explicitly out of scope for P11-002.
+  - Workflow consequence: the active workstream slot is cleared and the next planning decision is now open.
+
 - **P11-002 post-remediation governance reconciliation (2026-04-12):**
   - The previously reopened P11-002 closeout package was reconciled to the current post-remediation state without reopening architecture or scope.
   - The four previously identified contract drifts are now resolved in code: `export_no_eligible_items` returns the full locked 409 payload; ZIP assembly writes incrementally to a temporary artifact; expired export-artifact cleanup is wired from app lifespan; and completed/completed_with_failures jobs can promote to `expired` during status polling.
   - Validation now observed: P11-002 focused suite 19/19 pass and directly affected suites 71 pass. A separate backend-suite failure in `tests/test_google_drive_connector.py` remains outside P11-002 scope and is not treated as a workstream regression.
-  - Governance consequence: P11-002 is no longer in Engineer remediation. The live workflow state is final Auditor closeout re-pass pending.
+  - Governance consequence: P11-002 was no longer in Engineer remediation and moved into a final Auditor closeout re-pass state.
 
 - **P11-002 implementation-closeout reconciliation (2026-04-12):**
   - The implementation landed in `src/config.py`, `src/models.py`, `src/api/schemas.py`, `src/api/routes/export.py`, `src/api/app.py`, `tests/conftest.py`, and `tests/test_p11_002_export_batch.py`.
@@ -402,7 +443,7 @@ When suggesting code changes:
 
 - No application blockers.
 - Operational limitation remains: AWS SES production access is still pending for live password reset email sending, but this does not block Phase 5 planning.
-- Workflow state: P11-002 implementation and remediation are complete. The next workflow step is the final Auditor closeout re-pass.
+- Workflow state: P11-002 is completed and closed. There is no active implementation workstream; the next operator step is the next planning decision.
 - Validation note: P11-002 focused suite is 19/19 pass and directly affected suites are 71 pass. The current unrelated failure in `tests/test_google_drive_connector.py` is not treated as a P11-002 blocker.
 
 ## Document Ownership Note

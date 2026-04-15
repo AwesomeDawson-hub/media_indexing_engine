@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.curation.phash_service import PHASH_VERSION, compute_phash, phash_timestamp
 from src.ingestion.dedup import check_duplicate
 from src.ingestion.hashing import compute_sha256
+from src.ingestion.metadata_extractor import extract_source_capture_metadata
 from src.ingestion.upload_service import UploadResult, _generate_thumbnail
 from src.ingestion.validation import detect_mime_type, validate_file
 from src.models import MediaItem, OriginAssetRef, PreviewAsset, ProcessingJob
@@ -91,6 +92,9 @@ async def process_connector_import(
             exc,
         )
 
+    # 6. Extract source-truth capture metadata from EXIF (non-fatal)
+    capture = extract_source_capture_metadata(file_bytes, mime_type)
+
     # 7. DB records — reference mode: storage_path stays NULL, no original retained
     job_id: str | None = None
     media_item: MediaItem | None = None
@@ -108,6 +112,12 @@ async def process_connector_import(
             width=width,
             height=height,
             source_id=source_id,
+            source_capture_datetime_utc=capture.capture_datetime_utc,
+            source_capture_datetime_raw=capture.capture_datetime_raw,
+            source_capture_time_offset_minutes=capture.capture_time_offset_minutes,
+            source_gps_latitude=capture.gps_latitude,
+            source_gps_longitude=capture.gps_longitude,
+            source_gps_altitude_meters=capture.gps_altitude_meters,
         )
         db.add(media_item)
         await db.flush()

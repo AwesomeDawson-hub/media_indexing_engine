@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.curation.phash_service import compute_phash, PHASH_VERSION, phash_timestamp
+from src.ingestion.metadata_extractor import extract_source_capture_metadata
 from src.ingestion.validation import validate_file, detect_mime_type
 from src.ingestion.hashing import compute_sha256
 from src.ingestion.dedup import check_duplicate
@@ -105,10 +106,13 @@ class UploadService:
             )
             thumbnail_path = None
 
-        # 6. Store file
+        # 6. Extract source-truth capture metadata from EXIF (non-fatal)
+        capture = extract_source_capture_metadata(file_bytes, mime_type)
+
+        # 7. Store file
         storage_path = await self._file_store.save(user_id, content_hash, filename, file_bytes)
 
-        # 7. Create DB records (media_item + processing_job) in one transaction
+        # 8. Create DB records (media_item + processing_job) in one transaction
         try:
             media_item = MediaItem(
                 user_id=user_id,
@@ -123,6 +127,12 @@ class UploadService:
                 width=width,
                 height=height,
                 source_id=source_id,
+                source_capture_datetime_utc=capture.capture_datetime_utc,
+                source_capture_datetime_raw=capture.capture_datetime_raw,
+                source_capture_time_offset_minutes=capture.capture_time_offset_minutes,
+                source_gps_latitude=capture.gps_latitude,
+                source_gps_longitude=capture.gps_longitude,
+                source_gps_altitude_meters=capture.gps_altitude_meters,
             )
             db.add(media_item)
             await db.flush()  # Get the generated ID

@@ -579,7 +579,7 @@ async def test_drive_callback_success(drive_client, db_session_factory):
 
 @pytest.mark.asyncio
 async def test_drive_callback_access_denied_redirect(drive_client):
-    """Callback with error=access_denied → error redirect."""
+    """Callback with error=access_denied → google_oauth_access_denied redirect."""
     resp = await drive_client.get(
         "/api/v1/connectors/google-drive/callback",
         params={"error": "access_denied"},
@@ -587,7 +587,7 @@ async def test_drive_callback_access_denied_redirect(drive_client):
     )
     assert resp.status_code == 302
     assert "connector_result=error" in resp.headers["location"]
-    assert "error_code=access_denied" in resp.headers["location"]
+    assert "error_code=google_oauth_access_denied" in resp.headers["location"]
 
 
 @pytest.mark.asyncio

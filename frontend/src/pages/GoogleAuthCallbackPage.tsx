@@ -3,6 +3,11 @@ import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const ERROR_MESSAGES: Record<string, string> = {
+  // P12-001 locked identifiers — canonical messages
+  google_oauth_app_not_ready: 'Google Sign-In is not currently available for this beta. If you believe you should have access, contact the site operator.',
+  google_oauth_access_denied: 'Google sign-in was cancelled or access was denied. Click the link below to try again.',
+  google_oauth_unavailable: 'Google Sign-In is temporarily unavailable due to a configuration issue. Please try again later or contact support.',
+  // Legacy codes kept for backwards compatibility with in-flight redirects
   sso_disabled: 'Google Sign-In is not currently available.',
   oauth_error: 'Google sign-in was cancelled or denied.',
   invalid_request: 'The sign-in request was invalid. Please try again.',

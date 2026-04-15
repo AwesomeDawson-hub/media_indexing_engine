@@ -13,8 +13,9 @@ Callback redirect contract (to frontend):
   Success: {frontend_url}/add-media?connector=google_drive&source_id={id}&connector_result=connected
   Error:   {frontend_url}/add-media?connector=google_drive&source_id={id}&connector_result=error&error_code={code}
 
-Error codes: access_denied, invalid_state, state_expired_or_replayed, exchange_failed,
-             connector_disabled, source_not_found, source_archived, account_snapshot_failed
+Error codes: google_oauth_access_denied, google_oauth_unavailable, invalid_state,
+             state_expired_or_replayed, exchange_failed, source_not_found, source_archived,
+             account_snapshot_failed
 """
 
 from __future__ import annotations
@@ -121,7 +122,7 @@ async def google_drive_start(
             status_code=503,
             detail={
                 "message": "Google Drive connector is not enabled.",
-                "error_code": "connector_disabled",
+                "error_code": "google_oauth_unavailable",
             },
         )
     if not settings.connector.credentials_key:
@@ -129,7 +130,7 @@ async def google_drive_start(
             status_code=503,
             detail={
                 "message": "Connector credentials encryption key is not configured.",
-                "error_code": "connector_unavailable",
+                "error_code": "google_oauth_unavailable",
             },
         )
 
@@ -186,12 +187,12 @@ async def google_drive_upgrade_scope_start(
     if not settings.google_drive.is_ready:
         raise HTTPException(
             status_code=503,
-            detail={"message": "Google Drive connector is not enabled.", "error_code": "connector_disabled"},
+            detail={"message": "Google Drive connector is not enabled.", "error_code": "google_oauth_unavailable"},
         )
     if not settings.connector.credentials_key:
         raise HTTPException(
             status_code=503,
-            detail={"message": "Connector credentials key not configured.", "error_code": "connector_unavailable"},
+            detail={"message": "Connector credentials key not configured.", "error_code": "google_oauth_unavailable"},
         )
 
     source = await _require_owned_source(source_id, user_id, db)
@@ -254,7 +255,7 @@ async def google_drive_quick_connect(
             status_code=503,
             detail={
                 "message": "Google Drive connector is not enabled.",
-                "error_code": "connector_disabled",
+                "error_code": "google_oauth_unavailable",
             },
         )
     if not settings.connector.credentials_key:
@@ -262,7 +263,7 @@ async def google_drive_quick_connect(
             status_code=503,
             detail={
                 "message": "Connector credentials encryption key is not configured.",
-                "error_code": "connector_unavailable",
+                "error_code": "google_oauth_unavailable",
             },
         )
 
@@ -317,7 +318,7 @@ async def google_drive_callback(
     # Step 1: reject early if connector is disabled (misconfiguration guard)
     # ------------------------------------------------------------------
     if not settings.google_drive.is_ready:
-        return _error_redirect(frontend_url, None, "connector_disabled")
+        return _error_redirect(frontend_url, None, "google_oauth_unavailable")
 
     # ------------------------------------------------------------------
     # Step 2: extract query params
@@ -328,7 +329,7 @@ async def google_drive_callback(
     signed_state = query_params.get("state")
 
     if error_param == "access_denied":
-        return _error_redirect(frontend_url, None, "access_denied")
+        return _error_redirect(frontend_url, None, "google_oauth_access_denied")
 
     if not code or not signed_state:
         return _error_redirect(frontend_url, None, "invalid_state")

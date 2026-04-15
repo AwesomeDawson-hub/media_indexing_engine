@@ -132,6 +132,14 @@ class MediaItem(Base):
     last_mutation_error_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     last_mutation_error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_file_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # P12-009: first-class source-truth capture metadata.
+    # Populated at ingest from source EXIF; never overwritten by re-analysis or AI write-back.
+    source_capture_datetime_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    source_capture_datetime_raw: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source_capture_time_offset_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    source_gps_latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source_gps_longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source_gps_altitude_meters: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
 

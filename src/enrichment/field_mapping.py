@@ -64,8 +64,6 @@ def build_iptc_data(metadata: MediaMetadataResult) -> dict:
     }
     if metadata.objects:
         data["supplemental category"] = metadata.objects
-    if metadata.location_hint:
-        data["city"] = metadata.location_hint
     if metadata.context:
         data["special instructions"] = metadata.context
     return data

@@ -31,9 +31,58 @@ Each completed workstream gets one entry in the log below, following this struct
 
 ## Completed Workstream Log
 
+### P12-009: Source Capture Metadata Preservation Hardening
+- **Phase:** Post-Phase 9 incremental workstreams
+- **Completed:** 2026-04-15
+- **Objective:** Per ARCH-004, harden source-truth capture metadata preservation: store first-class DB fields for source-authored capture datetime and GPS; extract them at ingest time; enforce that AI write-back paths cannot overwrite source fields; remove AI `location_hint` from IPTC city and XMP Iptc4xmpCore:Location; make PNG XMP embedding non-destructive.
+- **Outcome:** All four slices implemented and 12/12 focused tests pass. ARCH-004 contracts D3, D4, D5, D6 are fully enforced.
+- **Files Changed:**
+  - `alembic/versions/e3f4a5b6c7d8_p12_009_source_capture_metadata.py` — new migration; adds 6 nullable columns to `media_items` (`source_capture_datetime_utc`, `source_capture_datetime_raw`, `source_capture_time_offset_minutes`, `source_gps_latitude`, `source_gps_longitude`, `source_gps_altitude_meters`) plus index on `source_capture_datetime_utc`
+  - `src/models.py` — added 6 matching `Mapped[... | None]` fields to `MediaItem`
+  - `src/ingestion/metadata_extractor.py` — new module; `CaptureMetadata` dataclass + `extract_source_capture_metadata(file_bytes, mime_type)` function; piexif-based EXIF extraction for JPEG/TIFF; DMS-to-decimal GPS conversion; OffsetTimeOriginal → UTC normalisation; fully non-fatal
+  - `src/ingestion/upload_service.py` — calls `extract_source_capture_metadata` before `MediaItem` construction; populates 6 source-truth fields
+  - `src/ingestion/connector_ingest.py` — same extraction call and field population
+  - `src/enrichment/field_mapping.py` — removed `if metadata.location_hint: data["city"] = metadata.location_hint` (ARCH-004 D4 violation)
+  - `src/enrichment/xmp_builder.py` — removed `location` variable, `Iptc4xmpCore:Location` element, and `xmlns:Iptc4xmpCore` namespace declaration (ARCH-004 D4 violation)
+  - `src/enrichment/png_writer.py` — rewrote `embed_png` with non-destructive XMP merge via ElementTree; added `_try_merge_xmp` helper; fail-closed behaviour preserves original XMP when merge fails (ARCH-004 D6 violation fix)
+  - `scripts/backfill_p12_009_capture_metadata.py` — new idempotent backfill script for existing full-storage items; CLI flags `--dry-run`, `--batch-size`, `--stop-after`, `--user-id`
+  - `tests/test_p12_009_capture_metadata.py` — 12 focused tests (9 P12-009 contract tests + 3 edge-case extras)
+- **Validation status:** 12/12 P12-009 focused tests pass.
+
+### P12-001: Google OAuth Production-Readiness and Beta-Access Hardening
+- **Phase:** Post-Phase 9 incremental workstreams
+- **Completed:** 2026-04-14
+- **Objective:** Lock a canonical five-identifier error/state vocabulary across Google SSO and Google Drive OAuth surfaces to make provider-blocked, operator-misconfiguration, and user-consent-denied states unambiguous to the frontend and to any future operator onboarding checklist consumers.
+- **Outcome:** All five locked identifiers are now emitted consistently from the backend and handled with guided messages in the frontend. No architecture changes, no new providers, no scope expansion beyond P12-001's four slices.
+- **Files Changed:**
+  - `src/api/routes/google_auth.py` — `/google/start` and `/google/exchange` 503 responses now use `detail={"error_code": "google_oauth_unavailable", "message": "..."}` dict form (previously bare string `"Google SSO is not enabled"`); callback `sso_disabled` redirect renamed to `google_oauth_app_not_ready`; callback `oauth_error` redirect renamed to `google_oauth_access_denied`
+  - `src/api/routes/google_drive_connector.py` — all `connector_disabled` and `connector_unavailable` error codes in start/upgrade-scope/quick-connect 503 responses replaced with `google_oauth_unavailable`; callback `connector_disabled` redirect renamed to `google_oauth_unavailable`; callback `access_denied` renamed to `google_oauth_access_denied`; module docstring error codes list updated
+  - `frontend/src/pages/GoogleAuthCallbackPage.tsx` — `ERROR_MESSAGES` dict extended with `google_oauth_app_not_ready`, `google_oauth_access_denied`, `google_oauth_unavailable`; legacy `sso_disabled` and `oauth_error` entries retained for backwards compatibility
+  - `frontend/src/pages/SourcesPage.tsx` — `DRIVE_CONNECTOR_ERROR_MESSAGES` const added with all five locked identifiers plus legacy fallback entries; callback banner now uses message lookup instead of raw `code.replace(/_/g, ' ')`
+  - `frontend/src/pages/AddMediaPage.tsx` — same `DRIVE_CONNECTOR_ERROR_MESSAGES` map added; callback error display now renders the mapped message directly (full sentence) with code-replace fallback for unknown codes
+  - `tests/test_google_drive_connector.py` — `test_drive_callback_access_denied_redirect` assertion updated from `error_code=access_denied` to `error_code=google_oauth_access_denied`
+  - `tests/test_p12_001_google_oauth_readiness.py` — new file; 7 focused tests covering all five locked identifiers across SSO and Drive connector paths
+- **Error vocabulary mapping (canonical):**
+
+  | Old code | Location | New code |
+  |---|---|---|
+  | `sso_disabled` (redirect) | SSO callback `is_ready=False` | `google_oauth_app_not_ready` |
+  | `oauth_error` (redirect) | SSO callback provider error | `google_oauth_access_denied` |
+  | `"Google SSO is not enabled"` (503 string) | SSO start, exchange | `error_code: google_oauth_unavailable` (dict form) |
+  | `connector_disabled` (503 JSON) | Drive start/upgrade/quick-connect | `google_oauth_unavailable` |
+  | `connector_unavailable` (503 JSON) | Drive start/upgrade/quick-connect | `google_oauth_unavailable` |
+  | `connector_disabled` (redirect) | Drive callback `is_ready=False` | `google_oauth_unavailable` |
+  | `access_denied` (redirect) | Drive callback provider error | `google_oauth_access_denied` |
+  | (frontend-derived) | `connector_status='disconnected'` | `google_drive_reconnect_required` label in banner |
+  | (frontend-derived) | `has_write_scope=false` | `google_drive_scope_upgrade_required` label in banner |
+
+- **Response format note:** The app's `register_error_handlers` custom exception handler flattens dict `detail` HTTPExceptions: `error_code` is promoted to a top-level response key, `message` becomes the `detail` string. Tests assert `body["error_code"] == "..."` accordingly.
+- **Pre-existing unrelated failure:** `tests/test_google_drive_connector.py::test_drive_list_objects_sends_correct_query` fails with `assert None == '42'`. This failure predates P12-001 and was not caused by any changes in this workstream.
+- **Validation status:** P12-001 focused suite 7/7 pass. Updated `test_drive_callback_access_denied_redirect` passes. `test_drive_list_objects_sends_correct_query` failure remains out of scope.
+
 ### P11-002: Async Connector-Aware Bulk Export
 - **Phase:** Post-Phase 9 incremental workstreams
-- **Completed:** Initial implementation landed 2026-04-12; narrow closeout remediation also landed 2026-04-12; final Auditor closeout re-pass pending
+- **Completed:** Initial implementation landed 2026-04-12; narrow closeout remediation also landed 2026-04-12; final Auditor re-pass approved closeout 2026-04-13
 - **Files Changed:**
   - `src/config.py` — added `ExportConfig` dataclass (`max_batch_size`, `max_active_jobs_per_user`, `artifact_ttl_hours`, `drive_concurrency`); wired into `Settings` and `load_settings`
   - `src/models.py` — added `ExportJob` ORM model (`export_jobs` table; status lifecycle, per-item JSON columns, artifact path/TTL, artifact_downloaded flag)
@@ -52,8 +101,9 @@ Each completed workstream gets one entry in the log below, following this struct
   - ZIP assembly now writes incrementally to the temporary export artifact instead of buffering the full archive in memory
   - TTL-expired artifact cleanup now exists on startup via app lifespan wiring
   - completed and `completed_with_failures` jobs are now TTL-checked and can promote to `expired` on status polling
+- **Final Auditor outcome:** No blocking findings. P11-002 approved for closeout. ADR-036 remains the authoritative contract.
 - **Validation status:** P11-002 focused suite 19/19 pass. Directly affected suites 71 pass. The full backend suite is not fully green because of a separate unrelated failure in `tests/test_google_drive_connector.py`; that failure is not treated as a P11-002 regression.
-- **Architect verdict:** P11-002 is now reconciled to the locked ADR-036 contract. The remaining workflow gate is the final Auditor closeout re-pass, not another Engineer remediation slice.
+- **Architect verdict:** P11-002 is formally completed and closed. The delivered contract remains the async export-job boundary with explicit per-item reporting, bounded Drive-aware execution, temporary user-scoped export artifacts, and local-folder plus non-Drive provider bulk export blocked by default.
 
 ### P11-001: Capability-Aware Batch Reanalysis
 - **Phase:** Post-Phase 9 incremental workstreams

@@ -92,7 +92,10 @@ async def auth_config() -> dict:
 async def google_start(request: Request) -> RedirectResponse:
     """Initiate Google OAuth2 flow — redirects the browser to Google's auth endpoint."""
     if not settings.google.is_ready:
-        raise HTTPException(status_code=503, detail="Google SSO is not enabled")
+        raise HTTPException(
+            status_code=503,
+            detail={"error_code": "google_oauth_unavailable", "message": "Google SSO is not configured for this environment."},
+        )
 
     raw_state = generate_state()
     nonce = generate_nonce()
@@ -136,11 +139,11 @@ async def google_callback(
     err_base = f"{frontend_base}/auth/google/callback?error="
 
     if not settings.google.is_ready:
-        return RedirectResponse(url=f"{err_base}sso_disabled", status_code=302)
+        return RedirectResponse(url=f"{err_base}google_oauth_app_not_ready", status_code=302)
 
     # Provider-level error (user cancelled, etc.)
     if error:
-        return RedirectResponse(url=f"{err_base}oauth_error", status_code=302)
+        return RedirectResponse(url=f"{err_base}google_oauth_access_denied", status_code=302)
 
     if not code or not state:
         return RedirectResponse(url=f"{err_base}invalid_request", status_code=302)
@@ -227,7 +230,10 @@ async def google_exchange(
 ) -> AuthResponse:
     """Consume one-time completion record and return the standard AuthResponse JWT."""
     if not settings.google.is_ready:
-        raise HTTPException(status_code=503, detail="Google SSO is not enabled")
+        raise HTTPException(
+            status_code=503,
+            detail={"error_code": "google_oauth_unavailable", "message": "Google SSO is not configured for this environment."},
+        )
 
     completion_id = request.cookies.get("google_completion")
     if not completion_id:

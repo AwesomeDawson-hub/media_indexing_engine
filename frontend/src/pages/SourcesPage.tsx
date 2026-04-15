@@ -12,6 +12,17 @@ import type {
   ConnectorDriveConfigureRequest,
 } from '../types/api';
 
+// P12-001 locked error vocabulary for Drive connector callback banners
+const DRIVE_CONNECTOR_ERROR_MESSAGES: Record<string, string> = {
+  google_oauth_unavailable: 'Google Drive connection is unavailable due to a configuration issue. Operator action may be required.',
+  google_oauth_access_denied: 'You cancelled or denied Google Drive access. Click "+ Connect Google Drive" to try again.',
+  google_drive_reconnect_required: 'Your Google Drive connection needs to be reauthorized. Click "+ Connect Google Drive" to reconnect.',
+  google_drive_scope_upgrade_required: 'Your Google Drive connection needs additional permissions. Use "Upgrade Drive permissions" to grant them.',
+  // Legacy codes kept for backwards compatibility
+  connector_disabled: 'Google Drive connection is not currently available.',
+  access_denied: 'Google Drive access was denied.',
+};
+
 export default function SourcesPage() {
   const [sources, setSources] = useState<SourceResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,7 +82,9 @@ export default function SourcesPage() {
         if (sid) setExpandedConnector(sid);
         load(false);      } else if (result === 'error') {
         const code = params.get('error_code') || 'unknown_error';
-        setCallbackBanner({ type: 'error', message: `Google Drive connection failed: ${code.replace(/_/g, ' ')}` });
+        const message = DRIVE_CONNECTOR_ERROR_MESSAGES[code]
+          ?? `Google Drive connection failed: ${code.replace(/_/g, ' ')}`;
+        setCallbackBanner({ type: 'error', message });
       }
       window.history.replaceState({}, '', window.location.pathname);
     }
