@@ -44,6 +44,10 @@ export default function MediaDetailPage() {
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState('');
 
+  // Auto-dismiss the "fully applied" success banner after 5 s
+  const [showFullyAppliedBanner, setShowFullyAppliedBanner] = useState(true);
+  const fullyAppliedTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
   // Swipe / gesture state
   const swipeWrapRef = useRef<HTMLDivElement>(null);
   const gestureStateRef = useRef({ startX: 0, startY: 0, axis: null as 'h' | null, active: false, tx: 0 });
@@ -92,6 +96,18 @@ export default function MediaDetailPage() {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [id]);
+
+  // Reset and start the auto-dismiss timer whenever mutation_state becomes fully_applied
+  useEffect(() => {
+    if (media?.mutation_state === 'fully_applied') {
+      setShowFullyAppliedBanner(true);
+      clearTimeout(fullyAppliedTimerRef.current);
+      fullyAppliedTimerRef.current = setTimeout(() => setShowFullyAppliedBanner(false), 5000);
+    } else {
+      setShowFullyAppliedBanner(true); // reset for other states (pending/blocked stay visible)
+    }
+    return () => clearTimeout(fullyAppliedTimerRef.current);
+  }, [media?.mutation_state]);
 
   const isTerminal = (s: string) => ['completed', 'failed', 'error'].includes(s);
 
@@ -463,8 +479,8 @@ export default function MediaDetailPage() {
           </div>
 
           {/* Source mutation state (P7-004) */}
-          {media.status === 'completed' && media.mutation_state && (
-            <div className={`mutation-state-banner mutation-state--${media.mutation_state}`}>
+          {media.status === 'completed' && media.mutation_state && (showFullyAppliedBanner || media.mutation_state !== 'fully_applied') && (
+            <div className={`mutation-state-banner mutation-state--${media.mutation_state}${media.mutation_state === 'fully_applied' ? ' mutation-state--fading' : ''}`}>
               {media.mutation_state === 'fully_applied' && (
                 <span>✓ Source file updated — filename and metadata applied at source</span>
               )}
