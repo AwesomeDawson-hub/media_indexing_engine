@@ -44,9 +44,11 @@ export default function MediaDetailPage() {
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState('');
 
-  // Auto-dismiss the "fully applied" success banner after 5 s
-  const [showFullyAppliedBanner, setShowFullyAppliedBanner] = useState(true);
+  // Auto-dismiss the "fully applied" success banner after 5 s.
+  // Only shown when mutation_state *transitions* to fully_applied — not on initial page load.
+  const [showFullyAppliedBanner, setShowFullyAppliedBanner] = useState(false);
   const fullyAppliedTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const prevMutationStateRef = useRef<string | null | undefined>(undefined); // undefined = not yet initialised
 
   // Swipe / gesture state
   const swipeWrapRef = useRef<HTMLDivElement>(null);
@@ -97,15 +99,23 @@ export default function MediaDetailPage() {
     };
   }, [id]);
 
-  // Reset and start the auto-dismiss timer whenever mutation_state becomes fully_applied
+  // Show the "fully applied" banner only when mutation_state transitions TO fully_applied
+  // during this session (i.e. after a (re-)analysis completes). Skip the initial load value.
   useEffect(() => {
-    if (media?.mutation_state === 'fully_applied') {
+    const current = media?.mutation_state;
+    const prev = prevMutationStateRef.current;
+
+    if (prev !== undefined && prev !== 'fully_applied' && current === 'fully_applied') {
+      // Genuine transition — show and start dismiss timer
       setShowFullyAppliedBanner(true);
       clearTimeout(fullyAppliedTimerRef.current);
       fullyAppliedTimerRef.current = setTimeout(() => setShowFullyAppliedBanner(false), 5000);
-    } else {
-      setShowFullyAppliedBanner(true); // reset for other states (pending/blocked stay visible)
+    } else if (current !== 'fully_applied') {
+      // State is pending/blocked/null — hide banner (it's never a success right now)
+      setShowFullyAppliedBanner(false);
     }
+
+    prevMutationStateRef.current = current;
     return () => clearTimeout(fullyAppliedTimerRef.current);
   }, [media?.mutation_state]);
 
