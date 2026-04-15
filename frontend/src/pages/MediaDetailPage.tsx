@@ -45,10 +45,12 @@ export default function MediaDetailPage() {
   const [retryError, setRetryError] = useState('');
 
   // Auto-dismiss the "fully applied" success banner after 5 s.
-  // Only shown when mutation_state *transitions* to fully_applied — not on initial page load.
+  // pendingSuccessBannerRef is set when the user clicks Re-analyze so we know to
+  // show the banner once that re-analysis finishes — never on a plain page load.
   const [showFullyAppliedBanner, setShowFullyAppliedBanner] = useState(false);
   const fullyAppliedTimerRef = useRef<ReturnType<typeof setTimeout>>();
-  const prevMutationStateRef = useRef<string | null | undefined>(undefined); // undefined = not yet initialised
+  const prevMutationStateRef = useRef<string | null | undefined>(undefined);
+  const pendingSuccessBannerRef = useRef(false);
 
   // Swipe / gesture state
   const swipeWrapRef = useRef<HTMLDivElement>(null);
@@ -99,38 +101,33 @@ export default function MediaDetailPage() {
     };
   }, [id]);
 
-  // Show the "fully applied" banner after a (re-)analysis completes with fully_applied.
-  // Two triggers:
-  //   1. mutation_state transitions FROM something else TO fully_applied (first-time analysis)
-  //   2. reanalyzing flips false→true→false and mutation_state is fully_applied on completion
+  // Show banner when re-analysis finishes with fully_applied.
+  // pendingSuccessBannerRef was set in handleReanalyze, so we know this is a real completion,
+  // not just a page load that happens to have fully_applied state.
+  useEffect(() => {
+    if (!reanalyzing && pendingSuccessBannerRef.current && media?.mutation_state === 'fully_applied') {
+      pendingSuccessBannerRef.current = false;
+      setShowFullyAppliedBanner(true);
+      clearTimeout(fullyAppliedTimerRef.current);
+      fullyAppliedTimerRef.current = setTimeout(() => setShowFullyAppliedBanner(false), 5000);
+    }
+  }, [reanalyzing, media?.mutation_state]);
+
+  // Show banner when mutation_state transitions to fully_applied for the first time
+  // (e.g. initial analysis — not a re-analysis the user explicitly triggered).
   useEffect(() => {
     const current = media?.mutation_state;
     const prev = prevMutationStateRef.current;
-
-    if (prev !== undefined && prev !== 'fully_applied' && current === 'fully_applied') {
-      // Transition from non-fully_applied → fully_applied (e.g. first analysis)
+    if (prev !== undefined && prev !== 'fully_applied' && current === 'fully_applied' && !pendingSuccessBannerRef.current) {
       setShowFullyAppliedBanner(true);
       clearTimeout(fullyAppliedTimerRef.current);
       fullyAppliedTimerRef.current = setTimeout(() => setShowFullyAppliedBanner(false), 5000);
     } else if (current !== 'fully_applied') {
       setShowFullyAppliedBanner(false);
     }
-
     prevMutationStateRef.current = current;
     return () => clearTimeout(fullyAppliedTimerRef.current);
   }, [media?.mutation_state]);
-
-  // When a re-analysis finishes (reanalyzing: true→false) and mutation_state is fully_applied,
-  // show the banner — mutation_state itself won't transition so the above effect won't fire.
-  const prevReanalyzingRef = useRef(false);
-  useEffect(() => {
-    if (prevReanalyzingRef.current && !reanalyzing && media?.mutation_state === 'fully_applied') {
-      setShowFullyAppliedBanner(true);
-      clearTimeout(fullyAppliedTimerRef.current);
-      fullyAppliedTimerRef.current = setTimeout(() => setShowFullyAppliedBanner(false), 5000);
-    }
-    prevReanalyzingRef.current = reanalyzing;
-  }, [reanalyzing, media?.mutation_state]);
 
   const isTerminal = (s: string) => ['completed', 'failed', 'error'].includes(s);
 
@@ -165,6 +162,7 @@ export default function MediaDetailPage() {
 
   async function handleReanalyze(hint?: string) {
     if (!id) return;
+    pendingSuccessBannerRef.current = true;
     setReanalyzing(true);
     // Don't fetch analysis here — backend may still return old 'completed' status
     // (race condition). The poll effect starts because reanalyzing=true.
