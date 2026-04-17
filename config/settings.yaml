@@ -47,3 +47,8 @@ auth:
   algorithm: "HS256"
   access_token_expire_minutes: 60
   dev_mode: false
+
+connector:
+  # P12-010: bounded connector analysis concurrency; range 1..3, rollout target 2.
+  # Increased to 3 on 2026-04-16 after stable P12-010 rollout observation.
+  connector_sync_analysis_concurrency: 3
