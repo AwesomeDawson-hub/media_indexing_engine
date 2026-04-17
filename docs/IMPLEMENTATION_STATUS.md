@@ -31,11 +31,27 @@ Each completed workstream gets one entry in the log below, following this struct
 
 ## Completed Workstream Log
 
+### P12-010: Bounded Connector Analysis Concurrency Foundation
+- **Phase:** Post-Phase 9 incremental workstreams
+- **Completed:** 2026-04-16
+- **Objective:** Replace the serialised per-item connector analysis loop with a bounded parallel execution model. Multiple admitted connector analysis tasks may overlap up to a configured bound (default 2, range 1..3) without introducing unbounded memory growth, weakening quota admission, or violating Phase 9 storage contracts.
+- **Outcome:** Full implementation delivered and Auditor-approved. Admission semaphore gates slot acquisition before download (D6). Quota reserved before task spawn (D5). Tasks return structured `ConnectorAnalysisTaskResult` outcomes (D7). `SyncRun` finalization waits for all admitted tasks to settle (D8). Quota stop halts new admission but drains already admitted work (D9, D10). Mutation/write-back remains inside the bounded task boundary (D11). Dedicated config setting with clamping enforces rollout safety (D12). Auditor blocking finding resolved: `analyze_connector_item` return type changed from `None` to `bool` so processor-handled failures (caught internally, no re-raise) propagate to `SyncRun.failed_count` rather than silently counting as success. 20/20 focused tests pass; 74/74 total across all directly affected suites.
+- **Files Changed:**
+  - `src/config.py` — added `ConnectorConfig` dataclass with `connector_sync_analysis_concurrency: int = 2`; `__post_init__` clamps to range 1..3; wired into `Settings`
+  - `config/settings.yaml` — added `connector:` section with `connector_sync_analysis_concurrency: 2`
+  - `src/connectors/sync_service.py` — added `ConnectorAnalysisTaskResult` dataclass (fields: `job_id`, `outcome`, `error`); added `_run_admitted_analysis_task()` coroutine (slot release in `finally`, outcome from `analyze_connector_item` return value, exception catch for unexpected propagation); refactored `_run_sync` with full bounded-admission loop: `asyncio.Semaphore(concurrency)`, slot-before-download discipline, quota-before-spawn, admitted task list, drain via `asyncio.gather`, aggregated failure accounting, structured run finalization
+  - `src/analysis/processor.py` — `analyze_connector_item` return type changed from `-> None` to `-> bool`; `return True` added at success path (after `job.status = "completed"` / quota consume, including idempotency path); `return False` added at all handled-failure branches (job-not-found, MediaItem-not-found, exception handler after quota release); docstring updated to explain boolean contract and no-re-raise design
+  - `tests/test_p12_010_connector_analysis_concurrency.py` — 20 focused tests across 6 classes: `TestConnectorConfigClamping` (×6 clamping cases), `TestAdmittedAnalysisTask` (×7: worker cap, gather completeness, exception-raised failure, exception batch accounting, per-item isolation, no-storage-path regression, concurrency-1 serialization), `TestQuotaStopAndDrain` (×2: admission stop, drain after stop), `TestByteBacklogPrevention` (×1: slot-before-download D6), `TestRolloutTarget` (×1: concurrency=2 end-to-end), `TestProcessorHandledFailurePropagation` (×3: return-False → failed outcome, batch failed_count, mixed success/failure accounting)
+  - `tests/test_connectors.py` — two existing tests patched with `_get_vision_provider → None` to isolate from admission-outcome counting; both still pass
+- **Auditor blocking finding (resolved):** Pre-fix, `_run_admitted_analysis_task` treated any normal return from `analyze_connector_item` as `outcome="success"`. Because `analyze_connector_item` catches all exceptions internally, writes `job.status="failed"` to DB, and returns (now `False`, previously `None`), production failures were never counted in `SyncRun.failed_count`. Fix: explicit `bool` return contract + branch on return value in task wrapper.
+- **Key decisions:** D1–D12 all implemented as locked in `P12-010_plan.md`. `asyncio.Semaphore` used as the admission mechanism (not a thread pool or external worker). `_run_admitted_analysis_task` is the single admission path. Slot acquired before download to enforce D6 byte-backlog bound.
+- **Validation status:** 20/20 P12-010 focused tests pass. 74/74 total (P12-010 ×20 + test_connectors ×32 + test_connector_ingest ×8 + test_p12_009_capture_metadata ×14) pass.
+
 ### P12-009: Source Capture Metadata Preservation Hardening
 - **Phase:** Post-Phase 9 incremental workstreams
 - **Completed:** 2026-04-15
 - **Objective:** Per ARCH-004, harden source-truth capture metadata preservation: store first-class DB fields for source-authored capture datetime and GPS; extract them at ingest time; enforce that AI write-back paths cannot overwrite source fields; remove AI `location_hint` from IPTC city and XMP Iptc4xmpCore:Location; make PNG XMP embedding non-destructive.
-- **Outcome:** All four slices implemented and 12/12 focused tests pass. ARCH-004 contracts D3, D4, D5, D6 are fully enforced.
+- **Outcome:** All four slices implemented and 14/14 focused tests pass (12 original + 2 added at closeout). ARCH-004 contracts D3, D4, D5, D6 are fully enforced.
 - **Files Changed:**
   - `alembic/versions/e3f4a5b6c7d8_p12_009_source_capture_metadata.py` — new migration; adds 6 nullable columns to `media_items` (`source_capture_datetime_utc`, `source_capture_datetime_raw`, `source_capture_time_offset_minutes`, `source_gps_latitude`, `source_gps_longitude`, `source_gps_altitude_meters`) plus index on `source_capture_datetime_utc`
   - `src/models.py` — added 6 matching `Mapped[... | None]` fields to `MediaItem`
@@ -45,9 +61,9 @@ Each completed workstream gets one entry in the log below, following this struct
   - `src/enrichment/field_mapping.py` — removed `if metadata.location_hint: data["city"] = metadata.location_hint` (ARCH-004 D4 violation)
   - `src/enrichment/xmp_builder.py` — removed `location` variable, `Iptc4xmpCore:Location` element, and `xmlns:Iptc4xmpCore` namespace declaration (ARCH-004 D4 violation)
   - `src/enrichment/png_writer.py` — rewrote `embed_png` with non-destructive XMP merge via ElementTree; added `_try_merge_xmp` helper; fail-closed behaviour preserves original XMP when merge fails (ARCH-004 D6 violation fix)
-  - `scripts/backfill_p12_009_capture_metadata.py` — new idempotent backfill script for existing full-storage items; CLI flags `--dry-run`, `--batch-size`, `--stop-after`, `--user-id`
-  - `tests/test_p12_009_capture_metadata.py` — 12 focused tests (9 P12-009 contract tests + 3 edge-case extras)
-- **Validation status:** 12/12 P12-009 focused tests pass.
+  - `scripts/backfill_p12_009_capture_metadata.py` — new idempotent backfill script for existing full-storage items; CLI flags `--dry-run`, `--batch-size`, `--stop-after`, `--user-id`; **closeout fix (2026-04-16):** pending query now also requires `source_gps_latitude IS NULL` (was `source_capture_datetime_raw IS NULL` alone), making rerun semantics correct for GPS-only historical rows
+  - `tests/test_p12_009_capture_metadata.py` — 14 focused tests (9 P12-009 contract tests + 3 edge-case extras + 2 backfill idempotency tests added at closeout)
+- **Validation status:** 14/14 P12-009 focused tests pass.
 
 ### P12-001: Google OAuth Production-Readiness and Beta-Access Hardening
 - **Phase:** Post-Phase 9 incremental workstreams

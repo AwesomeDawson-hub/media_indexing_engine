@@ -2,8 +2,22 @@
 
 Processes all media_items where source-truth EXIF fields are NULL, reads the
 stored file (storage_mode='full' only), extracts capture datetime and GPS, and
-updates the DB in commit batches.  Safe to run multiple times (idempotent: skips
-items that already have source_capture_datetime_raw populated).
+updates the DB in commit batches.
+
+Rerun semantics (idempotency boundary)
+---------------------------------------
+A row is considered already-backfilled when *either* source_capture_datetime_raw
+*or* source_gps_latitude is non-null.  The pending candidate query therefore
+excludes any row where at least one source-capture field has been populated.
+
+This correctly handles GPS-only historical rows (images that carry GPS
+coordinates but no DateTimeOriginal): once source_gps_latitude is populated the
+row is excluded from all subsequent runs.  The previous single-field key
+(source_capture_datetime_raw only) left GPS-only rows perpetually eligible.
+
+Rows where the stored file contains no extractable EXIF (neither datetime nor
+GPS) remain in the candidate pool on every run but produce no DB writes and no
+side effects — they are processed in O(read) time and logged as skipped.
 
 Usage:
     python -m scripts.backfill_p12_009_capture_metadata [OPTIONS]
@@ -60,11 +74,16 @@ async def backfill(
     file_store = _build_file_store()
 
     async with async_session() as db:
-        # Query: full-storage items with no capture metadata yet
+        # Query: full-storage items where no source-capture field has been populated yet.
+        # Idempotency boundary: a row is considered done when either
+        # source_capture_datetime_raw OR source_gps_latitude is non-null.
+        # This excludes GPS-only rows that were already backfilled in a previous run
+        # (they have gps_latitude set but datetime_raw still NULL).
         query = (
             select(MediaItem)
             .where(MediaItem.storage_mode == "full")
             .where(MediaItem.source_capture_datetime_raw.is_(None))
+            .where(MediaItem.source_gps_latitude.is_(None))
             .where(MediaItem.storage_path.isnot(None))
             .order_by(MediaItem.created_at)
         )
@@ -125,7 +144,7 @@ async def backfill(
             await db.commit()
 
         logger.info(
-            "P12-009 backfill complete: %d processed, %d updated, %d skipped (no EXIF)",
+            "P12-009 backfill complete: %d processed, %d updated, %d skipped (no extractable EXIF)",
             processed,
             updated,
             processed - updated,

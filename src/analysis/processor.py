@@ -377,7 +377,7 @@ async def analyze_connector_item(
     indexing_service: "IndexingService | None" = None,
     reservation_id: str | None = None,
     hint: str | None = None,
-) -> None:
+) -> bool:
     """Synchronous single-attempt analysis for connector-ingested reference-mode items.
 
     Uses caller-provided bytes directly — no file_store.read() and no storage_path
@@ -386,6 +386,12 @@ async def analyze_connector_item(
 
     No retry loop (ADR-031: first zero-transient slice; long-term retry contract is
     source re-fetch from the connector, not app-retained originals).
+
+    Returns True when analysis completed successfully, False when a handled failure
+    was written to the job/media-item records.  Callers (e.g. P12-010 task wrapper)
+    use this signal to aggregate outcomes into sync-run accounting (D7) without
+    relying on exception propagation, which would alter the public side-effect
+    contract used by other callers such as the Drive reanalyze endpoint.
     """
     async with async_session() as db:
         job_result = await db.execute(
@@ -394,7 +400,7 @@ async def analyze_connector_item(
         job = job_result.scalar_one_or_none()
         if job is None:
             logger.error("analyze_connector_item: job %s not found", job_id)
-            return
+            return False
 
         item_result = await db.execute(
             select(MediaItem).where(MediaItem.id == job.media_item_id)
@@ -409,10 +415,10 @@ async def analyze_connector_item(
             job.status = "failed"
             job.error_message = f"MediaItem {job.media_item_id} not found"
             await db.commit()
-            return
+            return False
 
         if job.status == "completed":
-            return
+            return True
 
         now = datetime.now(timezone.utc)
         job.status = "running"
@@ -493,6 +499,7 @@ async def analyze_connector_item(
 
             # No _attempt_preview_pivot: item is storage_mode='reference',
             # the original was never stored in app storage.
+            return True
 
         except Exception as exc:
             await db.rollback()
@@ -520,3 +527,5 @@ async def analyze_connector_item(
             if reservation_id:
                 async with async_session() as quota_db:
                     await _quota_service.release(quota_db, reservation_id)
+
+            return False

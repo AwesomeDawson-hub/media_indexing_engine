@@ -316,6 +316,10 @@ async def test_analyze_connector_item_analysis_error(
     broken_provider = MagicMock()
     broken_provider.analyze_image = AsyncMock(side_effect=RuntimeError("API down"))
 
+    # P12-010: analyze_connector_item handles its own errors internally without
+    # re-raising; it marks the job/item as failed in the DB.  The P12-010 task
+    # wrapper (_run_admitted_analysis_task) uses exception interception at the
+    # task level to detect failures — not rely on re-raise from this function.
     await analyze_connector_item(
         job_id=job_id,
         file_bytes=JPEG_BYTES,

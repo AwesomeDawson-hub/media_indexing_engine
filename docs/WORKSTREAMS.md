@@ -81,6 +81,26 @@ This document tracks all work items for the Media Indexing Engine through their 
 - **Plan:** `docs/planning/P11-001_plan.md`
 - **Summary:** `IMPLEMENTATION_STATUS.md` — P11-001 entry
 
+### P12-010: Bounded Connector Analysis Concurrency Foundation
+- **Objective:** Replace the current serialised per-item connector analysis loop with a bounded parallel execution model so multiple connector items can be analysed concurrently without introducing unbounded memory growth or bypassing admission controls.
+- **Phase:** Post-Phase 9 incremental workstreams
+- **Status:** Completed and closed — 2026-04-16
+- **Size:** Medium
+- **Plan:** `docs/planning/P12-010_plan.md`
+- **Architecture note:** `docs/planning/ARCH-005-connector-sync-bounded-concurrency.md`
+- **Test status:** 20/20 focused tests pass; 74/74 total across directly affected suites
+- **Summary:** `IMPLEMENTATION_STATUS.md` — P12-010 entry
+
+### P12-009: Source Capture Metadata Preservation Hardening
+- **Objective:** Lock first-class DB storage for source-authored capture date/time and GPS, make date-taken correctness DB-backed, protect authoritative source fields from AI overwrite, remove AI writes into standard source-location fields, and require non-destructive PNG XMP preservation.
+- **Phase:** Post-Phase 9 incremental workstreams
+- **Status:** Completed and closed — 2026-04-16
+- **Size:** Medium
+- **Plan:** `docs/planning/P12-009_plan.md`
+- **Architecture note:** `docs/planning/ARCH-004-source-capture-metadata-preservation.md`
+- **Test status:** 14/14 focused tests pass
+- **Summary:** `IMPLEMENTATION_STATUS.md` — P12-009 entry
+
 ### P12-001: Google OAuth Production-Readiness and Beta-Access Hardening
 - **Objective:** Harden Google SSO and Google Drive OAuth for external beta use by making provider-blocked states explicit, improving recovery guidance, and locking a current operator readiness/onboarding contract.
 - **Phase:** Post-Phase 9 incremental workstreams
@@ -99,14 +119,7 @@ This document tracks all work items for the Media Indexing Engine through their 
 
 ## In Progress
 
-### P12-009: Source Capture Metadata Preservation Hardening
-- **Objective:** Lock first-class DB storage for source-authored capture date/time and GPS, make date-taken correctness DB-backed, protect authoritative source fields from AI overwrite, remove AI writes into standard source-location fields, and require non-destructive PNG XMP preservation.
-- **Phase:** Post-Phase 9 incremental workstreams
-- **Status:** Implemented — pending Auditor closeout review
-- **Size:** Medium
-- **Plan:** `docs/planning/P12-009_plan.md`
-- **Architecture note:** `docs/planning/ARCH-004-source-capture-metadata-preservation.md`
-- **Test status:** 12/12 focused tests pass
+_No workstream currently in progress. P12-010 formally closed 2026-04-16. Next: operator approval to activate P12-002 or another planned workstream._
 
 ## Planned
 

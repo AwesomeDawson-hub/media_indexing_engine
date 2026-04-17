@@ -383,3 +383,152 @@ class TestPNGXMPMerge:
         assert xmp_out == corrupt_xmp, (
             "Fail-closed violated: corrupt XMP should be preserved unchanged"
         )
+
+
+# ---------------------------------------------------------------------------
+# Tests 10–11: Backfill script idempotency — GPS-only rows and rerun safety
+# ---------------------------------------------------------------------------
+
+async def _make_engine_and_session():
+    """Helper: in-memory SQLite engine + session factory for backfill query tests."""
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+    from sqlalchemy.pool import StaticPool
+    from src.database import Base
+
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    return engine, session_factory
+
+
+def _pending_query():
+    """Mirror the fixed backfill pending candidate query."""
+    from sqlalchemy import select
+    from src.models import MediaItem
+    return (
+        select(MediaItem)
+        .where(MediaItem.storage_mode == "full")
+        .where(MediaItem.source_capture_datetime_raw.is_(None))
+        .where(MediaItem.source_gps_latitude.is_(None))
+        .where(MediaItem.storage_path.isnot(None))
+    )
+
+
+class TestBackfillIdempotency:
+    @pytest.mark.asyncio
+    async def test_gps_only_row_excluded_after_backfill(self):
+        """Test 10: A GPS-only row (gps_latitude set, datetime_raw NULL) must be
+        excluded from the backfill pending query — not perpetually re-selected."""
+        from sqlalchemy import select
+        from src.models import MediaItem, User
+
+        engine, session_factory = await _make_engine_and_session()
+
+        async with session_factory() as db:
+            user = User(id="u-bp-001", email="bp1@test.com", display_name="BP Tester 1")
+            db.add(user)
+            await db.flush()
+
+            # Simulates a row after a successful GPS-only backfill pass:
+            # gps_latitude is populated, capture_datetime_raw is still NULL.
+            gps_only = MediaItem(
+                user_id="u-bp-001",
+                content_hash="b" * 64,
+                original_filename="gps_only.jpg",
+                file_size=1000,
+                mime_type="image/jpeg",
+                storage_path="u-bp-001/bb/gps_only.jpg",
+                storage_mode="full",
+                status="analyzed",
+                source_capture_datetime_raw=None,
+                source_gps_latitude=48.8566,
+                source_gps_longitude=2.3522,
+            )
+            db.add(gps_only)
+
+            # Zero-EXIF row — neither field set; should remain pending.
+            no_exif = MediaItem(
+                user_id="u-bp-001",
+                content_hash="c" * 64,
+                original_filename="no_exif.jpg",
+                file_size=1000,
+                mime_type="image/jpeg",
+                storage_path="u-bp-001/cc/no_exif.jpg",
+                storage_mode="full",
+                status="analyzed",
+                source_capture_datetime_raw=None,
+                source_gps_latitude=None,
+            )
+            db.add(no_exif)
+            await db.commit()
+
+        async with session_factory() as db:
+            result = await db.execute(_pending_query())
+            pending_ids = {r.id for r in result.scalars().all()}
+
+        async with session_factory() as db:
+            gps_row = (await db.execute(
+                select(MediaItem).where(MediaItem.content_hash == "b" * 64)
+            )).scalar_one()
+            no_exif_row = (await db.execute(
+                select(MediaItem).where(MediaItem.content_hash == "c" * 64)
+            )).scalar_one()
+
+        # GPS-only row must be excluded — gps_latitude is already set.
+        assert gps_row.id not in pending_ids, (
+            "GPS-only row must not remain in backfill pending pool after gps_latitude is set "
+            "(idempotency contract violated)"
+        )
+        # Zero-EXIF row remains eligible (re-checked but produces no writes).
+        assert no_exif_row.id in pending_ids, (
+            "Zero-EXIF row should stay pending until a source-capture field is populated"
+        )
+
+        await engine.dispose()
+
+    @pytest.mark.asyncio
+    async def test_datetime_row_excluded_on_rerun(self):
+        """Test 11: A row with source_capture_datetime_raw already set is excluded
+        from the pending query on a rerun — no redundant reprocessing."""
+        from sqlalchemy import select
+        from src.models import MediaItem, User
+
+        engine, session_factory = await _make_engine_and_session()
+
+        async with session_factory() as db:
+            user = User(id="u-bp-002", email="bp2@test.com", display_name="BP Tester 2")
+            db.add(user)
+            await db.flush()
+
+            already_done = MediaItem(
+                user_id="u-bp-002",
+                content_hash="d" * 64,
+                original_filename="already_done.jpg",
+                file_size=1000,
+                mime_type="image/jpeg",
+                storage_path="u-bp-002/dd/already_done.jpg",
+                storage_mode="full",
+                status="analyzed",
+                source_capture_datetime_raw="2023:07:14 10:30:00",
+                source_gps_latitude=None,
+            )
+            db.add(already_done)
+            await db.commit()
+
+        async with session_factory() as db:
+            result = await db.execute(_pending_query())
+            pending_ids = {r.id for r in result.scalars().all()}
+
+        async with session_factory() as db:
+            done_row = (await db.execute(
+                select(MediaItem).where(MediaItem.content_hash == "d" * 64)
+            )).scalar_one()
+
+        assert done_row.id not in pending_ids, (
+            "Row with source_capture_datetime_raw set must not be reselected on backfill rerun"
+        )

@@ -129,6 +129,18 @@ class ConnectorConfig:
     # Maximum number of objects to enumerate from a remote source per sync run.
     # Protects against runaway enumeration on large buckets.
     max_objects_per_sync: int = 1000
+    # P12-010: Maximum number of connector analysis tasks that may run concurrently
+    # within a single sync run.  Allowed range: 1..3.  Values outside this range are
+    # clamped to 1 or 3 respectively.  Value 1 preserves the serialized baseline
+    # (closest to the pre-P12-010 inline-await behavior).  Rollout target: 2.
+    connector_sync_analysis_concurrency: int = 2
+
+    def __post_init__(self) -> None:
+        # Clamp to the safe first-slice range per P12-010 D12.
+        if self.connector_sync_analysis_concurrency < 1:
+            self.connector_sync_analysis_concurrency = 1
+        elif self.connector_sync_analysis_concurrency > 3:
+            self.connector_sync_analysis_concurrency = 3
 
 
 @dataclass

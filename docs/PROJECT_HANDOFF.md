@@ -9,10 +9,10 @@ _Update this document at the end of every session and at every workstream transi
 | Field | Value |
 |---|---|
 | **Current Phase** | Post-Phase 9 incremental workstreams |
-| **Current Workstream** | P12-009 — Source Capture Metadata Preservation Hardening (**implemented, pending Auditor closeout**) |
-| **Last Completed Work** | P12-009 Engineer session 2026-04-15: all 4 slices implemented — migration, model, metadata extractor, ingest extraction, enrichment violations removed, non-destructive PNG XMP merge, backfill script, 12/12 focused tests pass |
-| **Next Task** | Auditor closeout review of P12-009 implementation |
-| **Next Step Requested** | Auditor confirmation pass verifying the P12-009 implementation against `P12-009_plan.md` and `ARCH-004-source-capture-metadata-preservation.md` before formal closeout |
+| **Current Workstream** | None — P12-010 formally closed 2026-04-16 |
+| **Last Completed Work** | P12-010 — formally closed 2026-04-16. Bounded connector analysis concurrency foundation delivered: `ConnectorAnalysisTaskResult`, `_run_admitted_analysis_task`, bounded admission loop in `_run_sync`, `analyze_connector_item` bool return. 20/20 focused tests pass; 74/74 total. |
+| **Next Task** | Operator selection of next workstream (P12-002 is next in Planned, or operator may direct otherwise) |
+| **Next Step Requested** | Operator approval to activate P12-002 (Remembered-Photo Evaluation Baseline) or another planned workstream |
 
 ## Required Reading
 
@@ -29,12 +29,14 @@ If implementation is underway, also read:
 7. **`docs/planning/ARCH-002-reference-mode-storage.md`** — approved architectural basis for the storage pivot
 8. **`docs/planning/PHASE_9_arch002_gap_remediation_plan.md`** — current approved Phase 9 remediation plan and decision baseline
 9. **`docs/planning/P9-004_plan.md`** — locked implementation scope for source capability snapshots and durable write-back operations
-10. **`docs/planning/P12-009_plan.md`** — current approval-gate plan for source capture metadata preservation hardening
-11. **`docs/planning/ARCH-004-source-capture-metadata-preservation.md`** — governing architecture note for source-truth capture metadata, date-taken correctness, and safe write-back preservation
-12. **`docs/planning/P12-002_plan.md`** — separately planned remembered-photo evaluation baseline workstream; not merged into P12-009
-13. **`docs/planning/ARCH-003-remembered-photo-retrieval-roadmap.md`** — staged search-quality roadmap and P12-002 parent architecture context
-14. **`docs/planning/P12-001_plan.md`** — closed historical contract for Google OAuth production-readiness and beta-access hardening
-15. **`docs/planning/P11-002_plan.md`** — current closeout-contract baseline for async connector-aware bulk export
+10. **`docs/planning/P12-010_plan.md`** — closed historical contract for bounded connector analysis concurrency foundation
+11. **`docs/planning/ARCH-005-connector-sync-bounded-concurrency.md`** — governing architecture note for bounded connector sync concurrency (enforced, closed)
+12. **`docs/planning/P12-009_plan.md`** — closed historical contract for source capture metadata preservation hardening
+13. **`docs/planning/ARCH-004-source-capture-metadata-preservation.md`** — governing architecture note for source-truth capture metadata (enforced, closed)
+14. **`docs/planning/P12-002_plan.md`** — separately planned remembered-photo evaluation baseline workstream; not yet active
+15. **`docs/planning/ARCH-003-remembered-photo-retrieval-roadmap.md`** — staged search-quality roadmap and P12-002 parent architecture context
+16. **`docs/planning/P12-001_plan.md`** — closed historical contract for Google OAuth production-readiness and beta-access hardening
+17. **`docs/planning/P11-002_plan.md`** — closed historical contract for async connector-aware bulk export
 
 ## System Summary
 
@@ -104,6 +106,14 @@ When suggesting code changes:
 - Hardcoding credentials or configuration
 
 ## Recent Session Activity
+
+- **P12-010 implementation and closeout (2026-04-16):**
+  - `ConnectorConfig.connector_sync_analysis_concurrency` added to `src/config.py` (default 2, clamped to range 1..3) and `config/settings.yaml`.
+  - `ConnectorAnalysisTaskResult` dataclass and `_run_admitted_analysis_task()` task wrapper added to `src/connectors/sync_service.py`.
+  - `_run_sync` refactored: bounded `asyncio.Semaphore` admission, slot-before-download discipline, quota-before-spawn, admitted task list, drain via `asyncio.gather`, aggregated failure accounting, structured run finalization.
+  - `analyze_connector_item` in `src/analysis/processor.py` return type changed from `None` to `bool` to propagate processor-handled failures to `SyncRun.failed_count` (Auditor blocking finding resolved).
+  - 20 focused tests in `tests/test_p12_010_connector_analysis_concurrency.py`; 74/74 pass across all directly affected suites.
+  - Governance consequence: P12-010 is now formally completed and closed. Active workstream slot is clear. Next step is operator selection of next workstream.
 
 - **P12-009 planning lock (2026-04-15):**
   - `docs/planning/P12-009_plan.md` defines the current metadata-preservation hardening slice.

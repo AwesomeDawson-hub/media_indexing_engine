@@ -563,7 +563,11 @@ async def test_trigger_sync_idempotent_skip(db_session_factory, seed_users, tmp_
 async def test_trigger_sync_imports_new_object(db_session_factory, seed_users, tmp_storage, monkeypatch):
     """A new remote object flows through process_upload and is counted as imported."""
     import src.config as cfg_mod
+    import src.connectors.sync_service as sync_service_mod
     monkeypatch.setattr(cfg_mod.settings.connector, "credentials_key", _TEST_FERNET_KEY)
+    # This test covers import/download behavior only; disable analysis so the
+    # P12-010 task wrapper does not count vision-provider errors as failures.
+    monkeypatch.setattr(sync_service_mod, "_get_vision_provider", lambda: None)
 
     from src.connectors.sync_service import trigger_sync
     from src.connectors.secrets import encrypt_credentials
@@ -678,7 +682,11 @@ async def test_trigger_sync_failed_object_does_not_abort_run(
 ):
     """A per-object download failure increments failed_count but the run continues."""
     import src.config as cfg_mod
+    import src.connectors.sync_service as sync_service_mod
     monkeypatch.setattr(cfg_mod.settings.connector, "credentials_key", _TEST_FERNET_KEY)
+    # This test covers download-failure tolerance only; disable analysis so the
+    # P12-010 task wrapper does not add extra failures to the expected count.
+    monkeypatch.setattr(sync_service_mod, "_get_vision_provider", lambda: None)
 
     from src.connectors.sync_service import trigger_sync
     from src.connectors.secrets import encrypt_credentials
