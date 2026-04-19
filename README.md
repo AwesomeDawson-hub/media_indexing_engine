@@ -1,35 +1,40 @@
 # Media Indexing Engine
 
-An AI-powered media library that ingests images from supported connected sources, enriches them with structured AI metadata, and makes them searchable through a web app.
+An AI-powered media library that ingests images from connected cloud sources, enriches them with structured AI metadata, and makes them searchable through a web app.
 
 ## Overview
 
-Media Indexing Engine helps people organize image libraries without manual tagging. You connect supported sources, the app analyzes the media with AI, and you can search it in plain language.
+Media Indexing Engine helps people organize image libraries without manual tagging. You connect supported cloud sources, the app analyzes the media with AI, and you can search it in plain language.
 
-In the current beta, the product already supports Google sign-in, Google Drive ingestion, source-aware library management, batch reanalysis, and async batch export for eligible items.
+In the current beta, the product supports email and Google sign-in, cloud-source ingestion, source-aware library management, collections, batch reanalysis, and async batch export for eligible items.
 
 ## For Beta Users
 
 ### What this app does
 
 - brings images into one searchable library
+- supports connected cloud-source ingestion
 - analyzes images automatically with AI
 - extracts structured metadata to improve search and organization
 - lets you search using plain English instead of manual folders and tags
+- lets you organize results into collections
 - supports exporting batches of eligible items when you need a packaged download
 
 ### Typical beta flow
 
 1. Sign in with email/password or Google.
-2. Connect a supported source.
+2. Add media by connecting a supported cloud source.
 3. Wait for analysis to complete.
-4. Search, browse, reanalyze, or export eligible results.
+4. Search, browse, organize into collections, reanalyze, or export eligible results.
 
 ### What works in beta today
 
 - email/password login
 - Google SSO
 - Google Drive connector ingestion
+- cloud-connected source management
+- Google Drive folder selection and sync-run tracking
+- source management and collections
 - automatic AI metadata extraction
 - natural-language search
 - batch reanalysis
@@ -41,7 +46,7 @@ In the current beta, the product already supports Google sign-in, Google Drive i
 - not every source type supports every action
 - Google sign-in or Google Drive connection can be blocked by Google’s own testing, publishing, or verification settings even when the app itself is working correctly
 - some export/download behavior depends on where the original file lives
-- local working-folder intake is currently hidden and deprecated rather than a supported beta path
+- cloud-source support is provider-specific rather than universal
 
 ### Batch export in plain language
 
@@ -49,7 +54,6 @@ Batch export is supported, but not for every kind of item.
 
 - full items stored by the app are eligible
 - Google Drive-backed reference items are eligible through the async export flow
-- local-folder reference items are not currently eligible for server-side bulk export
 - unsupported future providers do not automatically inherit Google Drive behavior
 
 ### What to expect from the product model
@@ -57,9 +61,9 @@ Batch export is supported, but not for every kind of item.
 This app is designed to be source-aware:
 
 - if an item is reference-backed, the original often stays in its original source system
-- the app keeps metadata, search state, and preview assets
+- the app keeps metadata, search state, previews, sync state, and temporary export artifacts
 - the app is a searchable media intelligence layer, not a permanent hosted vault for every original file
-- deprecated local working-folder intake code may still exist in the repo, but it is not part of the supported beta experience
+- supported ingestion is cloud-connected rather than desktop-local
 
 ## Target Users
 
@@ -70,9 +74,10 @@ This app is designed to be source-aware:
 ## What Works Today
 
 - Email/password auth plus Google SSO
-- Google Drive connector ingestion
+- Google Drive connector ingestion with folder-scoped sync
 - Automatic AI-powered metadata extraction and enrichment
 - Natural-language semantic search
+- Collections for organizing selected items
 - Source-aware reference-mode storage for supported source-backed items
 - Drive-backed single-item refetch for approved reanalysis and download flows
 - Capability-aware batch reanalysis with explicit per-item outcomes
@@ -85,7 +90,7 @@ This app is designed to be source-aware:
 - Images are the primary supported media type
 - Full/app-retained items are exportable and reanalyzable
 - Drive-backed reference items are supported only where explicitly approved by the current contracts
-- Local working-folder intake is deprecated and not part of the supported beta path; any legacy local-folder reference items remain blocked for server-side bulk export
+- Ingestion is cloud-connected only; local desktop intake is not part of the supported product path
 - Non-Drive reference providers do not inherit Drive behavior automatically
 - The legacy synchronous batch ZIP route still exists for compatibility, but the main mixed-selection export path is the async export-job model
 
@@ -101,11 +106,11 @@ The sections below are primarily for developers and operators.
 
 Current internal status at a glance:
 
-- **Current phase:** Post-Phase 9 incremental workstreams
-- **Current governance step:** P12-001 is the current approval gate; P11-002 is completed and formally closed
-- **Core storage architecture:** Phase 9 ARCH-002 remediation completed
-- **Latest delivered backend capability:** async connector-aware bulk export (P11-002), completed and closed
-- **Current live operational pressure:** Google OAuth publishing/testing readiness for external beta access
+- **Current phase:** Post-P12-010 incremental workstreams
+- **Latest completed workstream:** P12-010 bounded connector analysis concurrency foundation
+- **Next planned workstream:** P12-002 remembered-photo benchmark
+- **Primary connected-source beta path:** Google Drive connector ingestion
+- **Supported intake model:** cloud-connected sources only
 
 For the authoritative live state, read these first:
 
@@ -146,34 +151,6 @@ Recommended architecture reading order for later developers:
 3. `docs/planning/P11-001_plan.md`
 4. `docs/planning/P11-002_plan.md`
 5. `docs/DECISION_LOG.md`
-
-## Developer Beta Caveats
-
-- The full backend suite is not currently fully green because of an unrelated failure in `tests/test_google_drive_connector.py`.
-- That unrelated connector-suite failure should not be confused with P11-002 export scope or closeout status.
-- Local working-folder intake is currently hidden/deprecated because it has not been reliable enough for the supported beta experience.
-
-## Cleanup And Hardening Priorities
-
-If the next focus is cleanup and hardening rather than new feature expansion, the most pragmatic targets are:
-
-1. **Google OAuth production-readiness**
-  - clarify publishing/testing requirements
-  - document beta tester onboarding
-  - improve user-facing messaging when Google blocks access for policy reasons
-2. **Connector health and recovery UX**
-  - make scope/auth/connectivity state easier to understand
-  - surface clearer reconnect, retry, and blocked-action guidance
-3. **Release-confidence hardening**
-  - isolate and fix unrelated connector test failures
-  - document what counts as a workstream blocker versus unrelated suite drift
-  - tighten smoke-test expectations for auth, Drive, sync, and export
-4. **Async export polish**
-  - improve status visibility, expiry messaging, and job lifecycle clarity
-  - keep this as polish on top of ADR-036, not an architecture rewrite
-5. **Developer-document cleanup**
-  - keep top-level docs synchronized with current governance
-  - avoid stale references to pre-connector or pre-reference-mode assumptions
 
 ## Developer Setup
 
@@ -238,11 +215,7 @@ python -m uvicorn src.api.app:app --host 0.0.0.0 --port 8000
 python -m pytest tests/ -q --tb=short
 ```
 
-Authoritative recent validation context:
-
-- P11-002 focused suite: 19/19 pass
-- directly affected suites around P11-002: 71 pass
-- current full-suite status includes a separate unrelated failure in `tests/test_google_drive_connector.py`
+For the latest validated workstream scope and suite status, check `docs/CURRENT_STATE.md` and `docs/IMPLEMENTATION_STATUS.md`.
 
 ### Frontend setup
 
@@ -408,7 +381,7 @@ Important caveats:
 
 - **Upload size limit:** The nginx frontend is configured to accept files up to **50 MB** (`client_max_body_size 50M`). Adjust `frontend/nginx.conf` if you need a different limit.
 - **File storage:** Local disk by default (`storage.provider: local`). Set `STORAGE_PROVIDER=s3` and the S3 env vars to enable S3-backed storage.
-- **AI analysis:** Requires a valid `ANTHROPIC_API_KEY`. Without it, intake requests may succeed but AI analysis jobs will fail silently in the background.
+- **AI analysis:** Requires a valid `ANTHROPIC_API_KEY`. Without it, intake requests may succeed but analysis jobs will not complete successfully.
 
 ---
 
